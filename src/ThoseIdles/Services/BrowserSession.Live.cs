@@ -1,20 +1,87 @@
+using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
+using ThoseIdles.Mvvm;
 
 namespace ThoseIdles.Services;
 
+/// <summary>Uma live da Twitch aberta numa conta (uma "aba"). Todas usam o perfil da conta.</summary>
+public sealed class LiveTab : ObservableObject
+{
+    private WebView2? _view;
+    private bool _booting, _selected, _panelVisible, _muted = true;
+    private string _status = "";
+
+    public LiveTab(string channel) => Channel = channel;
+
+    public string Channel { get; }
+
+    public WebView2? View
+    {
+        get => _view;
+        internal set => Set(ref _view, value);
+    }
+
+    public CoreWebView2? Core { get; internal set; }
+
+    /// <summary>Iniciando: fica numa faixa mínima na tela para depois virar "hidden" de verdade.</summary>
+    public bool IsBooting
+    {
+        get => _booting;
+        internal set { if (Set(ref _booting, value)) OnPropertyChanged(nameof(IsShown)); }
+    }
+
+    /// <summary>A aba escolhida no painel (a que aparece quando o painel está visível).</summary>
+    public bool IsSelected
+    {
+        get => _selected;
+        internal set { if (Set(ref _selected, value)) OnPropertyChanged(nameof(IsShown)); }
+    }
+
+    internal bool PanelVisible
+    {
+        get => _panelVisible;
+        set { if (Set(ref _panelVisible, value)) OnPropertyChanged(nameof(IsShown)); }
+    }
+
+    /// <summary>O controle aparece? Só a aba escolhida, com o painel aberto (ou durante a inicialização).</summary>
+    public bool IsShown => _booting || (_selected && _panelVisible);
+
+    public bool Muted
+    {
+        get => _muted;
+        internal set => Set(ref _muted, value);
+    }
+
+    public string Status
+    {
+        get => _status;
+        internal set => Set(ref _status, value);
+    }
+
+    public uint MainFrameId { get; internal set; }
+
+    /// <summary>iframes da live (usado só pelas verificações do autoteste).</summary>
+    public List<CoreWebView2Frame> Frames { get; } = new();
+
+    internal int Generation;
+}
+
 /// <summary>
-/// Painel de live da Twitch desta conta. É um segundo WebView2 no MESMO perfil da conta: o login
-/// da Twitch é o da conta (o mesmo que o jogo usa no "Vincular Twitch"), e outra conta nunca vê.
+/// Lives da Twitch desta conta. Cada live é um WebView2 no MESMO perfil da conta: o login da Twitch
+/// é o da conta (o mesmo do "Vincular Twitch" do jogo), e outra conta nunca vê.
 ///
-/// O bônus do jogo (+15% de XP, +2,5% por live a mais) é para quem ASSISTE a uma live oficial
-/// logado na Twitch vinculada: o servidor procura o login no chat da live. Por isso o painel abre a
-/// página real do canal (vídeo + chat), só que mudo e na menor qualidade por padrão. Abrir só o
-/// chat, sem a live, enganaria a regra — o app não faz isso.
+/// O bônus do jogo é acumulativo (+15% de XP, +2,5% por live oficial a mais aberta ao mesmo tempo) e
+/// exige a ABA da live aberta e logada: o servidor procura o login no chat de cada live. Por isso cada
+/// live é a página real do canal, aberta em segundo plano (escondida, como aba do Chrome), muda e com
+/// padrão de 160p. Abrir só o chat, sem a live, enganaria a regra — o app não faz isso.
 /// </summary>
 public sealed partial class BrowserSession
 {
+    /// <summary>Limite de lives por conta (cada uma custa ~0,5 GB de RAM).</summary>
+    public const int MaxLivesPerAccount = 10;
+
     /// <summary>Endereço da live de um canal. Substituível no autoteste (página local).</summary>
     public static Func<string, string> LiveUrlForChannel { get; set; } = c => $"https://www.twitch.tv/{c}";
 
@@ -64,7 +131,7 @@ public sealed partial class BrowserSession
         return folder;
     }
 
-    /// <summary>Hosts onde o script de qualidade padrão pode rodar. O autoteste acrescenta localhost.</summary>
+    /// <summary>Hosts onde o script de qualidade padrão pode rodar. O autoteste acrescenta 127.0.0.1.</summary>
     public static string[] LiveQualityHosts { get; set; } = { "twitch.tv" };
 
     private static readonly HashSet<string> ReservedTwitchPaths = new(StringComparer.OrdinalIgnoreCase)
@@ -77,85 +144,91 @@ public sealed partial class BrowserSession
     [GeneratedRegex("^[A-Za-z0-9_]{2,25}$")]
     private static partial Regex TwitchLoginPattern();
 
-    private WebView2? _liveView;
-    private CoreWebView2? _liveCore;
-    private int _liveGeneration;
-    private bool _liveMuted = true;
-    private string _liveStatus = "";
+    public static bool IsValidTwitchLogin(string? s) => s is not null && TwitchLoginPattern().IsMatch(s);
+
+    private LiveTab? _selectedLive;
     private double _liveZoom = 1.0;
 
-    /// <summary>O controle da live (null quando fechada). A view o hospeda abaixo do jogo.</summary>
-    public WebView2? LiveView
+    /// <summary>As lives abertas nesta conta, na ordem em que foram abertas.</summary>
+    public ObservableCollection<LiveTab> Lives { get; } = new();
+
+    /// <summary>A live mostrada quando o painel está visível.</summary>
+    public LiveTab? SelectedLive
     {
-        get => _liveView;
+        get => _selectedLive;
         private set
         {
-            if (Set(ref _liveView, value)) OnPropertyChanged(nameof(IsLiveOpen));
+            if (_selectedLive == value) return;
+            if (_selectedLive is not null) _selectedLive.IsSelected = false;
+            _selectedLive = value;
+            if (value is not null) value.IsSelected = true;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LiveChannel));
+            OnPropertyChanged(nameof(LiveMuted));
+            ApplyLiveMemoryTargets();
         }
     }
 
-    public CoreWebView2? LiveCore => _liveCore;
-    public bool IsLiveOpen => _liveView is not null;
-    public string? LiveChannel => Account.LiveChannel;
+    public bool IsLiveOpen => Lives.Count > 0;
+    public int LiveCount => Lives.Count;
+
+    /// <summary>Canais guardados desta conta (reabrem com ela).</summary>
+    public IReadOnlyList<string> SavedLiveChannels => Account.LiveChannels;
+
+    // Atalhos para a live escolhida (usados pela barra do painel e pelo autoteste).
+    public CoreWebView2? LiveCore => SelectedLive?.Core;
+    public WebView2? LiveView => SelectedLive?.View;
+    public string? LiveChannel => SelectedLive?.Channel ?? Account.LiveChannels.FirstOrDefault();
+    public bool LiveMuted => SelectedLive?.Muted ?? true;
+    public List<CoreWebView2Frame> LiveFrames => SelectedLive?.Frames ?? new();
+
+    /// <summary>Frames principais de todas as lives (o MemoryMonitor separa a memória delas).</summary>
+    public IEnumerable<uint> LiveMainFrameIds => Lives.Select(l => l.MainFrameId).Where(id => id != 0);
+
+    public LiveTab? FindLive(string channel) => Lives.FirstOrDefault(l => l.Channel == channel);
 
     /// <summary>
-    /// A live aparece na tela? Escondida, ela continua aberta e logada — como uma aba do Chrome em
-    /// segundo plano, que é o que o jogo exige. O controle fica na árvore visual, só recolhido.
+    /// O painel aparece na tela? Escondido, todas as lives continuam abertas e logadas — como abas do
+    /// Chrome em segundo plano, que é o que o jogo exige.
     /// </summary>
     public bool IsLiveVisible => Account.LiveVisible;
 
-    private bool _liveBooting;
+    /// <summary>Alguma live ainda iniciando (o painel ocupa uma faixa mínima enquanto isso).</summary>
+    public bool IsLiveBooting => Lives.Any(l => l.IsBooting);
 
-    /// <summary>
-    /// Durante a inicialização a live fica numa faixa mínima na tela. O controle WPF do WebView2 só
-    /// avisa o navegador quando a visibilidade MUDA; nascendo já escondida, a página ficaria "visible"
-    /// (desenhando e decodificando vídeo à toa). Ao recolher depois de iniciar, ela vira "hidden" de
-    /// verdade — o mesmo estado de uma aba do Chrome em segundo plano.
-    /// </summary>
-    public bool IsLiveBooting
-    {
-        get => _liveBooting;
-        private set => Set(ref _liveBooting, value);
-    }
-
-    /// <summary>Mostra/esconde a live sem fechá-la.</summary>
+    /// <summary>Mostra/esconde o painel sem fechar nenhuma live.</summary>
     public void SetLiveVisible(bool visible)
     {
         if (Account.LiveVisible == visible) return;
         Account.LiveVisible = visible;
+        foreach (var l in Lives) l.PanelVisible = visible;
         OnPropertyChanged(nameof(IsLiveVisible));
         SettingsChanged?.Invoke(this, EventArgs.Empty);
-        ApplyLiveMemoryTarget();
-        LoggingService.Log.Info($"[conta{Slot}] Live {(visible ? "visível" : "em segundo plano")}.");
+        ApplyLiveMemoryTargets();
+        LoggingService.Log.Info($"[conta{Slot}] Painel de lives {(visible ? "visível" : "escondido (lives em segundo plano)")}.");
     }
 
-    /// <summary>Escondida: meta de memória baixa (só nesta aba de live). Visível: normal.</summary>
-    private void ApplyLiveMemoryTarget()
+    public void SelectLive(LiveTab tab)
     {
-        if (_liveCore is null) return;
-        try
+        if (Lives.Contains(tab)) SelectedLive = tab;
+    }
+
+    /// <summary>Escondidas: meta de memória baixa. Só a live mostrada na tela fica normal.</summary>
+    private void ApplyLiveMemoryTargets()
+    {
+        foreach (var l in Lives)
         {
-            _liveCore.MemoryUsageTargetLevel = !Account.LiveVisible && _settings.LiveHiddenLowMemory
-                ? CoreWebView2MemoryUsageTargetLevel.Low
-                : CoreWebView2MemoryUsageTargetLevel.Normal;
+            if (l.Core is null) continue;
+            try
+            {
+                var shown = Account.LiveVisible && l == SelectedLive;
+                l.Core.MemoryUsageTargetLevel = !shown && _settings.LiveHiddenLowMemory
+                    ? CoreWebView2MemoryUsageTargetLevel.Low
+                    : CoreWebView2MemoryUsageTargetLevel.Normal;
+            }
+            catch { }
         }
-        catch { }
     }
-
-    public bool LiveMuted
-    {
-        get => _liveMuted;
-        private set => Set(ref _liveMuted, value);
-    }
-
-    public string LiveStatus
-    {
-        get => _liveStatus;
-        private set => Set(ref _liveStatus, value);
-    }
-
-    /// <summary>Frame principal da live (para o MemoryMonitor separar a memória da live).</summary>
-    public uint LiveMainFrameId { get; private set; }
 
     /// <summary>"https://www.twitch.tv/canal" → "canal". Ignora páginas que não são de canal.</summary>
     public static bool TryParseTwitchChannel(string? url, out string channel)
@@ -170,43 +243,60 @@ public sealed partial class BrowserSession
         return true;
     }
 
-    /// <summary>Abre (ou troca) a live desta conta. A conta precisa estar aberta.</summary>
+    /// <summary>
+    /// Abre mais uma live nesta conta (se o canal já estiver aberto, só a seleciona). A conta precisa
+    /// estar aberta. As lives se somam: o bônus do jogo cresce com cada live oficial aberta.
+    /// </summary>
     public async Task OpenLiveAsync(string channel)
     {
         if (_core is null || !TwitchLoginPattern().IsMatch(channel)) return;
         channel = channel.ToLowerInvariant();
-        var changed = Account.LiveChannel != channel;
-        Account.LiveChannel = channel;
-        OnPropertyChanged(nameof(LiveChannel));
-        if (changed) SettingsChanged?.Invoke(this, EventArgs.Empty);
 
-        if (_liveCore is not null)
+        if (FindLive(channel) is { } existing)
         {
-            if (changed) _liveCore.Navigate(LiveAddress(channel));
+            SelectedLive = existing;
             return;
         }
-        if (_liveView is not null) return; // já está abrindo
+        if (Lives.Count >= MaxLivesPerAccount)
+        {
+            LoggingService.Log.Warn($"[conta{Slot}] Limite de {MaxLivesPerAccount} lives por conta; {channel} não foi aberta.");
+            LiveLimitReached?.Invoke(this, channel);
+            return;
+        }
 
-        var gen = ++_liveGeneration;
-        LiveStatus = $"Abrindo {channel}…";
+        if (!Account.LiveChannels.Contains(channel))
+        {
+            Account.LiveChannels.Add(channel);
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        var tab = new LiveTab(channel) { PanelVisible = Account.LiveVisible, Status = $"Abrindo {channel}…" };
+        var gen = ++tab.Generation;
         var wv = new WebView2
         {
             DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 14, 14, 16),
             ZoomFactor = _liveZoom,
         };
-        IsLiveBooting = !Account.LiveVisible;
-        LiveView = wv;
+        // Nasce visível numa faixa mínima e é recolhida logo depois de iniciar: assim a página fica
+        // "hidden" de verdade (o controle WPF só avisa o navegador quando a visibilidade MUDA).
+        tab.IsBooting = true;
+        tab.View = wv;
+        Lives.Add(tab);
+        OnLivesChanged();
+        SelectedLive = tab;
+
         try
         {
             var env = await _profiles.GetEnvironmentAsync();
-            if (gen != _liveGeneration) return;
+            if (gen != tab.Generation) return;
             // Mesmo perfil da conta: mesmos cookies da Twitch.
             await wv.EnsureCoreWebView2Async(env, _profiles.CreateControllerOptions(env, Slot));
-            if (gen != _liveGeneration) return;
-            IsLiveBooting = false; // recolhe: o controller passa a "hidden" se a live deve ficar escondida
+            if (gen != tab.Generation) return;
+            tab.IsBooting = false;
+            OnPropertyChanged(nameof(IsLiveBooting));
 
             var core = wv.CoreWebView2;
-            _liveCore = core;
+            tab.Core = core;
             var s = core.Settings;
             s.AreDevToolsEnabled = _settings.DeveloperMode;
             s.IsStatusBarEnabled = false;
@@ -215,61 +305,80 @@ public sealed partial class BrowserSession
             s.IsSwipeNavigationEnabled = false;
 
             core.IsMuted = _settings.LiveMutedByDefault;
-            LiveMuted = core.IsMuted;
+            tab.Muted = core.IsMuted;
             if (_settings.LiveLowestQuality)
                 await core.AddScriptToExecuteOnDocumentCreatedAsync(LowestQualityScript());
-
             if (_settings.LiveLightMode)
                 core.SetVirtualHostNameToFolderMapping(LightHost, EnsureLightPageFolder(), CoreWebView2HostResourceAccessKind.DenyCors);
 
+            // Os handlers capturam a aba; somem junto com o controller quando a live é fechada.
             core.NavigationStarting += OnLiveNavigationStarting;
             core.NewWindowRequested += OnLiveNewWindowRequested;
-            core.ContentLoading += OnLiveContentLoading;
-            core.NavigationCompleted += OnLiveNavigationCompleted;
-            core.ProcessFailed += OnLiveProcessFailed;
+            core.ContentLoading += (_, _) => { try { tab.MainFrameId = core.FrameId; } catch { } };
+            core.NavigationCompleted += (_, e) => tab.Status = e.IsSuccess || e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled
+                ? "" : $"não carregou ({e.WebErrorStatus})";
+            core.ProcessFailed += (_, e) => OnLiveProcessFailed(tab, e);
             core.PermissionRequested += OnPermissionRequested;
             core.DownloadStarting += OnDownloadStarting;
             core.LaunchingExternalUriScheme += OnLaunchingExternalUriScheme;
-            core.FrameCreated += OnLiveFrameCreated;
+            core.FrameCreated += (_, e) =>
+            {
+                var frame = e.Frame;
+                tab.Frames.Add(frame);
+                frame.Destroyed += (_, _) => tab.Frames.Remove(frame);
+            };
 
             ApplyLiveZoom();
-            ApplyLiveMemoryTarget();
-            LoggingService.Log.Info($"[conta{Slot}] Live aberta: {channel} (mudo={core.IsMuted}, modo {(_settings.LiveLightMode ? "leve" : "completo")}, {(Account.LiveVisible ? "visível" : "em segundo plano")}).");
+            ApplyLiveMemoryTargets();
+            LoggingService.Log.Info($"[conta{Slot}] Live aberta: {channel} ({Lives.Count} na conta; mudo={core.IsMuted}, {(Account.LiveVisible ? "painel visível" : "em segundo plano")}).");
             core.Navigate(LiveAddress(channel));
         }
-        catch (Exception ex) when (gen == _liveGeneration)
+        catch (Exception ex) when (gen == tab.Generation)
         {
-            LoggingService.Log.Error($"[conta{Slot}] Falha ao abrir a live", ex);
-            DisposeLive();
-            LiveStatus = $"Falha ao abrir a live: {ex.Message}";
+            LoggingService.Log.Error($"[conta{Slot}] Falha ao abrir a live {channel}", ex);
+            tab.Status = $"falha ao abrir: {ex.Message}";
+            DisposeTab(tab);
         }
         catch (Exception ex)
         {
-            LoggingService.Log.Info($"[conta{Slot}] Abertura da live descartada ({ex.GetType().Name}).");
+            LoggingService.Log.Info($"[conta{Slot}] Abertura da live {channel} descartada ({ex.GetType().Name}).");
         }
     }
 
-    /// <summary>Fecha a live. <paramref name="forget"/> = não reabrir na próxima vez que a conta abrir.</summary>
+    /// <summary>Reabre todas as lives guardadas desta conta.</summary>
+    public async Task OpenSavedLivesAsync()
+    {
+        foreach (var ch in Account.LiveChannels.ToList()) await OpenLiveAsync(ch);
+    }
+
+    /// <summary>Fecha uma live. <paramref name="forget"/> = tirar o canal da lista (não reabre com a conta).</summary>
+    public void CloseLive(LiveTab tab, bool forget = true)
+    {
+        DisposeTab(tab);
+        if (forget && Account.LiveChannels.Remove(tab.Channel)) SettingsChanged?.Invoke(this, EventArgs.Empty);
+        LoggingService.Log.Info($"[conta{Slot}] Live {tab.Channel} fechada{(forget ? "" : " (será reaberta com a conta)")}.");
+    }
+
+    /// <summary>Fecha todas as lives. <paramref name="forget"/> = esquecer também os canais guardados.</summary>
     public void CloseLive(bool forget = true)
     {
-        DisposeLive();
-        if (forget && Account.LiveChannel is not null)
+        foreach (var tab in Lives.ToList()) DisposeTab(tab);
+        if (forget && Account.LiveChannels.Count > 0)
         {
-            Account.LiveChannel = null;
-            OnPropertyChanged(nameof(LiveChannel));
+            Account.LiveChannels.Clear();
             SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
-        LoggingService.Log.Info($"[conta{Slot}] Live fechada{(forget ? "" : " (será reaberta com a conta)")}.");
     }
 
     public void SetLiveMuted(bool muted)
     {
-        if (_liveCore is null) return;
-        _liveCore.IsMuted = muted;
-        LiveMuted = muted;
+        if (SelectedLive is not { Core: { } core } tab) return;
+        core.IsMuted = muted;
+        tab.Muted = muted;
+        OnPropertyChanged(nameof(LiveMuted));
     }
 
-    /// <summary>Zoom da live para caber no painel mantendo o layout desktop (vídeo + chat ao lado).</summary>
+    /// <summary>Zoom das lives para caber no painel mantendo o layout desktop (vídeo + chat ao lado).</summary>
     public void SetLiveZoom(double zoom)
     {
         _liveZoom = Math.Clamp(zoom, 0.25, 1.0);
@@ -278,13 +387,16 @@ public sealed partial class BrowserSession
 
     private void ApplyLiveZoom()
     {
-        if (_liveView is null) return;
-        try
+        foreach (var l in Lives)
         {
-            if (Math.Abs(_liveView.ZoomFactor - _liveZoom) > 0.001) _liveView.ZoomFactor = _liveZoom;
+            if (l.View is not { } v) continue;
+            try { if (Math.Abs(v.ZoomFactor - _liveZoom) > 0.001) v.ZoomFactor = _liveZoom; }
+            catch { }
         }
-        catch { }
     }
+
+    /// <summary>A conta tentou abrir mais lives que o limite.</summary>
+    public event EventHandler<string>? LiveLimitReached;
 
     /// <summary>Padrão de qualidade 160p, gravado UMA vez: se o jogador trocar no player, a escolha dele vale.</summary>
     private static string LowestQualityScript()
@@ -303,55 +415,53 @@ public sealed partial class BrowserSession
             """;
     }
 
-    private void DisposeLive()
+    private void DisposeTab(LiveTab tab)
     {
-        _liveGeneration++;
-        var core = _liveCore;
-        _liveCore = null;
+        tab.Generation++;
+        var core = tab.Core;
+        tab.Core = null;
         if (core is not null)
         {
             try
             {
                 core.NavigationStarting -= OnLiveNavigationStarting;
                 core.NewWindowRequested -= OnLiveNewWindowRequested;
-                core.ContentLoading -= OnLiveContentLoading;
-                core.NavigationCompleted -= OnLiveNavigationCompleted;
-                core.ProcessFailed -= OnLiveProcessFailed;
                 core.PermissionRequested -= OnPermissionRequested;
                 core.DownloadStarting -= OnDownloadStarting;
                 core.LaunchingExternalUriScheme -= OnLaunchingExternalUriScheme;
-                core.FrameCreated -= OnLiveFrameCreated;
             }
             catch { }
         }
-        LiveFrames.Clear();
-        LiveMainFrameId = 0;
-        IsLiveBooting = false;
-        LiveStatus = "";
-        var wv = _liveView;
-        LiveView = null;
+        tab.Frames.Clear();
+        tab.MainFrameId = 0;
+        tab.IsBooting = false;
+        var wv = tab.View;
+        var index = Lives.IndexOf(tab);
+        Lives.Remove(tab); // sai da árvore visual antes de ser descartada
+        tab.View = null;
         if (wv is not null)
         {
             try { wv.Dispose(); }
-            catch (Exception ex) { LoggingService.Log.Warn($"[conta{Slot}] Dispose da live: {ex.Message}"); }
+            catch (Exception ex) { LoggingService.Log.Warn($"[conta{Slot}] Dispose da live {tab.Channel}: {ex.Message}"); }
         }
+        if (SelectedLive == tab)
+            SelectedLive = Lives.Count == 0 ? null : Lives[Math.Clamp(index, 0, Lives.Count - 1)];
+        OnLivesChanged();
     }
 
-    // ------------------------------------------------------------------ eventos da live
-
-    /// <summary>iframes da live (no modo leve: player e chat). Usado só pelas verificações do autoteste.</summary>
-    public List<CoreWebView2Frame> LiveFrames { get; } = new();
-
-    private void OnLiveFrameCreated(object? sender, CoreWebView2FrameCreatedEventArgs e)
+    private void OnLivesChanged()
     {
-        var frame = e.Frame;
-        LiveFrames.Add(frame);
-        frame.Destroyed += (_, _) => LiveFrames.Remove(frame);
+        OnPropertyChanged(nameof(IsLiveOpen));
+        OnPropertyChanged(nameof(LiveCount));
+        OnPropertyChanged(nameof(IsLiveBooting));
+        OnPropertyChanged(nameof(LiveChannel));
     }
+
+    // ------------------------------------------------------------------ eventos das lives
 
     private void OnLiveNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        // Dentro do painel só a Twitch (e o login dela) ou a página do modo leve. O resto vai para o navegador padrão.
+        // Dentro das lives só a Twitch (e o login dela) ou a página do modo leve. O resto vai para o navegador padrão.
         var isLight = Uri.TryCreate(e.Uri, UriKind.Absolute, out var lu) && lu.Scheme == Uri.UriSchemeHttps &&
                       lu.Host.Equals(LightHost, StringComparison.OrdinalIgnoreCase) && _settings.LiveLightMode;
         if (isLight) return;
@@ -368,6 +478,7 @@ public sealed partial class BrowserSession
     private void OnLiveNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
         e.Handled = true;
+        // Link para outro canal dentro de uma live: abre como mais uma live da conta.
         if (TryParseTwitchChannel(e.Uri, out var channel))
         {
             _ = OpenLiveAsync(channel);
@@ -377,41 +488,14 @@ public sealed partial class BrowserSession
             OpenExternal(e.Uri);
     }
 
-    private void OnLiveContentLoading(object? sender, CoreWebView2ContentLoadingEventArgs e)
+    private void OnLiveProcessFailed(LiveTab tab, CoreWebView2ProcessFailedEventArgs e)
     {
-        if (_liveCore is null) return;
-        try { LiveMainFrameId = _liveCore.FrameId; }
-        catch { }
-    }
-
-    private void OnLiveNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
-    {
-        if (e.IsSuccess)
+        LoggingService.Log.Warn($"[conta{Slot}] Live {tab.Channel}: ProcessFailed {e.ProcessFailedKind} ({e.Reason})");
+        if (e.ProcessFailedKind is CoreWebView2ProcessFailedKind.RenderProcessExited or CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
         {
-            LiveStatus = "";
-            if (TryParseTwitchChannel(_liveCore?.Source, out var ch) && ch != Account.LiveChannel)
-            {
-                // O jogador navegou para outro canal dentro do painel: passa a ser o canal desta conta.
-                Account.LiveChannel = ch;
-                OnPropertyChanged(nameof(LiveChannel));
-                SettingsChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-        else if (e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
-        {
-            LiveStatus = $"A live não carregou ({e.WebErrorStatus})";
-        }
-    }
-
-    private void OnLiveProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
-    {
-        LoggingService.Log.Warn($"[conta{Slot}] Live: ProcessFailed {e.ProcessFailedKind} ({e.Reason})");
-        if (e.ProcessFailedKind is CoreWebView2ProcessFailedKind.RenderProcessExited or CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
-            && Account.LiveChannel is { } ch)
-        {
-            // Recria só a live; o jogo da conta não é tocado.
-            DisposeLive();
-            _ = OpenLiveAsync(ch);
+            // Recria só esta live; o jogo e as outras lives não são tocados.
+            DisposeTab(tab);
+            _ = OpenLiveAsync(tab.Channel);
         }
     }
 }

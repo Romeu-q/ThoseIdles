@@ -60,7 +60,17 @@
                                 Visibility="{Binding HasLiveChannel, Converter={StaticResource BoolToVis}}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                    <Setter Property="Content" Value="&#xE714;" />
+                                    <Setter Property="Width" Value="Auto" />
+                                    <Setter Property="MinWidth" Value="26" />
+                                    <Setter Property="Content">
+                                        <Setter.Value>
+                                            <StackPanel Orientation="Horizontal" Margin="4,0">
+                                                <TextBlock Text="&#xE714;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding LiveCountText}" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold"
+                                                           Margin="3,0,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Setter.Value>
+                                    </Setter>
                                     <Setter Property="Opacity" Value="0.45" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsLiveOpen}" Value="True">
@@ -178,13 +188,38 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0" ClipToBounds="True">
-                            <TextBlock Text="&#xE714;" FontFamily="{StaticResource Icons}" Foreground="#A970FF" FontSize="12" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding LiveTitle}" Foreground="{StaticResource Text}" FontSize="11.5" Margin="6,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding LiveStatus}" Foreground="{StaticResource Muted}" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding LiveMemoryText}" Foreground="{StaticResource Muted}" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
-                                       ToolTip="Memória dos processos da live (privada em RAM). A decodificação do vídeo também usa a GPU, contada em &quot;Compartilhado&quot;." />
-                        </StackPanel>
+                        <DockPanel VerticalAlignment="Center" Margin="6,0" ClipToBounds="True">
+                            <TextBlock DockPanel.Dock="Left" Text="&#xE714;" FontFamily="{StaticResource Icons}" Foreground="#A970FF" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0" />
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding LiveMemoryText}" Foreground="{StaticResource Muted}" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"
+                                       ToolTip="Memória de todas as lives desta conta (privada em RAM)." />
+                            <!-- Uma aba por live: clique mostra, × fecha e esquece o canal -->
+                            <ItemsControl ItemsSource="{Binding Session.Lives}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border x:Name="tab" CornerRadius="3" Margin="0,0,3,0" Padding="6,0,2,0" Background="#24202E">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="{Binding Channel}" FontSize="11" Cursor="Hand" Focusable="False" Background="Transparent"
+                                                        BorderThickness="0" Foreground="{StaticResource Text}" Padding="0" ToolTip="{Binding Status}"
+                                                        Command="{Binding DataContext.SelectLiveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="8" Width="16" Height="18"
+                                                        ToolTip="Fechar esta live e esquecer o canal"
+                                                        Command="{Binding DataContext.CloseLiveTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter TargetName="tab" Property="Background" Value="#4A3570" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DockPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,3,0">
                             <Button Command="{Binding ToggleLiveMuteCommand}">
                                 <Button.Style>
@@ -201,13 +236,21 @@
                                 </Button.Style>
                             </Button>
                             <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" Command="{Binding OpenLiveExternallyCommand}" ToolTip="Abrir este canal no navegador padrão" />
-                            <Button Style="{StaticResource IconButton}" Content="&#xE73F;" Command="{Binding HideLiveCommand}" ToolTip="Esconder a live (continua aberta em segundo plano; o botão 📺 do cabeçalho mostra de novo)" />
-                            <Button Style="{StaticResource IconButton}" Content="&#xE711;" Command="{Binding CloseLiveCommand}" ToolTip="Fechar a live e esquecer o canal desta conta" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE73F;" Command="{Binding HideLiveCommand}" ToolTip="Esconder o painel (as lives continuam abertas em segundo plano; o 📺 do cabeçalho mostra de novo)" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding CloseLiveCommand}" ToolTip="Fechar TODAS as lives desta conta e esquecer os canais" />
                         </StackPanel>
                     </Grid>
-                    <Grid SizeChanged="OnLiveSizeChanged">
-                        <ContentPresenter Content="{Binding Session.LiveView}" />
-                    </Grid>
+                    <!-- Todas as lives ficam aqui (na árvore visual, rodando); só a escolhida aparece. -->
+                    <ItemsControl ItemsSource="{Binding Session.Lives}" SizeChanged="OnLiveSizeChanged">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><Grid /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ContentPresenter Content="{Binding View}" Visibility="{Binding IsShown, Converter={StaticResource BoolToVis}}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </DockPanel>
             </Grid>
         </DockPanel>

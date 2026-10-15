@@ -173,8 +173,8 @@ public sealed partial class BrowserSession : ObservableObject
             _core.Navigate(_settings.StartUrl);
 
             // A live que estava aberta nesta conta volta junto (opção "reabrir a live com a conta").
-            if (_settings.ReopenLives && Account.LiveChannel is { } channel)
-                await OpenLiveAsync(channel);
+            if (_settings.ReopenLives && Account.LiveChannels.Count > 0)
+                await OpenSavedLivesAsync();
         }
         catch (Exception ex) when (gen == _generation)
         {
@@ -449,7 +449,7 @@ public sealed partial class BrowserSession : ObservableObject
     private void DetachAndDispose()
     {
         // A live vai junto com a conta, mas o canal fica guardado para reabrir com ela.
-        DisposeLive();
+        CloseLive(forget: false);
         var core = _core;
         _core = null;
         if (core is not null)

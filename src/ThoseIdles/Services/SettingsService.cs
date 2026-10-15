@@ -20,8 +20,12 @@ public sealed class AccountSettings
     /// <summary>Zoom da página desta conta (1.0 = 100%). Ctrl + roda do mouse na página ajusta e salva.</summary>
     public double Zoom { get; set; }
 
-    /// <summary>Canal da Twitch aberto no painel de live desta conta (null = sem live).</summary>
-    public string? LiveChannel { get; set; }
+    /// <summary>Canais da Twitch abertos nesta conta (reabrem com ela). O bônus do jogo soma por live.</summary>
+    public List<string> LiveChannels { get; set; } = new();
+
+    /// <summary>Formato antigo (uma live só). Lido apenas para migrar para <see cref="LiveChannels"/>.</summary>
+    [JsonPropertyName("liveChannel")]
+    public string? LegacyLiveChannel { get; set; }
 
     /// <summary>Se a live desta conta aparece na tela. Escondida ela continua aberta, como uma aba em segundo plano.</summary>
     public bool LiveVisible { get; set; }
@@ -183,7 +187,12 @@ public sealed class AppSettings
         {
             a.Zoom = Math.Clamp(double.IsFinite(a.Zoom) && a.Zoom > 0 ? a.Zoom : GridZoom, 0.25, 3.0);
             a.LiveSplit = Math.Clamp(double.IsFinite(a.LiveSplit) && a.LiveSplit > 0 ? a.LiveSplit : 0.4, 0.15, 0.85);
-            if (a.LiveChannel is { } ch && !System.Text.RegularExpressions.Regex.IsMatch(ch, "^[A-Za-z0-9_]{2,25}$")) a.LiveChannel = null;
+            a.LiveChannels ??= new();
+            if (a.LegacyLiveChannel is { } old && !a.LiveChannels.Contains(old)) a.LiveChannels.Insert(0, old);
+            a.LegacyLiveChannel = null;
+            a.LiveChannels = a.LiveChannels
+                .Where(c => System.Text.RegularExpressions.Regex.IsMatch(c ?? "", "^[A-Za-z0-9_]{2,25}$"))
+                .Select(c => c.ToLowerInvariant()).Distinct().Take(BrowserSession.MaxLivesPerAccount).ToList();
         }
     }
 }

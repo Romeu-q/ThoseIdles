@@ -71,14 +71,32 @@ public sealed class SelfTestRunner
             await Task.Delay(20000);
             phases.Add(("4 contas, sem live", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
 
-            await _manager[1].OpenLiveAsync(channel);
-            await Task.Delay(45000);
-            phases.Add(("4 contas, live em 1", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
-            var check = await LiveCheckAsync(_manager[1]);
+            // "--live-channel a,b,c": lives ACUMULADAS na conta 1 (o bônus soma por live). Um canal só:
+            // compara 1 live x a mesma live nas 4 contas.
+            var channels = channel.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            (bool Ok, string Detail) check = default;
+            if (channels.Length > 1)
+            {
+                for (var i = 0; i < channels.Length; i++)
+                {
+                    await _manager[1].OpenLiveAsync(channels[i]);
+                    await Task.Delay(40000);
+                    phases.Add(($"conta 1 com {i + 1} live(s) ({string.Join(", ", channels.Take(i + 1))})",
+                        await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+                    if (i == 0) check = await LiveCheckAsync(_manager[1]);
+                }
+            }
+            else
+            {
+                await _manager[1].OpenLiveAsync(channel);
+                await Task.Delay(45000);
+                phases.Add(("4 contas, live em 1", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+                check = await LiveCheckAsync(_manager[1]);
 
-            foreach (var slot in new[] { 2, 3, 4 }) await _manager[slot].OpenLiveAsync(channel);
-            await Task.Delay(45000);
-            phases.Add(("4 contas, live nas 4", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+                foreach (var slot in new[] { 2, 3, 4 }) await _manager[slot].OpenLiveAsync(channel);
+                await Task.Delay(45000);
+                phases.Add(("4 contas, live nas 4", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+            }
 
             foreach (var (name, m, cpu) in phases)
             {
@@ -89,12 +107,13 @@ public sealed class SelfTestRunner
                     $"renderers de live: {(lives.Count == 0 ? "—" : string.Join(", ", lives))}; CPU da máquina {cpu:0.0}%", 0));
             }
             var a = phases[0].Mem.Total.PrivateWorkingSet;
-            var one = phases[1].Mem.Total.PrivateWorkingSet - a;
-            var four = phases[2].Mem.Total.PrivateWorkingSet - a;
+            var steps = phases.Skip(1).Select((p, i) => $"{i + 1} live(s): +{MemoryMonitor.Format(p.Mem.Total.PrivateWorkingSet - a)}").ToList();
+            var n = phases.Count - 1;
+            var lastLives = channels.Length > 1 ? n : 4;
             _results.Add(new TestResult("custo das lives", true,
-                $"1 live: +{MemoryMonitor.Format(one)} no total; 4 lives: +{MemoryMonitor.Format(four)} (≈ {MemoryMonitor.Format(four / 4)} por live); " +
-                $"CPU: {phases[0].Cpu:0.0}% → {phases[1].Cpu:0.0}% → {phases[2].Cpu:0.0}% da máquina", 0));
-            _results.Add(new TestResult("página real da live (conta 1)", check.Ok, check.Detail, 0));
+                $"{string.Join("; ", steps)} (≈ {MemoryMonitor.Format((phases[^1].Mem.Total.PrivateWorkingSet - a) / lastLives)} por live); " +
+                $"CPU: {string.Join(" → ", phases.Select(p => $"{p.Cpu:0.0}%"))} da máquina", 0));
+            _results.Add(new TestResult("página real da live (conta 1)", check.Ok, check.Detail ?? "não verificada", 0));
         }
         catch (Exception ex)
         {
@@ -551,10 +570,10 @@ public sealed class SelfTestRunner
             var othersClosed = new[] { 1, 3, 4 }.All(i => !_manager[i].IsLiveOpen);
             var gameStayed = boot.All(b => boot2[b.Key] == b.Value);
             var hidden = !s2.IsLiveVisible;
-            var ok = loaded && hidden && s2.Account.LiveChannel == "canalteste" && othersClosed && gameStayed;
+            var ok = loaded && hidden && s2.Account.LiveChannels.SequenceEqual(new[] { "canalteste" }) && othersClosed && gameStayed;
             return ok
                 ? Pass("o link (target=_blank) abriu a live da conta 2 em segundo plano (escondida, carregada); o jogo dela não saiu da tela; contas 1, 3 e 4 sem live")
-                : Fail($"carregou={loaded}, escondida={hidden}, canal salvo={s2.Account.LiveChannel}, outras sem live={othersClosed}, jogo ficou={gameStayed}");
+                : Fail($"carregou={loaded}, escondida={hidden}, canais salvos={string.Join(",", s2.Account.LiveChannels)}, outras sem live={othersClosed}, jogo ficou={gameStayed}");
         });
 
         await Test("live: mesmo perfil da conta, muda e 160p por padrão", async () =>
@@ -616,7 +635,7 @@ public sealed class SelfTestRunner
             await _manager[3].OpenLiveAsync("outrocanal");
             var opened3 = await WaitLivePage(_manager[3], "outrocanal", TimeSpan.FromSeconds(15));
             _manager[3].CloseLive(forget: true);
-            var forgot = !_manager[3].IsLiveOpen && _manager[3].Account.LiveChannel is null;
+            var forgot = !_manager[3].IsLiveOpen && _manager[3].Account.LiveChannels.Count == 0;
             _vm.SaveSettings();
             return visShown == "visible" && normal && reopened && sameGame && opened3 && forgot
                 ? Pass("mostrar: página visível e memória normal; esconder: a mesma live seguiu aberta (sem recarregar), jogo intacto; fechar (conta 3) esqueceu o canal")
@@ -627,14 +646,63 @@ public sealed class SelfTestRunner
         {
             var s2 = _manager[2];
             s2.CloseLive(forget: false);                       // fecha (ex.: conta reiniciada), canal fica guardado
-            var kept = !s2.IsLiveOpen && s2.Account.LiveChannel == "canalteste";
-            await s2.OpenLiveAsync(s2.Account.LiveChannel!);   // 📺 do cabeçalho reabre
+            var kept = !s2.IsLiveOpen && s2.Account.LiveChannels.SequenceEqual(new[] { "canalteste" });
+            await s2.OpenSavedLivesAsync();               // 📺 do cabeçalho reabre
             var reopened = await WaitLivePage(s2, "canalteste", TimeSpan.FromSeconds(15));
             _vm.SaveSettings();
             return kept && reopened
                 ? Pass("fechada, o canal ficou guardado; o botão reabriu a mesma live em segundo plano")
                 : Fail($"guardou={kept}, reabriu={reopened}");
         });
+
+        await Test("várias lives acumuladas na mesma conta", async () =>
+        {
+            var s2 = _manager[2];
+            var boot = (await BootIds())[2];
+            await s2.OpenLiveAsync("canal2");
+            await s2.OpenLiveAsync("canal3");
+            await s2.OpenLiveAsync("canal2"); // repetido: não abre de novo
+            var loaded = true;
+            foreach (var ch in new[] { "canalteste", "canal2", "canal3" })
+                loaded &= s2.FindLive(ch) is { } tab && await WaitTabPage(tab, ch, TimeSpan.FromSeconds(15));
+            // As três rodando escondidas ao mesmo tempo.
+            var ticks0 = new List<long>();
+            foreach (var t in s2.Lives) ticks0.Add(long.Parse(await t.Core!.ExecuteScriptAsync("window.liveTicks")));
+            await Task.Delay(3000);
+            var allRunning = true; var allHidden = true; var i = 0;
+            foreach (var t in s2.Lives)
+            {
+                allRunning &= long.Parse(await t.Core!.ExecuteScriptAsync("window.liveTicks")) - ticks0[i++] >= 20;
+                allHidden &= Unquote(await t.Core.ExecuteScriptAsync("document.visibilityState")) == "hidden";
+            }
+            var saved = string.Join(",", s2.Account.LiveChannels);
+            var mem = await _memory.SampleAsync();
+            // Fechar uma não mexe nas outras.
+            s2.CloseLive(s2.FindLive("canal3")!, forget: true);
+            var afterClose = string.Join(",", s2.Lives.Select(l => l.Channel));
+            var gameSame = (await BootIds())[2] == boot;
+            var ok = loaded && s2.LiveCount == 2 && allRunning && allHidden && saved == "canalteste,canal2,canal3"
+                     && afterClose == "canalteste,canal2" && string.Join(",", s2.Account.LiveChannels) == "canalteste,canal2" && gameSame;
+            return ok
+                ? Pass($"3 lives abertas na conta 2 (canal repetido ignorado), todas 'hidden' e rodando; memória das lives {MemoryMonitor.Format(mem.Lives[1].PrivateWorkingSet)}; fechar canal3 manteve as outras e o jogo")
+                : Fail($"carregaram={loaded}, rodando={allRunning}, escondidas={allHidden}, salvos={saved}, depois de fechar={afterClose}, jogo intacto={gameSame}");
+        });
+        _vm.SaveSettings();
+    }
+
+    private static async Task<bool> WaitTabPage(LiveTab tab, string channel, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (tab.Core is { } c)
+            {
+                try { if (Unquote(await c.ExecuteScriptAsync("window.__livePage || null")) == channel) return true; }
+                catch { }
+            }
+            await Task.Delay(200);
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ extensão
@@ -782,12 +850,16 @@ public sealed class SelfTestRunner
 
         await Test("live reabre com a conta após reiniciar o aplicativo", async () =>
         {
-            var reopened = await WaitLivePage(_manager[2], "canalteste", TimeSpan.FromSeconds(15));
-            var muted = _manager[2].LiveCore?.IsMuted == true;
-            var hidden = !_manager[2].IsLiveVisible;
+            var s2 = _manager[2];
+            await WaitUntil(() => s2.LiveCount == 2, TimeSpan.FromSeconds(15));
+            var reopened = s2.LiveCount == 2;
+            foreach (var ch in new[] { "canalteste", "canal2" })
+                reopened &= s2.FindLive(ch) is { } tab && await WaitTabPage(tab, ch, TimeSpan.FromSeconds(15));
+            var muted = s2.Lives.All(l => l.Core?.IsMuted == true);
+            var hidden = !s2.IsLiveVisible;
             var others = new[] { 1, 3, 4 }.All(i => !_manager[i].IsLiveOpen);
             return reopened && muted && hidden && others
-                ? Pass("conta 2 voltou com a live de canalteste, muda e em segundo plano; as outras sem live")
+                ? Pass("conta 2 voltou com as 2 lives guardadas (canalteste, canal2), mudas e em segundo plano; as outras sem live")
                 : Fail($"reabriu={reopened}, muda={muted}, escondida={hidden}, outras sem live={others}");
         });
 

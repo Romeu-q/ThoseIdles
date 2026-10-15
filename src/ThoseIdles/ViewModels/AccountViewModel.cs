@@ -38,21 +38,25 @@ public sealed class AccountViewModel : ObservableObject
             _main.SaveSettingsSoon();
         };
         ResetZoomCommand = new RelayCommand(() => SetZoom(1.0));
-        // 📺 do cabeçalho: com a live aberta, mostra/esconde (ela segue rodando escondida);
-        // com a live fechada mas um canal guardado, reabre.
+        // 📺 do cabeçalho: com lives abertas, mostra/esconde o painel (elas seguem rodando escondidas);
+        // sem lives abertas mas com canais guardados, reabre todos.
         ToggleLiveCommand = new AsyncCommand(async () =>
         {
             if (Session.IsLiveOpen) Session.SetLiveVisible(!Session.IsLiveVisible);
-            else if (Session.LiveChannel is { } ch) await Session.OpenLiveAsync(ch);
-        }, () => Session.IsRunning && (Session.IsLiveOpen || Session.LiveChannel is not null));
+            else await Session.OpenSavedLivesAsync();
+        }, () => Session.IsRunning && (Session.IsLiveOpen || Session.SavedLiveChannels.Count > 0));
         HideLiveCommand = new RelayCommand(() => Session.SetLiveVisible(false));
         CloseLiveCommand = new RelayCommand(() => Session.CloseLive(forget: true));
+        SelectLiveCommand = new RelayCommand(p => { if (p is LiveTab t) Session.SelectLive(t); });
+        CloseLiveTabCommand = new RelayCommand(p => { if (p is LiveTab t) Session.CloseLive(t, forget: true); });
         ToggleLiveMuteCommand = new RelayCommand(() => Session.SetLiveMuted(!Session.LiveMuted));
         OpenLiveExternallyCommand = new RelayCommand(() =>
         {
-            if (Session.LiveChannel is { } ch)
+            if (Session.SelectedLive?.Channel is { } ch)
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(BrowserSession.LiveUrlForChannel(ch)) { UseShellExecute = true });
         });
+        session.LiveLimitReached += (_, ch) =>
+            _main.Notice = $"{DisplayName}: limite de {BrowserSession.MaxLivesPerAccount} lives por conta — {ch} não foi aberta.";
         ZoomInCommand = new RelayCommand(() => SetZoom(Math.Round((Session.Account.Zoom + 0.1) * 10) / 10));
         ZoomOutCommand = new RelayCommand(() => SetZoom(Math.Round((Session.Account.Zoom - 0.1) * 10) / 10));
         ToggleHuntCommand = new AsyncCommand(async () =>
@@ -217,27 +221,35 @@ public sealed class AccountViewModel : ObservableObject
     public ICommand ToggleLiveCommand { get; }
     public ICommand HideLiveCommand { get; }
     public ICommand CloseLiveCommand { get; }
+    public ICommand SelectLiveCommand { get; }
+    public ICommand CloseLiveTabCommand { get; }
     public ICommand ToggleLiveMuteCommand { get; }
     public ICommand OpenLiveExternallyCommand { get; }
 
     private string _liveMemoryText = "";
 
     public bool IsLiveOpen => Session.IsLiveOpen;
-    /// <summary>Painel da live na tela (aberta E visível). Escondida, a aba segue rodando.</summary>
+    public int LiveCount => Session.LiveCount;
+    /// <summary>Painel das lives na tela (aberto E visível). Escondido, as lives seguem rodando.</summary>
     public bool ShowLive => Session.IsLiveOpen && (Session.IsLiveVisible || Session.IsLiveBooting);
 
-    /// <summary>Divisória só com a live visível de verdade (não durante a faixa de inicialização).</summary>
+    /// <summary>Divisória só com o painel visível de verdade (não durante a faixa de inicialização).</summary>
     public bool ShowLiveSplitter => Session.IsLiveOpen && Session.IsLiveVisible;
-    public string LiveTitle => Session.LiveChannel is { } ch ? $"twitch.tv/{ch}" : "";
-    public string LiveStatus => Session.LiveStatus;
     public bool LiveMuted => Session.LiveMuted;
-    public bool HasLiveChannel => Session.LiveChannel is not null;
+    public bool HasLiveChannel => Session.IsLiveOpen || Session.SavedLiveChannels.Count > 0;
+
+    /// <summary>"3 lives" ao lado do 📺 (vazio sem lives).</summary>
+    public string LiveCountText => Session.LiveCount > 0 ? Session.LiveCount.ToString() : "";
+
+    private string ChannelList => string.Join(", ", Session.Lives.Select(l => l.Channel));
 
     public string LiveToggleTooltip => Session.IsLiveOpen
         ? Session.IsLiveVisible
-            ? $"Esconder a live de {Session.LiveChannel} (continua aberta em segundo plano)"
-            : $"Live de {Session.LiveChannel} aberta em segundo plano{(LiveMemoryText.Length > 0 ? $" ({LiveMemoryText})" : "")} — clique para ver"
-        : Session.LiveChannel is { } ch ? $"Reabrir a live de {ch}" : "Abra um canal pela tela \"Twitch\" do jogo";
+            ? $"Esconder o painel de lives (as {Session.LiveCount} continuam abertas em segundo plano)"
+            : $"{Session.LiveCount} live(s) em segundo plano: {ChannelList}{(LiveMemoryText.Length > 0 ? $" — {LiveMemoryText}" : "")}. Clique para ver."
+        : Session.SavedLiveChannels.Count > 0
+            ? $"Reabrir as lives guardadas: {string.Join(", ", Session.SavedLiveChannels)}"
+            : "Abra canais pela tela \"Twitch\" do jogo";
 
     public string LiveMemoryText
     {
@@ -289,7 +301,9 @@ public sealed class AccountViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLiveOpen));
         OnPropertyChanged(nameof(ShowLive));
         OnPropertyChanged(nameof(ShowLiveSplitter));
-        OnPropertyChanged(nameof(LiveTitle));
+        OnPropertyChanged(nameof(LiveCount));
+        OnPropertyChanged(nameof(LiveCountText));
+        OnPropertyChanged(nameof(LiveMuted));
         OnPropertyChanged(nameof(HasLiveChannel));
         OnPropertyChanged(nameof(LiveToggleTooltip));
         OnPropertyChanged(nameof(GameRowHeight));
@@ -351,11 +365,10 @@ public sealed class AccountViewModel : ObservableObject
             case nameof(BrowserSession.IsLiveOpen):
             case nameof(BrowserSession.IsLiveVisible):
             case nameof(BrowserSession.IsLiveBooting):
+            case nameof(BrowserSession.LiveCount):
             case nameof(BrowserSession.LiveChannel):
+            case nameof(BrowserSession.SelectedLive):
                 OnLiveChanged();
-                break;
-            case nameof(BrowserSession.LiveStatus):
-                OnPropertyChanged(nameof(LiveStatus));
                 break;
             case nameof(BrowserSession.LiveMuted):
                 OnPropertyChanged(nameof(LiveMuted));

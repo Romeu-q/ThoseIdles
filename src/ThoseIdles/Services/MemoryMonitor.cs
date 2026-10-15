@@ -93,7 +93,7 @@ public sealed class MemoryMonitor : IDisposable
             foreach (var s in _sessions.Sessions)
             {
                 if (s.MainFrameId != 0) slotByFrame[s.MainFrameId] = s.Slot;
-                if (s.LiveMainFrameId != 0) liveSlotByFrame[s.LiveMainFrameId] = s.Slot;
+                foreach (var id in s.LiveMainFrameIds) liveSlotByFrame[id] = s.Slot;
             }
 
             try
