@@ -287,7 +287,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _settings.LiveLightMode = value;
             OnPropertyChanged();
             SaveSettings();
-            Notice = "O modo da live vale para as lives abertas a partir de agora (esconda e reabra a live para trocar).";
+            Notice = "O modo das lives vale para as lives abertas a partir de agora. Para trocar as que já estão abertas, reinicie a conta (↻): elas reabrem no modo novo.";
         }
     }
 
