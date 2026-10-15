@@ -32,10 +32,14 @@ public partial class App : Application
     {
         base.OnStartup(e);
         var args = ParseArgs(e.Args);
-        var selfTestFile = args.GetValueOrDefault("selftest") ?? args.GetValueOrDefault("selftest-verify") ?? args.GetValueOrDefault("selftest-hunt");
+        var selfTestFile = args.GetValueOrDefault("selftest") ?? args.GetValueOrDefault("selftest-verify")
+                           ?? args.GetValueOrDefault("selftest-hunt") ?? args.GetValueOrDefault("selftest-twitch");
         var verifyPhase = args.ContainsKey("selftest-verify");
         // Teste on-line: baixa a extensão /hunt real e abre o pokeidle.io de verdade (sem login).
         var huntOnline = args.ContainsKey("selftest-hunt");
+        // Medição on-line: custo de memória/CPU de lives reais da Twitch (página neutra no lugar do jogo).
+        var twitchOnline = args.ContainsKey("selftest-twitch");
+        huntOnline |= twitchOnline; // mesmas condições de "on-line" (sem servidor local)
         var isSelfTest = selfTestFile is not null;
 
         if (args.TryGetValue("data-root", out var root) && root is not null) AppPaths.UseRoot(root);
@@ -85,7 +89,16 @@ public partial class App : Application
 
         _settingsService = new SettingsService(AppPaths.SettingsFile);
         var settings = _settingsService.Current;
-        if (huntOnline)
+        if (twitchOnline)
+        {
+            settings.StartUrl = "https://example.com/";
+            if (!settings.AllowedHosts.Contains("example.com")) settings.AllowedHosts.Add("example.com");
+            settings.LiveLightMode = args.ContainsKey("live-light");
+            settings.StartAllOnLaunch = false;
+            settings.EnableHuntExtension = false;
+            settings.FocusMode = false;
+        }
+        else if (huntOnline)
         {
             settings.StartUrl = "https://pokeidle.io/app";
             settings.StartAllOnLaunch = false;
@@ -97,6 +110,10 @@ public partial class App : Application
             var port = int.TryParse(args.GetValueOrDefault("selftest-port"), out var p) ? p : 0;
             _testServer = new SelfTestServer(port);
             settings.StartUrl = _testServer.Url;
+            // A live de teste é servida localmente (127.0.0.1), não pela Twitch.
+            var server = _testServer;
+            BrowserSession.LiveUrlForChannel = c => server.LiveUrl(c);
+            BrowserSession.LiveQualityHosts = new[] { "twitch.tv", "127.0.0.1" };
             settings.StartAllOnLaunch = false;
             settings.MonitorGameConnection = true;
             settings.FocusMode = false;
@@ -132,7 +149,9 @@ public partial class App : Application
             if (isSelfTest)
             {
                 var runner = new SelfTestRunner(_manager, _vm, _memory, window, selfTestFile!);
-                var ok = huntOnline ? await runner.RunHuntOnlineAsync(hunt) : await runner.RunAsync(verifyPhase);
+                var ok = twitchOnline ? await runner.RunTwitchMeasureAsync(args.GetValueOrDefault("live-channel") ?? "lofigirl")
+                       : huntOnline ? await runner.RunHuntOnlineAsync(hunt)
+                       : await runner.RunAsync(verifyPhase);
                 _exitCode = ok ? 0 : 3;
                 window.Close();
             }

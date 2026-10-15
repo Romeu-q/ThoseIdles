@@ -53,6 +53,126 @@ public sealed class SelfTestRunner
         return ok;
     }
 
+    // ------------------------------------------------------------------ medição on-line de lives da Twitch
+
+    /// <summary>
+    /// Mede o custo real de lives da Twitch: 4 contas numa página neutra (sem live), depois live numa
+    /// conta, depois live nas 4. Cada fase espera a página assentar e mede memória (total, jogo,
+    /// live, compartilhado) e a CPU da árvore inteira do app por 10 s.
+    /// </summary>
+    public async Task<bool> RunTwitchMeasureAsync(string channel)
+    {
+        LoggingService.Log.Info($"=== Medição de lives da Twitch (canal {channel}) ===");
+        var phases = new List<(string Name, MemorySnapshot Mem, double Cpu)>();
+        try
+        {
+            await _manager.StartAllAsync();
+            await WaitUntil(() => _manager.Sessions.All(s => s.Status is SessionStatus.AwaitingConnection or SessionStatus.Loaded), TimeSpan.FromSeconds(60));
+            await Task.Delay(20000);
+            phases.Add(("4 contas, sem live", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+
+            await _manager[1].OpenLiveAsync(channel);
+            await Task.Delay(45000);
+            phases.Add(("4 contas, live em 1", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+            var check = await LiveCheckAsync(_manager[1]);
+
+            foreach (var slot in new[] { 2, 3, 4 }) await _manager[slot].OpenLiveAsync(channel);
+            await Task.Delay(45000);
+            phases.Add(("4 contas, live nas 4", await _memory.SampleAsync(), await TreeCpuAsync(TimeSpan.FromSeconds(10))));
+
+            foreach (var (name, m, cpu) in phases)
+            {
+                var lives = m.Lives.Where(l => l.Processes > 0).Select(l => MemoryMonitor.Format(l.PrivateWorkingSet)).ToList();
+                _results.Add(new TestResult(name, true,
+                    $"total {MemoryMonitor.Format(m.Total.PrivateWorkingSet)} em {m.Total.Processes} processos (commit {MemoryMonitor.Format(m.Total.PrivateBytes)}); " +
+                    $"compartilhado {MemoryMonitor.Format(m.Shared.PrivateWorkingSet)}; jogos {MemoryMonitor.Format(m.Accounts.Sum(a => a.PrivateWorkingSet))}; " +
+                    $"renderers de live: {(lives.Count == 0 ? "—" : string.Join(", ", lives))}; CPU da máquina {cpu:0.0}%", 0));
+            }
+            var a = phases[0].Mem.Total.PrivateWorkingSet;
+            var one = phases[1].Mem.Total.PrivateWorkingSet - a;
+            var four = phases[2].Mem.Total.PrivateWorkingSet - a;
+            _results.Add(new TestResult("custo das lives", true,
+                $"1 live: +{MemoryMonitor.Format(one)} no total; 4 lives: +{MemoryMonitor.Format(four)} (≈ {MemoryMonitor.Format(four / 4)} por live); " +
+                $"CPU: {phases[0].Cpu:0.0}% → {phases[1].Cpu:0.0}% → {phases[2].Cpu:0.0}% da máquina", 0));
+            _results.Add(new TestResult("página real da live (conta 1)", check.Ok, check.Detail, 0));
+        }
+        catch (Exception ex)
+        {
+            _results.Add(new TestResult("exceção inesperada", false, ex.ToString(), 0));
+        }
+
+        var passed = _results.Count > 0 && _results.All(r => r.Passed);
+        File.WriteAllText(_resultFile, JsonSerializer.Serialize(new { phase = "twitch", channel, passed, results = _results },
+            new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        foreach (var r in _results) LoggingService.Log.Info($"[medição-twitch] {r.Name} — {r.Detail}");
+        return passed;
+    }
+
+    /// <summary>Confere na página real: vídeo tocando em 160p, áudio mudo no WebView2 e chat conectado.</summary>
+    private static async Task<(bool Ok, string Detail)> LiveCheckAsync(BrowserSession s)
+    {
+        var live = s.LiveCore;
+        if (live is null) return (false, "live não abriu");
+        const string probe = """
+            JSON.stringify((() => {
+              const v = document.querySelector('video');
+              const chat = !!document.querySelector('[data-a-target="chat-input"], .chat-scrollable-area__message-container, [data-test-selector="chat-scrollable-area__message-container"]');
+              return { h: v ? v.videoHeight : 0, paused: v ? v.paused : null, chat, q: localStorage.getItem('video-quality'), w: innerWidth, host: location.hostname, vis: document.visibilityState };
+            })())
+            """;
+        // Página principal + iframes (no modo leve o player e o chat são iframes da Twitch).
+        var results = new List<string>();
+        try { results.Add(Unquote(await live.ExecuteScriptAsync(probe)) ?? "{}"); } catch { }
+        foreach (var f in s.LiveFrames.ToList())
+        {
+            try { results.Add(Unquote(await f.ExecuteScriptAsync(probe)) ?? "{}"); } catch { }
+        }
+        int h = 0; var playing = false; var chat = false; string? q = null; var w = 0.0; var hosts = new List<string>(); string? pageVis = null;
+        foreach (var json in results)
+        {
+            using var doc = JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            if (r.TryGetProperty("host", out var hostEl)) hosts.Add(hostEl.GetString() ?? "");
+            pageVis ??= r.TryGetProperty("vis", out var visEl) ? visEl.GetString() : null;
+            var fh = r.TryGetProperty("h", out var hv) && hv.ValueKind == JsonValueKind.Number ? hv.GetInt32() : 0;
+            if (fh > 0)
+            {
+                h = fh;
+                playing = r.TryGetProperty("paused", out var pv) && pv.ValueKind == JsonValueKind.False;
+                q = r.TryGetProperty("q", out var qv) && qv.ValueKind == JsonValueKind.String ? qv.GetString() : q;
+                w = r.TryGetProperty("w", out var wv) ? wv.GetDouble() : w;
+            }
+            chat |= r.TryGetProperty("chat", out var cv) && cv.ValueKind == JsonValueKind.True;
+        }
+        var detail = $"{(s.IsLiveVisible ? "visível" : "em segundo plano")} (página: {pageVis}): vídeo {(h > 0 ? $"{h}p" : "sem quadro decodificado")}, {(playing ? "tocando" : "parado")}, " +
+                     $"áudio mudo={live.IsMuted}, chat {(chat ? "conectado" : "NÃO encontrado")}, largura CSS do player {w:0} (zoom {s.LiveView?.ZoomFactor:0.00}), " +
+                     $"qualidade salva {q ?? "—"}, meta de memória {live.MemoryUsageTargetLevel}; frames: {string.Join(", ", hosts.Distinct())}";
+        // O que o bônus exige é a aba aberta, logada, com o chat conectado. Escondido, o Chromium pode
+        // parar de decodificar o vídeo (como numa aba em segundo plano) — isso é esperado.
+        var videoOk = !s.IsLiveVisible || (h > 0 && h <= 360 && playing);
+        return (videoOk && live.IsMuted && chat, detail);
+    }
+
+    /// <summary>CPU de todos os processos do app (anfitrião + WebView2) em % da máquina.</summary>
+    private static async Task<double> TreeCpuAsync(TimeSpan window)
+    {
+        static Dictionary<int, TimeSpan> Read()
+        {
+            var d = new Dictionary<int, TimeSpan>();
+            foreach (var e in ThoseIdles.Shared.ProcessTree.Descendants(ThoseIdles.Shared.ProcessTree.Snapshot(), Environment.ProcessId))
+            {
+                try { using var p = Process.GetProcessById(e.Pid); d[e.Pid] = p.TotalProcessorTime; } catch { }
+            }
+            return d;
+        }
+        var a = Read();
+        var sw = Stopwatch.StartNew();
+        await Task.Delay(window);
+        var b = Read();
+        var used = b.Where(kv => a.ContainsKey(kv.Key)).Sum(kv => (kv.Value - a[kv.Key]).TotalMilliseconds);
+        return used / (sw.Elapsed.TotalMilliseconds * Environment.ProcessorCount) * 100;
+    }
+
     // ------------------------------------------------------------------ teste on-line da /hunt
 
     /// <summary>
@@ -291,6 +411,7 @@ public sealed class SelfTestRunner
 
         await RunLayoutTestsAsync();
         _vm.SaveSettings();
+        await RunLiveTestsAsync();
         await RunExtensionTestsAsync();
 
         await Test("memória: renderers atribuídos por conta", async () =>
@@ -395,6 +516,124 @@ public sealed class SelfTestRunner
             return Math.Abs(saved - 1.2) < 0.001 && Math.Abs(down - 1.1) < 0.001 && Math.Abs(ratio - 1.2) < 0.05 && othersSame
                 ? Pass($"conta 3: + + → 120% (largura CSS {before[3].W:0} → {after[3].W:0}), − → 110%; contas 1 e 4 inalteradas")
                 : Fail($"salvo {saved}, depois do − {down}, razão {ratio:0.00}, outras inalteradas={othersSame}");
+        });
+    }
+
+    // ------------------------------------------------------------------ live da Twitch (local)
+
+    private static async Task<bool> WaitLivePage(BrowserSession s, string channel, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (s.LiveCore is { } live)
+            {
+                try
+                {
+                    if (Unquote(await live.ExecuteScriptAsync("window.__livePage || null")) == channel) return true;
+                }
+                catch { }
+            }
+            await Task.Delay(200);
+        }
+        return false;
+    }
+
+    private async Task RunLiveTestsAsync()
+    {
+        await Test("live: canal da Twitch clicado no jogo abre no painel da conta", async () =>
+        {
+            var boot = await BootIds();
+            await _manager[2].Core!.ExecuteScriptAsync("document.getElementById('twlink').click()");
+            var loaded = await WaitLivePage(_manager[2], "canalteste", TimeSpan.FromSeconds(15));
+            var boot2 = await BootIds();
+            var s2 = _manager[2];
+            var othersClosed = new[] { 1, 3, 4 }.All(i => !_manager[i].IsLiveOpen);
+            var gameStayed = boot.All(b => boot2[b.Key] == b.Value);
+            var hidden = !s2.IsLiveVisible;
+            var ok = loaded && hidden && s2.Account.LiveChannel == "canalteste" && othersClosed && gameStayed;
+            return ok
+                ? Pass("o link (target=_blank) abriu a live da conta 2 em segundo plano (escondida, carregada); o jogo dela não saiu da tela; contas 1, 3 e 4 sem live")
+                : Fail($"carregou={loaded}, escondida={hidden}, canal salvo={s2.Account.LiveChannel}, outras sem live={othersClosed}, jogo ficou={gameStayed}");
+        });
+
+        await Test("live: mesmo perfil da conta, muda e 160p por padrão", async () =>
+        {
+            var s2 = _manager[2];
+            var live = s2.LiveCore!;
+            var sameProfile = string.Equals(live.Profile.ProfilePath, s2.Core!.Profile.ProfilePath, StringComparison.OrdinalIgnoreCase);
+            var quality = Unquote(await live.ExecuteScriptAsync("localStorage.getItem('video-quality')"));
+            var ok = sameProfile && live.IsMuted && quality is not null && quality.Contains("160p30");
+            return ok
+                ? Pass($"perfil {live.Profile.ProfileName} (o mesmo do jogo); IsMuted=true; video-quality={quality}")
+                : Fail($"mesmo perfil={sameProfile}, mudo={live.IsMuted}, qualidade={quality}");
+        });
+
+        await Test("live: memória separada da do jogo", async () =>
+        {
+            await Task.Delay(800);
+            var s = await _memory.SampleAsync();
+            var livePids = s.Processes.Where(p => p.Kind == "renderer (live)" && p.Slot == 2).Select(p => p.Pid).ToList();
+            var gamePids = s.Processes.Where(p => p.Kind == "renderer" && p.Slot == 2).Select(p => p.Pid).ToList();
+            var ok = s.Lives[1].Processes >= 1 && livePids.Count > 0 && !livePids.Intersect(gamePids).Any()
+                     && s.Lives[0].Processes == 0 && s.Lives[2].Processes == 0 && s.Lives[3].Processes == 0;
+            return ok
+                ? Pass($"conta 2: jogo {MemoryMonitor.Format(s.Accounts[1].PrivateWorkingSet)} (pid {string.Join(",", gamePids)}), live {MemoryMonitor.Format(s.Lives[1].PrivateWorkingSet)} (pid {string.Join(",", livePids)})")
+                : Fail($"lives por conta: {string.Join("/", s.Lives.Select(l => l.Processes))}; pids live {string.Join(",", livePids)}; jogo {string.Join(",", gamePids)}");
+        });
+
+        await Test("live escondida continua rodando (como aba em segundo plano)", async () =>
+        {
+            var s2 = _manager[2];
+            var live = s2.LiveCore!;
+            var t0 = long.Parse(await live.ExecuteScriptAsync("window.liveTicks"));
+            await Task.Delay(5000);
+            var t1 = long.Parse(await live.ExecuteScriptAsync("window.liveTicks"));
+            var vis = Unquote(await live.ExecuteScriptAsync("document.visibilityState"));
+            var target = live.MemoryUsageTargetLevel;
+            return t1 - t0 >= 40 && vis == "hidden" && !s2.IsLiveVisible && target == CoreWebView2MemoryUsageTargetLevel.Low
+                ? Pass($"página da live 'hidden' (como aba em segundo plano) e mesmo assim {t1 - t0} ticks/50 em 5 s; meta de memória da aba: Low")
+                : Fail($"{t1 - t0} ticks em 5 s, {vis}, meta {target}, visível={s2.IsLiveVisible}");
+        });
+
+        await Test("live: mostrar, esconder e fechar", async () =>
+        {
+            var s2 = _manager[2];
+            var boot = (await BootIds())[2];
+            var liveBoot = Unquote(await s2.LiveCore!.ExecuteScriptAsync("String(performance.timeOrigin)"));
+            s2.SetLiveVisible(true);                           // 📺 do cabeçalho: mostrar
+            await Task.Delay(1000);
+            var visShown = Unquote(await s2.LiveCore!.ExecuteScriptAsync("document.visibilityState"));
+            var normal = s2.LiveCore.MemoryUsageTargetLevel == CoreWebView2MemoryUsageTargetLevel.Normal;
+            s2.SetLiveVisible(false);                          // esconder: continua aberta
+            await Task.Delay(500);
+            var visHidden = Unquote(await s2.LiveCore!.ExecuteScriptAsync("document.visibilityState"));
+            LoggingService.Log.Info($"[diag live] depois de mostrar e esconder: {visHidden}");
+            var sameLive = Unquote(await s2.LiveCore!.ExecuteScriptAsync("String(performance.timeOrigin)")) == liveBoot;
+            var sameGame = (await BootIds())[2] == boot;
+            var reopened = s2.IsLiveOpen && !s2.IsLiveVisible && sameLive;
+            // Fecha e esquece na conta 3 (abre lá só para isso); a conta 2 fica com a live para a fase 2.
+            await _manager[3].OpenLiveAsync("outrocanal");
+            var opened3 = await WaitLivePage(_manager[3], "outrocanal", TimeSpan.FromSeconds(15));
+            _manager[3].CloseLive(forget: true);
+            var forgot = !_manager[3].IsLiveOpen && _manager[3].Account.LiveChannel is null;
+            _vm.SaveSettings();
+            return visShown == "visible" && normal && reopened && sameGame && opened3 && forgot
+                ? Pass("mostrar: página visível e memória normal; esconder: a mesma live seguiu aberta (sem recarregar), jogo intacto; fechar (conta 3) esqueceu o canal")
+                : Fail($"mostrada={visShown}, memória normal={normal}, escondida sem recarregar={reopened}, jogo intacto={sameGame}, abriu3={opened3}, esqueceu={forgot}");
+        });
+
+        await Test("live: reabrir pelo canal guardado", async () =>
+        {
+            var s2 = _manager[2];
+            s2.CloseLive(forget: false);                       // fecha (ex.: conta reiniciada), canal fica guardado
+            var kept = !s2.IsLiveOpen && s2.Account.LiveChannel == "canalteste";
+            await s2.OpenLiveAsync(s2.Account.LiveChannel!);   // 📺 do cabeçalho reabre
+            var reopened = await WaitLivePage(s2, "canalteste", TimeSpan.FromSeconds(15));
+            _vm.SaveSettings();
+            return kept && reopened
+                ? Pass("fechada, o canal ficou guardado; o botão reabriu a mesma live em segundo plano")
+                : Fail($"guardou={kept}, reabriu={reopened}");
         });
     }
 
@@ -539,6 +778,17 @@ public sealed class SelfTestRunner
         {
             var m = await HuntMarks();
             return m.Count == 4 && m.Values.All(v => v) ? Pass(Marks(m)) : Fail(Marks(m));
+        });
+
+        await Test("live reabre com a conta após reiniciar o aplicativo", async () =>
+        {
+            var reopened = await WaitLivePage(_manager[2], "canalteste", TimeSpan.FromSeconds(15));
+            var muted = _manager[2].LiveCore?.IsMuted == true;
+            var hidden = !_manager[2].IsLiveVisible;
+            var others = new[] { 1, 3, 4 }.All(i => !_manager[i].IsLiveOpen);
+            return reopened && muted && hidden && others
+                ? Pass("conta 2 voltou com a live de canalteste, muda e em segundo plano; as outras sem live")
+                : Fail($"reabriu={reopened}, muda={muted}, escondida={hidden}, outras sem live={others}");
         });
 
         await Test("divisórias e zoom persistem após reiniciar o aplicativo", () =>

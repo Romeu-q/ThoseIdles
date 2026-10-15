@@ -245,6 +245,54 @@ processo novo (15 → 15) e mudou a memória em +9 MB no total, dentro do ruído
 instala o hook. Logada, ela carrega o catálogo do jogo, e o custo real só dá para medir com as suas
 contas (o detalhamento por conta na barra superior mostra isso).
 
+### 8.2 Live da Twitch (bônus de XP do jogo)
+
+O PokeIdle dá **+15% de XP** a quem assiste a uma live oficial **logado numa conta da Twitch
+vinculada**, e +2,5% por live oficial a mais. O servidor do jogo confere uma vez por minuto se o seu
+login da Twitch está **no chat** da live. Basta a aba da live estar aberta e logada; ela não precisa
+estar na tela.
+
+**Como usar:**
+
+1. Em cada conta, faça o "Vincular Twitch" do próprio jogo com a conta da Twitch daquela conta. O
+   login fica no perfil da conta: cada conta pode ter uma Twitch diferente.
+2. Na tela "Twitch" do jogo, clique no canal. A live abre **dentro daquela conta, em segundo plano**:
+   muda, com padrão de 160p, sem ocupar espaço. Fora do app, o link abriria no seu navegador padrão,
+   que tem outro login.
+3. O botão 📺 no cabeçalho da conta mostra ou esconde a live. Escondida, ela **continua aberta**, como
+   uma aba do Chrome em segundo plano. Na barra da live há: mudo/som, abrir no navegador, esconder e
+   fechar. Fechar esquece o canal.
+4. A live reabre sozinha quando a conta abre (opção "Reabrir a live com a conta").
+
+**Como funciona:** é um segundo WebView2 **no mesmo perfil da conta**, então tem o mesmo login da
+Twitch e outra conta nunca o vê. Escondida, a página fica `hidden` para o navegador, como uma aba em
+segundo plano. O vídeo nem é decodificado, mas o chat continua conectado, porque as flags
+anti-throttling do app valem para ela também. Na aba escondida, o app também pede ao WebView2 meta de
+memória baixa.
+
+> O app **não** usa truques como abrir só o chat sem a live, nem bloqueia anúncios ou partes da página
+> da Twitch: é a mesma página que você teria numa aba do Chrome.
+
+**Custo medido** (live real da Twitch, canal lofigirl, 4 contas abertas numa página neutra no lugar
+do jogo, 45 s após abrir):
+
+| | Memória total | Processos | CPU da máquina |
+|---|---|---|---|
+| 4 contas sem live | 214 MB | 10 | 0,0% |
+| live **escondida** em 1 conta | 777 MB (+563 MB) | 36 | 0,1% |
+| live **escondida** nas 4 contas | 2,24 GB (+2,03 GB, ≈ 520 MB por live) | 113 | 0,3% |
+| para comparar: live **visível** nas 4 contas | 2,71–2,99 GB (≈ 640–714 MB por live) | 105–120 | 5,8–7,5% |
+
+A maior parte desse custo é o próprio site da Twitch (aplicativo da página, anúncios e extensões de
+canal, cada um em processo próprio). Cada live a mais custa ≈ 0,5 GB. Vale pesar: +15% de XP por
+conta contra ~0,5 GB por live.
+
+**Modo leve (experimental, desligado por padrão):** em vez do site inteiro, uma página mínima do app
+com o player e o chat **oficiais incorporados** da Twitch (embed). Com a live visível, mediu ≈ 255 MB
+por live, mas **não está verificado**: o player incorporado não chegou a decodificar vídeo no teste, e
+eu não consegui confirmar se o chat incorporado reconhece o seu login. Sem login reconhecido, o jogo
+não detecta você. Se for testar, confira no chat se aparece o seu nome.
+
 ## 9. Testes
 
 ### Autoteste automático (WebView2 real, sem tocar nas suas contas)
@@ -257,7 +305,7 @@ O autoteste usa uma pasta de dados temporária e uma página local que imita o j
 `localhost`). Ele roda o app duas vezes e verifica processos órfãos entre as execuções. Para testar o
 `.exe` publicado: `-Exe publish\win-x64\ThoseIdles.exe`.
 
-**Resultado (15/10/2026, Windows 10 22H2, WebView2 Runtime 155):** aprovado nos 24 itens, tanto no
+**Resultado (15/10/2026, Windows 10 22H2, WebView2 Runtime 155):** aprovado nos 31 itens, tanto no
 build normal quanto no `.exe` publicado. Os testes de extensão usam uma extensão de teste com o mesmo
 formato da /hunt (content script em `world: MAIN`, `document_start`), só que para `localhost`:
 
@@ -278,6 +326,12 @@ formato da /hunt (content script em `world: MAIN`, `document_start`), só que pa
 | Divisória do modo "uma conta" | OK |
 | Zoom por conta independente (conta 2 a 150%, as outras inalteradas) | OK |
 | Botões −/+ de zoom ajustam só a conta e salvam | OK |
+| Live: canal da Twitch clicado no jogo abre na conta, em segundo plano, sem tirar o jogo da tela | OK |
+| Live: mesmo perfil da conta, muda, padrão 160p | OK |
+| Live: memória separada da do jogo (renderer próprio) | OK |
+| Live escondida fica `hidden` e continua rodando (timers a 10/s) | OK |
+| Live: mostrar, esconder (sem recarregar) e fechar (esquece o canal) | OK |
+| Live: reabrir pelo canal guardado | OK |
 | Extensão: manifesto real da /hunt aceito; 5 manifestos perigosos recusados | OK |
 | Extensão carregada em cada perfil, antes do script da página | OK |
 | Desligar a extensão só na conta 2: some só nela, 1/3/4 não recarregam | OK |
@@ -287,6 +341,7 @@ formato da /hunt (content script em `world: MAIN`, `document_start`), só que pa
 | Reabrir o app: contas 1–3 mantêm a sessão, a 4 continua limpa | OK |
 | Reabrir o app: extensão continua ativa nas 4 | OK |
 | Reabrir o app: divisórias e zoom de cada conta continuam iguais | OK |
+| Reabrir o app: a live da conta volta, muda e em segundo plano | OK |
 
 **Teste on-line da extensão real** (baixa a /hunt da loja e abre o pokeidle.io de verdade, sem login):
 
@@ -433,6 +488,7 @@ src/ThoseIdles/
   ViewModels/AccountViewModel.cs estado e comandos de uma conta
   Services/ProfileManager.cs    ambiente WebView2 único, perfis conta1..4, flags
   Services/BrowserSession.cs    ciclo de vida de uma conta, estado, recuperação, segurança
+  Services/BrowserSession.Live.cs  live da Twitch da conta (mesmo perfil, segundo plano, mudo, 160p)
   Services/BrowserSessionManager.cs  abrir/fechar todas, queda do navegador, rede, encerramento
   Services/NavigationPolicy.cs  validação de URLs
   Services/HuntExtensionService.cs  download, validação e versões da extensão /hunt

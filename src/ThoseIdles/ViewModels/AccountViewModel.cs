@@ -38,6 +38,21 @@ public sealed class AccountViewModel : ObservableObject
             _main.SaveSettingsSoon();
         };
         ResetZoomCommand = new RelayCommand(() => SetZoom(1.0));
+        // 📺 do cabeçalho: com a live aberta, mostra/esconde (ela segue rodando escondida);
+        // com a live fechada mas um canal guardado, reabre.
+        ToggleLiveCommand = new AsyncCommand(async () =>
+        {
+            if (Session.IsLiveOpen) Session.SetLiveVisible(!Session.IsLiveVisible);
+            else if (Session.LiveChannel is { } ch) await Session.OpenLiveAsync(ch);
+        }, () => Session.IsRunning && (Session.IsLiveOpen || Session.LiveChannel is not null));
+        HideLiveCommand = new RelayCommand(() => Session.SetLiveVisible(false));
+        CloseLiveCommand = new RelayCommand(() => Session.CloseLive(forget: true));
+        ToggleLiveMuteCommand = new RelayCommand(() => Session.SetLiveMuted(!Session.LiveMuted));
+        OpenLiveExternallyCommand = new RelayCommand(() =>
+        {
+            if (Session.LiveChannel is { } ch)
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(BrowserSession.LiveUrlForChannel(ch)) { UseShellExecute = true });
+        });
         ZoomInCommand = new RelayCommand(() => SetZoom(Math.Round((Session.Account.Zoom + 0.1) * 10) / 10));
         ZoomOutCommand = new RelayCommand(() => SetZoom(Math.Round((Session.Account.Zoom - 0.1) * 10) / 10));
         ToggleHuntCommand = new AsyncCommand(async () =>
@@ -197,6 +212,92 @@ public sealed class AccountViewModel : ObservableObject
         OnPropertyChanged(nameof(ZoomText));
     }
 
+    // ------------------------------------------------------------------ live da Twitch
+
+    public ICommand ToggleLiveCommand { get; }
+    public ICommand HideLiveCommand { get; }
+    public ICommand CloseLiveCommand { get; }
+    public ICommand ToggleLiveMuteCommand { get; }
+    public ICommand OpenLiveExternallyCommand { get; }
+
+    private string _liveMemoryText = "";
+
+    public bool IsLiveOpen => Session.IsLiveOpen;
+    /// <summary>Painel da live na tela (aberta E visível). Escondida, a aba segue rodando.</summary>
+    public bool ShowLive => Session.IsLiveOpen && (Session.IsLiveVisible || Session.IsLiveBooting);
+
+    /// <summary>Divisória só com a live visível de verdade (não durante a faixa de inicialização).</summary>
+    public bool ShowLiveSplitter => Session.IsLiveOpen && Session.IsLiveVisible;
+    public string LiveTitle => Session.LiveChannel is { } ch ? $"twitch.tv/{ch}" : "";
+    public string LiveStatus => Session.LiveStatus;
+    public bool LiveMuted => Session.LiveMuted;
+    public bool HasLiveChannel => Session.LiveChannel is not null;
+
+    public string LiveToggleTooltip => Session.IsLiveOpen
+        ? Session.IsLiveVisible
+            ? $"Esconder a live de {Session.LiveChannel} (continua aberta em segundo plano)"
+            : $"Live de {Session.LiveChannel} aberta em segundo plano{(LiveMemoryText.Length > 0 ? $" ({LiveMemoryText})" : "")} — clique para ver"
+        : Session.LiveChannel is { } ch ? $"Reabrir a live de {ch}" : "Abra um canal pela tela \"Twitch\" do jogo";
+
+    public string LiveMemoryText
+    {
+        get => _liveMemoryText;
+        set
+        {
+            if (Set(ref _liveMemoryText, value)) OnPropertyChanged(nameof(LiveToggleTooltip));
+        }
+    }
+
+    /// <summary>Proporção game/live dentro do painel, salva por conta (a divisória arrasta).</summary>
+    public System.Windows.GridLength GameRowHeight
+    {
+        get => new(1 - Session.Account.LiveSplit, System.Windows.GridUnitType.Star);
+        set { if (value.IsStar) UpdateLiveSplit(gameStar: value.Value, liveStar: null); }
+    }
+
+    public System.Windows.GridLength LiveRowHeight
+    {
+        get => ShowLiveSplitter ? new(Session.Account.LiveSplit, System.Windows.GridUnitType.Star)
+             : ShowLive ? new(2) // faixa mínima enquanto a live escondida inicializa
+             : new(0);
+        set { if (value.IsStar && ShowLiveSplitter) UpdateLiveSplit(gameStar: null, liveStar: value.Value); }
+    }
+
+    private double? _pendingGameStar, _pendingLiveStar;
+
+    // O GridSplitter ajusta as duas linhas em sequência; só com os dois valores dá para saber a proporção.
+    private void UpdateLiveSplit(double? gameStar, double? liveStar)
+    {
+        if (gameStar is not null) _pendingGameStar = gameStar;
+        if (liveStar is not null) _pendingLiveStar = liveStar;
+        if (_pendingGameStar is not { } g || _pendingLiveStar is not { } l || g + l <= 0) return;
+        Session.Account.LiveSplit = Math.Clamp(l / (g + l), 0.15, 0.85);
+        _pendingGameStar = _pendingLiveStar = null;
+        _main.SaveSettingsSoon();
+    }
+
+    /// <summary>Chamado pela view quando a área da live muda de largura: zoom para manter vídeo + chat.</summary>
+    public void OnLiveResized(double width)
+    {
+        // Site completo: abaixo de ~1300 px CSS a Twitch esconde o chat, e o bônus depende do chat
+        // conectado. Modo leve: a página do app já põe o chat ao lado do player, sem precisar de zoom.
+        if (width > 0) Session.SetLiveZoom(_settings.LiveLightMode ? 1.0 : Math.Clamp(width / 1300.0, 0.3, 1.0));
+    }
+
+    private void OnLiveChanged()
+    {
+        OnPropertyChanged(nameof(IsLiveOpen));
+        OnPropertyChanged(nameof(ShowLive));
+        OnPropertyChanged(nameof(ShowLiveSplitter));
+        OnPropertyChanged(nameof(LiveTitle));
+        OnPropertyChanged(nameof(HasLiveChannel));
+        OnPropertyChanged(nameof(LiveToggleTooltip));
+        OnPropertyChanged(nameof(GameRowHeight));
+        OnPropertyChanged(nameof(LiveRowHeight));
+        if (!Session.IsLiveOpen) LiveMemoryText = "";
+        CommandManager.InvalidateRequerySuggested();
+    }
+
     // ------------------------------------------------------------------ zoom por conta
 
     public ICommand ResetZoomCommand { get; }
@@ -246,6 +347,18 @@ public sealed class AccountViewModel : ObservableObject
                 OnPropertyChanged(nameof(ShowBanner));
                 if (!Session.IsRunning) MemoryText = "";
                 CommandManager.InvalidateRequerySuggested();
+                break;
+            case nameof(BrowserSession.IsLiveOpen):
+            case nameof(BrowserSession.IsLiveVisible):
+            case nameof(BrowserSession.IsLiveBooting):
+            case nameof(BrowserSession.LiveChannel):
+                OnLiveChanged();
+                break;
+            case nameof(BrowserSession.LiveStatus):
+                OnPropertyChanged(nameof(LiveStatus));
+                break;
+            case nameof(BrowserSession.LiveMuted):
+                OnPropertyChanged(nameof(LiveMuted));
                 break;
             case nameof(BrowserSession.HuntActive):
                 OnPropertyChanged(nameof(HuntActive));

@@ -55,6 +55,22 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,3,0"
                             Visibility="{Binding IsConfirmingClear, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <!-- Live da Twitch desta conta: esconder / reabrir -->
+                        <Button Command="{Binding ToggleLiveCommand}" ToolTip="{Binding LiveToggleTooltip}"
+                                Visibility="{Binding HasLiveChannel, Converter={StaticResource BoolToVis}}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                    <Setter Property="Content" Value="&#xE714;" />
+                                    <Setter Property="Opacity" Value="0.45" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLiveOpen}" Value="True">
+                                            <Setter Property="Foreground" Value="#A970FF" />
+                                            <Setter Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                         <!-- Extensão /hunt: liga/desliga só nesta conta -->
                         <Button Command="{Binding ToggleHuntCommand}" ToolTip="{Binding HuntTooltip}"
                                 Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}">
@@ -138,11 +154,61 @@
                 </DockPanel>
             </Border>
 
-            <!-- A página -->
+            <!-- O jogo e, abaixo, a live da Twitch desta conta (divisória arrastável entre os dois) -->
             <Grid>
-                <TextBlock Text="Conta fechada" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
-                <ContentPresenter Content="{Binding Session.WebView}" />
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="{Binding GameRowHeight, Mode=TwoWay}" MinHeight="60" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="{Binding LiveRowHeight, Mode=TwoWay}" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <TextBlock Text="Conta fechada" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                    <ContentPresenter Content="{Binding Session.WebView}" />
+                </Grid>
+
+                <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                              Background="#2C2C35" Cursor="SizeNS" ToolTip="Arraste para dividir o espaço entre o jogo e a live"
+                              Visibility="{Binding ShowLiveSplitter, Converter={StaticResource BoolToVis}}" />
+
+                <DockPanel Grid.Row="2" Visibility="{Binding ShowLive, Converter={StaticResource BoolToVis}}">
+                    <Grid DockPanel.Dock="Top" Height="24" Background="#1A1524">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0" ClipToBounds="True">
+                            <TextBlock Text="&#xE714;" FontFamily="{StaticResource Icons}" Foreground="#A970FF" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding LiveTitle}" Foreground="{StaticResource Text}" FontSize="11.5" Margin="6,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding LiveStatus}" Foreground="{StaticResource Muted}" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding LiveMemoryText}" Foreground="{StaticResource Muted}" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       ToolTip="Memória dos processos da live (privada em RAM). A decodificação do vídeo também usa a GPU, contada em &quot;Compartilhado&quot;." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,3,0">
+                            <Button Command="{Binding ToggleLiveMuteCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                        <Setter Property="Content" Value="&#xE767;" />
+                                        <Setter Property="ToolTip" Value="Silenciar a live" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding LiveMuted}" Value="True">
+                                                <Setter Property="Content" Value="&#xE74F;" />
+                                                <Setter Property="ToolTip" Value="Live muda (clique para ouvir)" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" Command="{Binding OpenLiveExternallyCommand}" ToolTip="Abrir este canal no navegador padrão" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE73F;" Command="{Binding HideLiveCommand}" ToolTip="Esconder a live (continua aberta em segundo plano; o botão 📺 do cabeçalho mostra de novo)" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE711;" Command="{Binding CloseLiveCommand}" ToolTip="Fechar a live e esquecer o canal desta conta" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid SizeChanged="OnLiveSizeChanged">
+                        <ContentPresenter Content="{Binding Session.LiveView}" />
+                    </Grid>
+                </DockPanel>
             </Grid>
         </DockPanel>
     </Border>

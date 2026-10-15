@@ -37,7 +37,7 @@ public enum PanelRole
 /// Ciclo de vida de UMA conta: cria o controle WebView2 no perfil da conta, navega, acompanha estado,
 /// recupera falhas e libera tudo ao fechar. Todas as chamadas acontecem na thread da UI.
 /// </summary>
-public sealed class BrowserSession : ObservableObject
+public sealed partial class BrowserSession : ObservableObject
 {
     private static readonly int[] RetryDelaysSeconds = { 5, 15, 30, 60, 120, 300 };
 
@@ -171,6 +171,10 @@ public sealed class BrowserSession : ObservableObject
             ApplyView(_role, _zoom);
             LoggingService.Log.Info($"[conta{Slot}] WebView2 pronto (perfil {ProfileName}, browser pid {_core.BrowserProcessId}).");
             _core.Navigate(_settings.StartUrl);
+
+            // A live que estava aberta nesta conta volta junto (opção "reabrir a live com a conta").
+            if (_settings.ReopenLives && Account.LiveChannel is { } channel)
+                await OpenLiveAsync(channel);
         }
         catch (Exception ex) when (gen == _generation)
         {
@@ -238,6 +242,7 @@ public sealed class BrowserSession : ObservableObject
         var core = _core ?? throw new InvalidOperationException("Não foi possível iniciar a conta para limpar os dados.");
 
         CancelTimers();
+        CloseLive(forget: true); // a live usa o mesmo perfil (login da Twitch), que vai ser apagado
         SetStatus(SessionStatus.Loading, "Limpando dados…");
         await NavigateAndWaitAsync(core, "about:blank", TimeSpan.FromSeconds(10));
         await core.Profile.ClearBrowsingDataAsync();
@@ -443,6 +448,8 @@ public sealed class BrowserSession : ObservableObject
 
     private void DetachAndDispose()
     {
+        // A live vai junto com a conta, mas o canal fica guardado para reabrir com ela.
+        DisposeLive();
         var core = _core;
         _core = null;
         if (core is not null)
@@ -496,6 +503,15 @@ public sealed class BrowserSession : ObservableObject
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
+        // Clique num canal da Twitch dentro do jogo: abre no painel de live da conta, sem tirar o jogo da tela.
+        if (e.IsUserInitiated && !e.IsRedirected && TryParseTwitchChannel(e.Uri, out var channel))
+        {
+            e.Cancel = true;
+            _blockedNavigationId = e.NavigationId;
+            _ = OpenLiveAsync(channel);
+            return;
+        }
+
         var decision = _policy.Evaluate(e.Uri, e.IsRedirected, e.IsUserInitiated);
         if (decision != NavigationDecision.Allow)
         {
@@ -562,6 +578,13 @@ public sealed class BrowserSession : ObservableObject
         // Nenhuma janela pop-up é criada dentro do app. Links externos (Discord, termos, pagamento)
         // vão para o navegador padrão, com limite de frequência para a página não abrir abas em série.
         e.Handled = true;
+        // Os links dos canais oficiais na tela "Twitch" do jogo (target=_blank) abrem no painel de live
+        // desta conta, que tem o login da Twitch dela — no navegador padrão o login seria outro.
+        if (TryParseTwitchChannel(e.Uri, out var channel))
+        {
+            _ = OpenLiveAsync(channel);
+            return;
+        }
         if (!NavigationPolicy.IsSafeExternalUrl(e.Uri)) return;
         if (DateTime.UtcNow - _lastExternalOpenUtc < TimeSpan.FromSeconds(2)) return;
         OpenExternal(e.Uri);

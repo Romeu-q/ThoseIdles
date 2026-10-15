@@ -13,6 +13,8 @@ public partial class AccountPanel : UserControl
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e) => Vm?.OnPanelResized(e.NewSize.Width);
 
+    private void OnLiveSizeChanged(object sender, SizeChangedEventArgs e) => Vm?.OnLiveResized(e.NewSize.Width);
+
     private void OnNameBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (NameBox.IsVisible)

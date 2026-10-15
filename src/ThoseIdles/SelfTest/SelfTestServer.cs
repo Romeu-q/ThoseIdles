@@ -16,6 +16,7 @@ public sealed class SelfTestServer : IDisposable
         <html><head><meta charset="utf-8"><title>autoteste</title></head>
         <body style="background:#1b1b22;color:#ccc;font:13px Segoe UI,sans-serif;margin:8px">
         <b>ThoseIdles — página de autoteste</b>
+        <a id="twlink" href="https://www.twitch.tv/canalteste" target="_blank" rel="noopener">canal da Twitch</a>
         <div id="t"></div>
         <script>
           window.bootId = Math.random().toString(36).slice(2);
@@ -42,7 +43,25 @@ public sealed class SelfTestServer : IDisposable
         </body></html>
         """;
 
+    /// <summary>"Live" de teste. Fica em 127.0.0.1 (outro site que o jogo em localhost), como twitch.tv × pokeidle.io.</summary>
+    private const string LivePage = """
+        <!doctype html>
+        <html><head><meta charset="utf-8"><title>live de teste</title></head>
+        <body style="background:#0e0e10;color:#ddd;font:13px Segoe UI,sans-serif;margin:8px">
+        <b>live de teste</b> <span id="c"></span>
+        <script>
+          window.__livePage = new URLSearchParams(location.search).get('c');
+          document.getElementById('c').textContent = window.__livePage;
+          window.liveTicks = 0;
+          setInterval(() => { window.liveTicks++; }, 100);
+        </script>
+        </body></html>
+        """;
+
     private readonly HttpListener _listener = new();
+
+    /// <summary>Endereço da live de teste de um canal.</summary>
+    public string LiveUrl(string channel) => $"http://127.0.0.1:{Port}/live?c={Uri.EscapeDataString(channel)}";
     private readonly CancellationTokenSource _cts = new();
 
     public int Port { get; }
@@ -53,6 +72,7 @@ public sealed class SelfTestServer : IDisposable
     {
         Port = port > 0 ? port : FreePort();
         _listener.Prefixes.Add(Url);
+        _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
         _listener.Start();
         _ = Task.Run(AcceptLoop);
     }
@@ -102,7 +122,7 @@ public sealed class SelfTestServer : IDisposable
                 return;
             }
 
-            var bytes = Encoding.UTF8.GetBytes(Page);
+            var bytes = Encoding.UTF8.GetBytes(ctx.Request.Url?.AbsolutePath == "/live" ? LivePage : Page);
             ctx.Response.ContentType = "text/html; charset=utf-8";
             ctx.Response.ContentLength64 = bytes.Length;
             await ctx.Response.OutputStream.WriteAsync(bytes);

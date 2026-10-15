@@ -77,6 +77,18 @@
                               ToolTip="Consulta a loja ao abrir o app e a cada 12 h. Versão nova é baixada, conferida (SHA-256 + manifesto) e usada quando cada conta recarregar ou reabrir — nenhuma conta é recarregada sozinha." />
                     <TextBlock Text="{Binding HuntStatusText}" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                 </WrapPanel>
+                <WrapPanel Margin="0,6,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Live da Twitch (bônus de XP):" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"
+                               ToolTip="Clique num canal na tela &quot;Twitch&quot; do jogo: a live abre abaixo da conta, no perfil dela (login da Twitch daquela conta)." />
+                    <CheckBox Content="Abrir muda" IsChecked="{Binding LiveMutedByDefault}" />
+                    <CheckBox Content="Menor qualidade (160p)" IsChecked="{Binding LiveLowestQuality}"
+                              ToolTip="Define 160p como padrão do player uma vez por conta. Se você trocar a qualidade no player, a sua escolha vale." />
+                    <CheckBox Content="Reabrir a live com a conta" IsChecked="{Binding ReopenLives}" />
+                    <CheckBox Content="Memória baixa na live escondida" IsChecked="{Binding LiveHiddenLowMemory}"
+                              ToolTip="Com a live em segundo plano, pede ao WebView2 para reduzir a memória daquela aba. Só a live é afetada, nunca o jogo." />
+                    <CheckBox Content="Modo leve (experimental)" IsChecked="{Binding LiveLightMode}"
+                              ToolTip="Só o player e o chat oficiais da Twitch (embed), sem o resto do site: bem menos memória. Confira se o chat mostra você logado — é assim que o jogo detecta quem assiste." />
+                </WrapPanel>
                 <TextBlock Margin="0,6,0,0" Foreground="{StaticResource Muted}" FontSize="11.5" TextWrapping="Wrap">
                     <Run Text="WebView2 Runtime:" /> <Run Text="{Binding RuntimeVersion, Mode=OneWay}" />
                     <Run Text="  ·  Dados:" /> <Run Text="{Binding DataFolder, Mode=OneWay}" />

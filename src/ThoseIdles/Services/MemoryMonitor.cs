@@ -29,7 +29,8 @@ public sealed record MemorySnapshot(
     MemoryGroup Total,
     MemoryGroup Host,
     MemoryGroup Shared,
-    MemoryGroup[] Accounts, // índice 0..3 = conta1..conta4
+    MemoryGroup[] Accounts, // índice 0..3 = conta1..conta4 (o jogo)
+    MemoryGroup[] Lives,    // índice 0..3 = renderers da live da Twitch de cada conta
     IReadOnlyList<ProcessDetail> Processes);
 
 /// <summary>
@@ -83,12 +84,17 @@ public sealed class MemoryMonitor : IDisposable
     {
         // 1) Classificação pelo WebView2.
         var kindByPid = new Dictionary<int, (string Kind, int? Slot)>();
+        var livePids = new HashSet<int>();
         var env = _sessions.Profiles.Environment;
         if (env is not null)
         {
             var slotByFrame = new Dictionary<uint, int>();
+            var liveSlotByFrame = new Dictionary<uint, int>();
             foreach (var s in _sessions.Sessions)
+            {
                 if (s.MainFrameId != 0) slotByFrame[s.MainFrameId] = s.Slot;
+                if (s.LiveMainFrameId != 0) liveSlotByFrame[s.LiveMainFrameId] = s.Slot;
+            }
 
             try
             {
@@ -104,6 +110,7 @@ public sealed class MemoryMonitor : IDisposable
                             var root = frame;
                             for (var depth = 0; root.ParentFrameInfo is { } parent && depth < 32; depth++) root = parent;
                             if (slotByFrame.TryGetValue(root.FrameId, out var found)) { slot = found; break; }
+                            if (liveSlotByFrame.TryGetValue(root.FrameId, out var liveSlot)) { slot = liveSlot; livePids.Add(p.ProcessId); break; }
                         }
                     }
                     kindByPid[p.ProcessId] = (KindName(p.Kind), slot);
@@ -121,6 +128,7 @@ public sealed class MemoryMonitor : IDisposable
         var host = new MemoryGroup();
         var shared = new MemoryGroup();
         var accounts = new MemoryGroup[AppSettings.AccountCount];
+        var lives = new MemoryGroup[AppSettings.AccountCount];
         var details = new List<ProcessDetail>(tree.Count);
 
         foreach (var entry in tree)
@@ -136,8 +144,10 @@ public sealed class MemoryMonitor : IDisposable
 
             if (kindByPid.TryGetValue(entry.Pid, out var k) && k.Slot is int slot && slot >= 1 && slot <= accounts.Length)
             {
-                accounts[slot - 1].Add(mem);
-                details.Add(new ProcessDetail(entry.Pid, k.Kind, slot, mem));
+                var isLive = livePids.Contains(entry.Pid);
+                if (isLive) lives[slot - 1].Add(mem);
+                else accounts[slot - 1].Add(mem);
+                details.Add(new ProcessDetail(entry.Pid, isLive ? "renderer (live)" : k.Kind, slot, mem));
             }
             else
             {
@@ -146,7 +156,7 @@ public sealed class MemoryMonitor : IDisposable
             }
         }
 
-        return new MemorySnapshot(DateTime.UtcNow, total, host, shared, accounts, details);
+        return new MemorySnapshot(DateTime.UtcNow, total, host, shared, accounts, lives, details);
     }
 
     private static string KindName(CoreWebView2ProcessKind kind) => kind switch

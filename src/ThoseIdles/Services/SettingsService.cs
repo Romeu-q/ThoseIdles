@@ -20,6 +20,15 @@ public sealed class AccountSettings
     /// <summary>Zoom da página desta conta (1.0 = 100%). Ctrl + roda do mouse na página ajusta e salva.</summary>
     public double Zoom { get; set; }
 
+    /// <summary>Canal da Twitch aberto no painel de live desta conta (null = sem live).</summary>
+    public string? LiveChannel { get; set; }
+
+    /// <summary>Se a live desta conta aparece na tela. Escondida ela continua aberta, como uma aba em segundo plano.</summary>
+    public bool LiveVisible { get; set; }
+
+    /// <summary>Altura da live em relação ao painel da conta (0.15–0.85).</summary>
+    public double LiveSplit { get; set; } = 0.4;
+
     /// <summary>Id e pasta da extensão instalada neste perfil (o id de uma extensão desempacotada depende da pasta).</summary>
     public string? HuntExtensionId { get; set; }
     public string? HuntExtensionFolder { get; set; }
@@ -102,6 +111,25 @@ public sealed class AppSettings
     /// <summary>Consulta a loja ao abrir o app e a cada 12 h; versão nova é baixada e validada sozinha.</summary>
     public bool AutoUpdateHuntExtension { get; set; } = true;
 
+    /// <summary>Live da Twitch: abre muda (o áudio fica desligado no WebView2, não só no player).</summary>
+    public bool LiveMutedByDefault { get; set; } = true;
+
+    /// <summary>Live da Twitch: qualidade padrão 160p (gravada uma vez; trocar no player continua valendo).</summary>
+    public bool LiveLowestQuality { get; set; } = true;
+
+    /// <summary>Reabre a live de cada conta quando a conta abre.</summary>
+    public bool ReopenLives { get; set; } = true;
+
+    /// <summary>
+    /// Modo leve: em vez do site inteiro da Twitch, uma página mínima do app com o PLAYER e o CHAT
+    /// oficiais incorporados (embed). Desligado por padrão: o chat incorporado precisa reconhecer o
+    /// login da Twitch para o jogo detectar o jogador — confira na sua conta antes de usar.
+    /// </summary>
+    public bool LiveLightMode { get; set; }
+
+    /// <summary>Live escondida: pede ao WebView2 meta de memória baixa para aquela aba (o jogo não é afetado).</summary>
+    public bool LiveHiddenLowMemory { get; set; } = true;
+
     /// <summary>Grava amostras de memória em CSV na pasta benchmark.</summary>
     public bool RecordBenchmarkCsv { get; set; }
 
@@ -151,7 +179,12 @@ public sealed class AppSettings
         Window ??= new WindowPlacement();
         Splits ??= new LayoutSplits();
         Splits.Normalize();
-        foreach (var a in Accounts) a.Zoom = Math.Clamp(double.IsFinite(a.Zoom) && a.Zoom > 0 ? a.Zoom : GridZoom, 0.25, 3.0);
+        foreach (var a in Accounts)
+        {
+            a.Zoom = Math.Clamp(double.IsFinite(a.Zoom) && a.Zoom > 0 ? a.Zoom : GridZoom, 0.25, 3.0);
+            a.LiveSplit = Math.Clamp(double.IsFinite(a.LiveSplit) && a.LiveSplit > 0 ? a.LiveSplit : 0.4, 0.15, 0.85);
+            if (a.LiveChannel is { } ch && !System.Text.RegularExpressions.Regex.IsMatch(ch, "^[A-Za-z0-9_]{2,25}$")) a.LiveChannel = null;
+        }
     }
 }
 

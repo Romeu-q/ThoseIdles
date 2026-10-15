@@ -170,7 +170,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         tip.AppendLine($"App WPF: {MemoryMonitor.Format(s.Host.PrivateWorkingSet)}");
         tip.AppendLine($"Compartilhado (navegador, GPU, rede, utilitários): {MemoryMonitor.Format(s.Shared.PrivateWorkingSet)} em {s.Shared.Processes} processos");
         for (var i = 0; i < s.Accounts.Length; i++)
-            tip.AppendLine($"{Accounts[i].DisplayName}: {MemoryMonitor.Format(s.Accounts[i].PrivateWorkingSet)} em {s.Accounts[i].Processes} renderer(s)");
+        {
+            tip.Append($"{Accounts[i].DisplayName}: {MemoryMonitor.Format(s.Accounts[i].PrivateWorkingSet)} em {s.Accounts[i].Processes} renderer(s)");
+            if (s.Lives[i].Processes > 0) tip.Append($" + live {MemoryMonitor.Format(s.Lives[i].PrivateWorkingSet)}");
+            tip.AppendLine();
+        }
+        tip.AppendLine("(A GPU decodifica o vídeo das lives: esse custo aparece em \"Compartilhado\".)");
         MemoryTooltip = tip.ToString().TrimEnd();
 
         for (var i = 0; i < Accounts.Count; i++)
@@ -178,6 +183,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var g = s.Accounts[i];
             Accounts[i].MemoryText = Accounts[i].IsRunning && g.Processes > 0
                 ? MemoryMonitor.Format(g.PrivateWorkingSet > 0 ? g.PrivateWorkingSet : g.PrivateBytes)
+                : "";
+            var l = s.Lives[i];
+            Accounts[i].LiveMemoryText = Accounts[i].IsLiveOpen && l.Processes > 0
+                ? MemoryMonitor.Format(l.PrivateWorkingSet > 0 ? l.PrivateWorkingSet : l.PrivateBytes)
                 : "";
         }
         _benchmark.OnMemorySample(s);
@@ -243,6 +252,42 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged();
             SaveSettings();
             Notice = "A renderização da interface muda na próxima vez que o app abrir.";
+        }
+    }
+
+    public bool LiveMutedByDefault
+    {
+        get => _settings.LiveMutedByDefault;
+        set { _settings.LiveMutedByDefault = value; OnPropertyChanged(); SaveSettings(); }
+    }
+
+    public bool LiveLowestQuality
+    {
+        get => _settings.LiveLowestQuality;
+        set { _settings.LiveLowestQuality = value; OnPropertyChanged(); SaveSettings(); }
+    }
+
+    public bool ReopenLives
+    {
+        get => _settings.ReopenLives;
+        set { _settings.ReopenLives = value; OnPropertyChanged(); SaveSettings(); }
+    }
+
+    public bool LiveHiddenLowMemory
+    {
+        get => _settings.LiveHiddenLowMemory;
+        set { _settings.LiveHiddenLowMemory = value; OnPropertyChanged(); SaveSettings(); }
+    }
+
+    public bool LiveLightMode
+    {
+        get => _settings.LiveLightMode;
+        set
+        {
+            _settings.LiveLightMode = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = "O modo da live vale para as lives abertas a partir de agora (esconda e reabra a live para trocar).";
         }
     }
 
