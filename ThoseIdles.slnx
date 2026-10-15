@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ThoseIdles/ThoseIdles.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/MemBench/MemBench.csproj" />
+  </Folder>
+</Solution>

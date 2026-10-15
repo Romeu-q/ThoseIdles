@@ -1,0 +1,149 @@
+<UserControl x:Class="ThoseIdles.Views.AccountPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:ThoseIdles.ViewModels"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:AccountViewModel}"
+             SizeChanged="OnSizeChanged">
+    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+        <DockPanel>
+            <!-- Cabeçalho -->
+            <Grid DockPanel.Dock="Top" Height="28" Background="{StaticResource HeaderBg}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Ellipse Width="9" Height="9" Margin="9,0,7,0" VerticalAlignment="Center" Fill="{Binding StatusBrush}"
+                         ToolTip="{Binding StatusDetail}" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" ClipToBounds="True">
+                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}" FontWeight="SemiBold" FontSize="12.5"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="180"
+                               Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
+                               ToolTip="{Binding ProfileName, StringFormat=Perfil isolado: {0}}" />
+                    <TextBox x:Name="NameBox" Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" Width="150" FontSize="12"
+                             MaxLength="40" VerticalAlignment="Center"
+                             Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVis}}"
+                             IsVisibleChanged="OnNameBoxVisibleChanged" LostKeyboardFocus="OnNameBoxLostFocus">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding CommitRenameCommand}" />
+                            <KeyBinding Key="Escape" Command="{Binding CancelRenameCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource Muted}" FontSize="11.5" Margin="8,0,0,0"
+                               VerticalAlignment="Center" ToolTip="{Binding StatusDetail}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <Button Style="{StaticResource IconButton}" Content="&#xE71F;" Width="20" Command="{Binding ZoomOutCommand}" ToolTip="Diminuir o zoom desta conta (−10%)" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE8A3;" Width="20" Command="{Binding ZoomInCommand}" ToolTip="Aumentar o zoom desta conta (+10%)" />
+                    </StackPanel>
+                    <Button Command="{Binding ResetZoomCommand}" Content="{Binding ZoomText}"
+                            Style="{StaticResource IconButton}" FontFamily="Segoe UI" FontSize="11" Width="Auto" MinWidth="34"
+                            Visibility="{Binding ZoomText, Converter={StaticResource StrToVis}}"
+                            ToolTip="Zoom desta conta (Ctrl + roda do mouse na página). Clique para voltar a 100%." />
+                    <TextBlock Text="{Binding MemoryText}" Foreground="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" Margin="4,0,2,0"
+                               ToolTip="Memória dos processos de renderização desta conta (privada em RAM). Navegador, GPU e rede são compartilhados e aparecem no total da barra superior." />
+                </StackPanel>
+
+                <!-- Botões normais -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,3,0"
+                            Visibility="{Binding IsConfirmingClear, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <!-- Extensão /hunt: liga/desliga só nesta conta -->
+                        <Button Command="{Binding ToggleHuntCommand}" ToolTip="{Binding HuntTooltip}"
+                                Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                    <Setter Property="Content" Value="&#xE721;" />
+                                    <Setter Property="Opacity" Value="0.45" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HuntEnabled}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                            <Setter Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Style="{StaticResource IconButton}" Content="&#xE70F;" Command="{Binding BeginRenameCommand}" ToolTip="Renomear (não altera a sessão)" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RequestClearCommand}" ToolTip="Limpar dados desta conta (desloga)" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE943;" Command="{Binding DevToolsCommand}" ToolTip="Ferramentas de desenvolvedor (ative o modo desenvolvedor nas configurações)" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE72C;" Command="{Binding ReloadCommand}" ToolTip="Recarregar a página" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE777;" Command="{Binding RestartCommand}" ToolTip="Reiniciar só esta instância" />
+                        <Button Command="{Binding ToggleOpenCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                    <Setter Property="Content" Value="&#xE7E8;" />
+                                    <Setter Property="ToolTip" Value="Fechar só esta instância" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRunning}" Value="False">
+                                            <Setter Property="Content" Value="&#xE768;" />
+                                            <Setter Property="ToolTip" Value="Abrir esta conta" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                    <Button Command="{Binding FocusCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Setter Property="Content" Value="&#xE740;" />
+                                <Setter Property="ToolTip" Value="Maximizar esta conta (as outras seguem rodando)" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsFocused}" Value="True">
+                                        <Setter Property="Content" Value="&#xE73F;" />
+                                        <Setter Property="ToolTip" Value="Voltar para a grade 2x2" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+
+                <!-- Confirmação de limpeza (inline: nada de janela externa) -->
+                <StackPanel Grid.Column="1" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right" Background="{StaticResource BannerBg}"
+                            Visibility="{Binding IsConfirmingClear, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Apagar login, cookies e dados SÓ desta conta?" Foreground="{StaticResource Text}" FontSize="12"
+                               VerticalAlignment="Center" Margin="10,0" />
+                    <Button Style="{StaticResource DangerButton}" Content="Apagar" Command="{Binding ConfirmClearCommand}" Padding="8,1" />
+                    <Button Style="{StaticResource BarButton}" Content="Cancelar" Command="{Binding CancelClearCommand}" Padding="8,1" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Faixa de estado (erro/offline/fechada). Fica ACIMA da página: o WebView2 é um HWND e
+                 nada do WPF consegue ser desenhado por cima dele. -->
+            <Border DockPanel.Dock="Top" Background="{StaticResource BannerBg}" Padding="10,5"
+                    Visibility="{Binding ShowBanner, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding ReloadCommand}" Padding="8,1">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource BarButton}">
+                                <Setter Property="Content" Value="Tentar agora" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRunning}" Value="False">
+                                        <Setter Property="Content" Value="Abrir conta" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <TextBlock Text="{Binding StatusDetail}" Foreground="{StaticResource Text}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- A página -->
+            <Grid>
+                <TextBlock Text="Conta fechada" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                <ContentPresenter Content="{Binding Session.WebView}" />
+            </Grid>
+        </DockPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ThoseIdles</AssemblyName>
+    <RootNamespace>ThoseIdles</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>ThoseIdles</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Ícone do .exe (Explorer, atalhos, barra de tarefas). Gerado por tools/make-icon.ps1. -->
+    <ApplicationIcon>Assets\pokeball.ico</ApplicationIcon>
+
+    <!-- Memória do processo anfitrião: GC de estação sem thread de GC em background.
+         A UI é leve; a coleta concorrente só acrescenta uma thread e reservas extras. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+
+    <!-- Single-file SEM compressão: comprimido, o .NET descompacta os assemblies em memória privada
+         (medido: ~98 MB no processo do app contra ~35 MB). Sem compressão eles são mapeados do disco. -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" Link="Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ícone também como recurso WPF (janela e barra superior). -->
+    <Resource Include="Assets\pokeball.ico" />
+    <None Remove="Assets\pokeball.preview.png" />
+  </ItemGroup>
+
+</Project>
