@@ -29,6 +29,42 @@ public sealed class BrowserSessionManager : IDisposable
 
         _profiles.EnvironmentLost += OnEnvironmentLost;
         NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+
+        // Recarga periódica das lives (libera a memória que o chat acumula). Confere a cada minuto
+        // se já deu o intervalo configurado; as contas e as lives recarregam uma de cada vez.
+        _liveReloadTimer = new DispatcherTimer(TimeSpan.FromMinutes(1), DispatcherPriority.Background, async (_, _) => await OnLiveReloadTickAsync(), _dispatcher);
+        _liveReloadTimer.Start();
+    }
+
+    private readonly DispatcherTimer _liveReloadTimer;
+    private DateTime _lastLiveReloadUtc = DateTime.UtcNow;
+    private bool _reloadingLives;
+
+    private async Task OnLiveReloadTickAsync()
+    {
+        var minutes = _settings.LiveReloadMinutes;
+        if (minutes <= 0 || _reloadingLives || _shuttingDown) return;
+        if (DateTime.UtcNow - _lastLiveReloadUtc < TimeSpan.FromMinutes(minutes)) return;
+        await ReloadAllLivesAsync(TimeSpan.FromSeconds(20));
+    }
+
+    /// <summary>Recarrega todas as lives de todas as contas, uma por vez.</summary>
+    public async Task<int> ReloadAllLivesAsync(TimeSpan gap)
+    {
+        if (_reloadingLives) return 0;
+        _reloadingLives = true;
+        _lastLiveReloadUtc = DateTime.UtcNow;
+        try
+        {
+            var total = 0;
+            foreach (var s in Sessions.Where(s => s.IsLiveOpen)) total += await s.ReloadLivesAsync(gap);
+            if (total > 0) LoggingService.Log.Info($"Recarga periódica: {total} live(s) recarregada(s).");
+            return total;
+        }
+        finally
+        {
+            _reloadingLives = false;
+        }
     }
 
     public BrowserSession this[int slot] => Sessions[slot - 1];
@@ -158,6 +194,7 @@ public sealed class BrowserSessionManager : IDisposable
 
     public void Dispose()
     {
+        _liveReloadTimer.Stop();
         _profiles.EnvironmentLost -= OnEnvironmentLost;
         NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
     }

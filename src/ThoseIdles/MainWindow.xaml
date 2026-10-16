@@ -86,6 +86,11 @@
                     <CheckBox Content="Reabrir a live com a conta" IsChecked="{Binding ReopenLives}" />
                     <CheckBox Content="Memória baixa na live escondida" IsChecked="{Binding LiveHiddenLowMemory}"
                               ToolTip="Com a live em segundo plano, pede ao WebView2 para reduzir a memória daquela aba. Só a live é afetada, nunca o jogo." />
+                    <TextBlock Text="Recarregar lives a cada" FontSize="12" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"
+                               ToolTip="O chat de uma live acumula memória com o tempo. Recarregar volta ao tamanho inicial (chat fora por alguns segundos; o jogo confere a cada minuto). 0 = nunca." />
+                    <ComboBox ItemsSource="{Binding LiveReloadOptions}" SelectedItem="{Binding LiveReloadMinutes}" Width="56" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Text="min" FontSize="12" VerticalAlignment="Center" Margin="4,0,8,0" />
+                    <Button Style="{StaticResource BarButton}" Content="Recarregar lives agora" Command="{Binding ReloadLivesNowCommand}" />
                     <CheckBox Content="Modo leve (experimental)" IsChecked="{Binding LiveLightMode}"
                               ToolTip="Só o player e o chat oficiais da Twitch (embed), sem o resto do site: bem menos memória. Confira se o chat mostra você logado — é assim que o jogo detecta quem assiste." />
                 </WrapPanel>

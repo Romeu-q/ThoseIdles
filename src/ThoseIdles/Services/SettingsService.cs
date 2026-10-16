@@ -134,6 +134,13 @@ public sealed class AppSettings
     /// <summary>Live escondida: pede ao WebView2 meta de memória baixa para aquela aba (o jogo não é afetado).</summary>
     public bool LiveHiddenLowMemory { get; set; } = true;
 
+    /// <summary>
+    /// Recarrega cada live a cada N minutos (0 = nunca). O chat de uma live aberta acumula memória
+    /// (~6 MB/min medido num canal grande); recarregar volta ao tamanho inicial. O chat fica fora só
+    /// alguns segundos, e o jogo confere uma vez por minuto.
+    /// </summary>
+    public int LiveReloadMinutes { get; set; } = 60;
+
     /// <summary>Grava amostras de memória em CSV na pasta benchmark.</summary>
     public bool RecordBenchmarkCsv { get; set; }
 
@@ -176,6 +183,7 @@ public sealed class AppSettings
         if (!Uri.TryCreate(StartUrl, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps)
             StartUrl = "https://pokeidle.io/app";
         MemoryPollSeconds = Math.Clamp(MemoryPollSeconds, 2, 60);
+        LiveReloadMinutes = LiveReloadMinutes <= 0 ? 0 : Math.Clamp(LiveReloadMinutes, 10, 24 * 60);
         GridZoom = Math.Clamp(GridZoom, 0.25, 2.0);
         FocusedSlot = Math.Clamp(FocusedSlot, 1, AccountCount);
         AllowedHosts = (AllowedHosts is { Count: > 0 } ? AllowedHosts : DefaultAllowedHosts.ToList())

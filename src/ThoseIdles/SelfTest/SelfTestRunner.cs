@@ -687,6 +687,26 @@ public sealed class SelfTestRunner
                 ? Pass($"3 lives abertas na conta 2 (canal repetido ignorado), todas 'hidden' e rodando; memória das lives {MemoryMonitor.Format(mem.Lives[1].PrivateWorkingSet)}; fechar canal3 manteve as outras e o jogo")
                 : Fail($"carregaram={loaded}, rodando={allRunning}, escondidas={allHidden}, salvos={saved}, depois de fechar={afterClose}, jogo intacto={gameSame}");
         });
+        await Test("recarga das lives (libera a memória do chat) sem tocar no jogo", async () =>
+        {
+            var s2 = _manager[2];
+            var boot = (await BootIds())[2];
+            var before = new Dictionary<string, string?>();
+            foreach (var t in s2.Lives) before[t.Channel] = Unquote(await t.Core!.ExecuteScriptAsync("String(performance.timeOrigin)"));
+            var n = await _manager.ReloadAllLivesAsync(TimeSpan.Zero);
+            await Task.Delay(1500);
+            var reloaded = true; var hidden = true;
+            foreach (var t in s2.Lives)
+            {
+                reloaded &= await WaitTabPage(t, t.Channel == "canalteste" ? "canalteste" : t.Channel, TimeSpan.FromSeconds(10))
+                            && Unquote(await t.Core!.ExecuteScriptAsync("String(performance.timeOrigin)")) != before[t.Channel];
+                hidden &= Unquote(await t.Core!.ExecuteScriptAsync("document.visibilityState")) == "hidden";
+            }
+            var gameSame = (await BootIds())[2] == boot;
+            return n == s2.LiveCount && reloaded && hidden && gameSame
+                ? Pass($"{n} live(s) recarregada(s) (página nova em cada uma), continuam 'hidden'; o jogo da conta não recarregou")
+                : Fail($"recarregadas={n}/{s2.LiveCount}, páginas novas={reloaded}, escondidas={hidden}, jogo intacto={gameSame}");
+        });
         _vm.SaveSettings();
     }
 

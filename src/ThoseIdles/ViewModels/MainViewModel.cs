@@ -279,6 +279,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { _settings.LiveHiddenLowMemory = value; OnPropertyChanged(); SaveSettings(); }
     }
 
+    public int[] LiveReloadOptions { get; } = { 0, 30, 60, 120, 240 };
+
+    /// <summary>Recarregar as lives a cada N minutos (0 = nunca).</summary>
+    public int LiveReloadMinutes
+    {
+        get => _settings.LiveReloadMinutes;
+        set { _settings.LiveReloadMinutes = value; OnPropertyChanged(); SaveSettings(); }
+    }
+
+    public ICommand ReloadLivesNowCommand => _reloadLivesNow ??= new AsyncCommand(async () =>
+    {
+        var n = await _manager.ReloadAllLivesAsync(TimeSpan.FromSeconds(3));
+        Notice = n == 0 ? "Nenhuma live aberta." : $"{n} live(s) recarregada(s); a memória que o chat acumulou foi liberada.";
+    });
+    private ICommand? _reloadLivesNow;
+
     public bool LiveLightMode
     {
         get => _settings.LiveLightMode;

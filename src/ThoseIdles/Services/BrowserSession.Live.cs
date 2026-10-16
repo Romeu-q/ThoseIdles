@@ -395,6 +395,31 @@ public sealed partial class BrowserSession
         }
     }
 
+    /// <summary>
+    /// Recarrega as lives desta conta, uma de cada vez (intervalo entre elas), para soltar a memória
+    /// que o chat acumula. Não mexe na visibilidade nem no jogo. Retorna quantas recarregou.
+    /// </summary>
+    public async Task<int> ReloadLivesAsync(TimeSpan gap)
+    {
+        var count = 0;
+        foreach (var tab in Lives.ToList())
+        {
+            if (tab.Core is not { } core || !Lives.Contains(tab)) continue;
+            try
+            {
+                core.Reload();
+                count++;
+                LoggingService.Log.Info($"[conta{Slot}] Live {tab.Channel} recarregada para liberar memória.");
+            }
+            catch (Exception ex)
+            {
+                LoggingService.Log.Warn($"[conta{Slot}] Recarga da live {tab.Channel}: {ex.Message}");
+            }
+            if (gap > TimeSpan.Zero) await Task.Delay(gap);
+        }
+        return count;
+    }
+
     /// <summary>A conta tentou abrir mais lives que o limite.</summary>
     public event EventHandler<string>? LiveLimitReached;
 
