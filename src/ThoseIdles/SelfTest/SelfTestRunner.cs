@@ -38,7 +38,11 @@ public sealed class SelfTestRunner
         try
         {
             if (verifyPhase) await VerifyPhaseAsync();
-            else await RunPhaseAsync();
+            else
+            {
+                await RunPhaseAsync();
+                await LeaveAccountInEconomyForVerifyAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -432,6 +436,7 @@ public sealed class SelfTestRunner
         _vm.SaveSettings();
         await RunLiveTestsAsync();
         await RunExtensionTestsAsync();
+        await RunEconomyTestsAsync();
 
         await Test("memória: renderers atribuídos por conta", async () =>
         {
@@ -837,8 +842,121 @@ public sealed class SelfTestRunner
 
     // ------------------------------------------------------------------ fase 2
 
+    // ------------------------------------------------------------------ modo econômico
+
+    private static string? LastHelloField(string field)
+    {
+        var last = SelfTestServer.Current?.Hellos.LastOrDefault();
+        if (last is null) return null;
+        using var doc = JsonDocument.Parse(last);
+        return doc.RootElement.TryGetProperty(field, out var v) ? v.ToString() : null;
+    }
+
+    private static async Task SetGameSession(BrowserSession s, string nick, string token, string device) =>
+        await s.Core!.ExecuteScriptAsync(
+            $"localStorage.setItem('sessao', JSON.stringify({{ nick: '{nick}', token: '{token}' }})); localStorage.setItem('id-dispositivo', '{device}');");
+
+    private async Task RunEconomyTestsAsync()
+    {
+        var server = SelfTestServer.Current!;
+
+        await Test("modo econômico: fecha a página e conecta com o mesmo hello do navegador", async () =>
+        {
+            var s3 = _manager[3];
+            var bootOthers = await BootIds(skip: 3);
+            await SetGameSession(s3, "conta3teste", "tok3", "disp-3333-abcd");
+            var problem = await s3.EnterEconomyAsync();
+            var connected = await WaitUntil(() => s3.IsEconomy && s3.Status == SessionStatus.Connected, TimeSpan.FromSeconds(15));
+            var helloOk = LastHelloField("nick") == "conta3teste" && LastHelloField("token") == "tok3"
+                          && LastHelloField("dispositivo") == "disp-3333-abcd" && LastHelloField("delta") == "1";
+            var pageClosed = s3.WebView is null && s3.IsRunning;
+            var othersSame = (await BootIds(skip: 3)).All(b => bootOthers[b.Key] == b.Value);
+            var mem = await _memory.SampleAsync();
+            var noRenderer = mem.Accounts[2].Processes == 0;
+            return problem is null && connected && helloOk && pageClosed && othersSame && noRenderer
+                ? Pass($"conta 3 conectada pelo cliente leve ({s3.StatusDetail}); hello com o nick, token e id do aparelho do navegador; página fechada (0 renderers da conta 3); outras contas intactas")
+                : Fail($"problema={problem}, conectada={connected} ({s3.StatusDetail}), hello={helloOk} ({server.Hellos.LastOrDefault()}), página fechada={pageClosed}, outras={othersSame}, renderers conta3={mem.Accounts[2].Processes}");
+        });
+
+        await Test("modo econômico: ping periódico e token renovado guardado criptografado", async () =>
+        {
+            var s3 = _manager[3];
+            var pings0 = server.Pings;
+            await Task.Delay(5000);
+            var pings = server.Pings - pings0;
+            var renewed = s3.Economy?.Session.Token == "tok3-renovado";
+            _vm.SaveSettings();
+            var settingsText = await File.ReadAllTextAsync(AppPaths.SettingsFile);
+            var encrypted = s3.Account.EconomySessionProtected is { Length: > 40 } && !settingsText.Contains("tok3") && !settingsText.Contains("conta3teste");
+            var stillConnected = s3.Status == SessionStatus.Connected;
+            return pings >= 2 && renewed && encrypted && stillConnected
+                ? Pass($"{pings} pings em 5 s (intervalo de teste 2 s; no jogo, 25 s como o oficial); token renovado pelo servidor e guardado; settings.json não contém nick nem token em texto")
+                : Fail($"pings={pings}, renovado={renewed}, criptografado={encrypted}, conectada={stillConnected}");
+        });
+
+        await Test("modo econômico: sessão tomada (4001) e recusa na entrada param sem insistir", async () =>
+        {
+            var endpoint = new Uri(server.Url.Replace("http://", "ws://"));
+            var before = server.Hellos.Count;
+            await using var taken = new EconomyClient(9, endpoint, server.Url.TrimEnd('/'), "teste", new EconomySession("x", "tomada", "d"));
+            await using var refused = new EconomyClient(9, endpoint, server.Url.TrimEnd('/'), "teste", new EconomySession("y", "recusa", "d"));
+            taken.Start();
+            refused.Start();
+            await WaitUntil(() => taken.State == EconomyState.Failed && refused.State == EconomyState.Failed, TimeSpan.FromSeconds(10));
+            await Task.Delay(6000); // tempo de sobra para uma reconexão indevida aparecer
+            var attempts = server.Hellos.Count - before;
+            return taken.State == EconomyState.Failed && refused.State == EconomyState.Failed && attempts == 2
+                ? Pass($"4001 → \"{taken.Detail}\"; erro na entrada → \"{refused.Detail}\"; só 1 tentativa de cada (sem reconectar)")
+                : Fail($"tomada={taken.State} ({taken.Detail}), recusa={refused.State} ({refused.Detail}), tentativas={attempts}");
+        });
+
+        await Test("modo econômico: \"Abrir jogo\" volta para a página logada com o token novo", async () =>
+        {
+            var s3 = _manager[3];
+            await s3.ExitEconomyAsync();
+            var loaded = await WaitUntil(() => s3.Core is not null && s3.Status == SessionStatus.Connected, TimeSpan.FromSeconds(20));
+            var token = loaded ? Unquote(await s3.Core!.ExecuteScriptAsync("JSON.parse(localStorage.getItem('sessao')).token")) : null;
+            var data = loaded ? (await ReadAccountData(s3)).Local : null;
+            return loaded && !s3.IsEconomy && !s3.Account.EconomyMode && token == "tok3-renovado" && data == "3"
+                ? Pass("página do jogo reaberta e conectada; o localStorage dela recebeu o token renovado durante o modo econômico; dados da conta intactos")
+                : Fail($"carregou={loaded}, econômico={s3.IsEconomy}, token na página={token}, dados={data}");
+        });
+    }
+
+    /// <summary>Fim da fase 1: deixa a conta 3 em modo econômico para a fase 2 conferir que ela reabre assim.</summary>
+    private async Task LeaveAccountInEconomyForVerifyAsync()
+    {
+        try
+        {
+            var s3 = _manager[3];
+            if (s3.Core is null) return;
+            await s3.EnterEconomyAsync();
+            await WaitUntil(() => s3.Status == SessionStatus.Connected, TimeSpan.FromSeconds(10));
+            _vm.SaveSettings();
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log.Warn($"[autoteste] preparar modo econômico para a fase 2: {ex.Message}");
+        }
+    }
+
     private async Task VerifyPhaseAsync()
     {
+        await Test("conta em modo econômico reabre conectada sem a página", async () =>
+        {
+            await _manager.StartAllAsync();
+            var s3 = _manager[3];
+            var ok = await WaitUntil(() => s3.IsEconomy && s3.Status == SessionStatus.Connected, TimeSpan.FromSeconds(20));
+            var helloToken = LastHelloField("token");
+            var noPage = s3.WebView is null;
+            // Volta para a página para os demais testes da fase 2.
+            await s3.ExitEconomyAsync();
+            await WaitUntil(() => s3.Core is not null && s3.Status == SessionStatus.Connected, TimeSpan.FromSeconds(20));
+            return ok && noPage && helloToken == "tok3-renovado"
+                ? Pass("a conta 3 voltou em modo econômico ao reabrir o app, com as credenciais guardadas (token renovado), sem página")
+                : Fail($"conectada={ok} ({s3.StatusDetail}), sem página={noPage}, token no hello={helloToken}");
+        });
+
         await Test("persistência após reiniciar o aplicativo", async () =>
         {
             await _manager.StartAllAsync();

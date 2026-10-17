@@ -325,7 +325,7 @@ O autoteste usa uma pasta de dados temporÃ¡ria e uma pÃ¡gina local que imita
 `localhost`). Ele roda o app duas vezes e verifica processos Ã³rfÃ£os entre as execuÃ§Ãµes. Para testar o
 `.exe` publicado: `-Exe publish\win-x64\ThoseIdles.exe`.
 
-**Resultado (15/10/2026, Windows 10 22H2, WebView2 Runtime 155):** aprovado nos 33 itens, tanto no
+**Resultado (15/10/2026, Windows 10 22H2, WebView2 Runtime 155):** aprovado nos 38 itens, tanto no
 build normal quanto no `.exe` publicado. Os testes de extensÃ£o usam uma extensÃ£o de teste com o mesmo
 formato da /hunt (content script em `world: MAIN`, `document_start`), sÃ³ que para `localhost`:
 

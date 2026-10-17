@@ -110,7 +110,7 @@ public sealed partial class BrowserSession : ObservableObject
     }
 
     public CoreWebView2? Core => _core;
-    public bool IsRunning => _webView is not null;
+    public bool IsRunning => _webView is not null || _eco is not null;
 
     public SessionStatus Status
     {
@@ -136,13 +136,20 @@ public sealed partial class BrowserSession : ObservableObject
 
     public async Task StartAsync()
     {
-        if (_webView is not null) return;
+        if (_webView is not null || _eco is not null) return;
         var gen = ++_generation;
         CancelTimers();
         _retryAttempt = 0;
         _startWatch = Stopwatch.StartNew();
         _reportedLoaded = _reportedConnected = false;
         SetStatus(SessionStatus.Loading, "Iniciando navegador…");
+
+        // Conta em modo econômico: sem página do jogo; o cliente leve mantém a conta conectada.
+        if (TryStartEconomyFromSaved())
+        {
+            if (_settings.ReopenLives && Account.LiveChannels.Count > 0) await OpenSavedLivesAsync();
+            return;
+        }
 
         var wv = new WebView2
         {
@@ -166,6 +173,10 @@ public sealed partial class BrowserSession : ObservableObject
 
             // Antes da navegação: os scripts da extensão rodam em document_start.
             await SyncHuntExtensionAsync(_core);
+            if (gen != _generation) return;
+
+            // Voltando do modo econômico: a página recebe o token renovado antes de carregar.
+            await ApplyPendingTokenAsync(_core);
             if (gen != _generation) return;
 
             ApplyView(_role, _zoom);
@@ -196,6 +207,7 @@ public sealed partial class BrowserSession : ObservableObject
         _generation++;
         CancelTimers();
         DetachAndDispose();
+        _ = StopEconomyClientAsync(); // o modo fica salvo: a conta reabre em modo econômico
         _wasConnected = false;
         SetStatus(SessionStatus.Closed, reason);
         LoggingService.Log.Info($"[conta{Slot}] Fechada ({reason}).");
@@ -210,6 +222,13 @@ public sealed partial class BrowserSession : ObservableObject
 
     public async Task ReloadAsync()
     {
+        if (_eco is not null)
+        {
+            // Modo econômico: "recarregar" = reconectar o cliente leve.
+            await StopEconomyClientAsync();
+            if (!TryStartEconomyFromSaved()) await StartAsync();
+            return;
+        }
         if (_core is null)
         {
             await StartAsync();
@@ -238,6 +257,14 @@ public sealed partial class BrowserSession : ObservableObject
     public async Task ClearDataAsync()
     {
         LoggingService.Log.Info($"[conta{Slot}] Limpando dados do perfil {ProfileName}.");
+        // Limpar desloga: o modo econômico (e as credenciais guardadas dele) vai junto.
+        if (_eco is not null || Account.EconomyMode || Account.EconomySessionProtected is not null)
+        {
+            Account.EconomySessionProtected = null;
+            if (_eco is not null) await ExitEconomyAsync();
+            Account.EconomyMode = false;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
         if (_core is null) await StartAsync();
         var core = _core ?? throw new InvalidOperationException("Não foi possível iniciar a conta para limpar os dados.");
 
@@ -450,6 +477,12 @@ public sealed partial class BrowserSession : ObservableObject
     {
         // A live vai junto com a conta, mas o canal fica guardado para reabrir com ela.
         CloseLive(forget: false);
+        DetachAndDisposeGame();
+    }
+
+    /// <summary>Fecha só a página do jogo (as lives da conta continuam) — usado pelo modo econômico.</summary>
+    private void DetachAndDisposeGame()
+    {
         var core = _core;
         _core = null;
         if (core is not null)

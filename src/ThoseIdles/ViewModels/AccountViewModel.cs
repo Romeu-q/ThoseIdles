@@ -55,6 +55,16 @@ public sealed class AccountViewModel : ObservableObject
             if (Session.SelectedLive?.Channel is { } ch)
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(BrowserSession.LiveUrlForChannel(ch)) { UseShellExecute = true });
         });
+        ToggleEconomyCommand = new AsyncCommand(async () =>
+        {
+            if (Session.IsEconomy || Session.Account.EconomyMode)
+            {
+                await Session.ExitEconomyAsync();
+                return;
+            }
+            var problem = await Session.EnterEconomyAsync();
+            if (problem is not null) _main.Notice = $"{DisplayName}: {problem}";
+        }, () => Session.IsRunning);
         session.LiveLimitReached += (_, ch) =>
             _main.Notice = $"{DisplayName}: limite de {BrowserSession.MaxLivesPerAccount} lives por conta — {ch} não foi aberta.";
         ZoomInCommand = new RelayCommand(() => SetZoom(Math.Round((Session.Account.Zoom + 0.1) * 10) / 10));
@@ -216,6 +226,19 @@ public sealed class AccountViewModel : ObservableObject
         OnPropertyChanged(nameof(ZoomText));
     }
 
+    // ------------------------------------------------------------------ modo econômico
+
+    public ICommand ToggleEconomyCommand { get; }
+
+    public bool IsEconomy => Session.IsEconomy;
+
+    /// <summary>Página do jogo fechada mas conta aberta (modo econômico): mostra o aviso no lugar da página.</summary>
+    public bool ShowEconomyNotice => Session.IsEconomy;
+
+    public string EconomyTooltip => Session.IsEconomy
+        ? "Modo econômico LIGADO: a conta segue conectada e caçando sem a página do jogo. Clique para abrir o jogo."
+        : "Modo econômico: fecha a página do jogo e mantém a conta conectada com um cliente leve (poucos MB). As lives continuam.";
+
     // ------------------------------------------------------------------ live da Twitch
 
     public ICommand ToggleLiveCommand { get; }
@@ -355,6 +378,12 @@ public sealed class AccountViewModel : ObservableObject
                 break;
             case nameof(BrowserSession.StatusDetail):
                 OnPropertyChanged(nameof(StatusDetail));
+                break;
+            case nameof(BrowserSession.IsEconomy):
+                OnPropertyChanged(nameof(IsEconomy));
+                OnPropertyChanged(nameof(ShowEconomyNotice));
+                OnPropertyChanged(nameof(EconomyTooltip));
+                CommandManager.InvalidateRequerySuggested();
                 break;
             case nameof(BrowserSession.IsRunning):
                 OnPropertyChanged(nameof(IsRunning));

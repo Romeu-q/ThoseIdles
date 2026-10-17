@@ -55,6 +55,26 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,3,0"
                             Visibility="{Binding IsConfirmingClear, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <!-- Modo econômico desta conta: liga / desliga -->
+                        <Button Command="{Binding ToggleEconomyCommand}" ToolTip="{Binding EconomyTooltip}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                    <Setter Property="Width" Value="Auto" />
+                                    <Setter Property="Content">
+                                        <Setter.Value>
+                                            <TextBlock Text="Eco" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold" Margin="5,0" />
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter Property="Opacity" Value="0.55" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEconomy}" Value="True">
+                                            <Setter Property="Foreground" Value="#3FC46E" />
+                                            <Setter Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                         <!-- Live da Twitch desta conta: esconder / reabrir -->
                         <Button Command="{Binding ToggleLiveCommand}" ToolTip="{Binding LiveToggleTooltip}"
                                 Visibility="{Binding HasLiveChannel, Converter={StaticResource BoolToVis}}">
@@ -175,6 +195,16 @@
                 <Grid Grid.Row="0">
                     <TextBlock Text="Conta fechada" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                    <!-- Modo econômico: a página do jogo está fechada, mas a conta segue conectada -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Margin="16"
+                                Visibility="{Binding ShowEconomyNotice, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" FontSize="28" Foreground="#3FC46E" HorizontalAlignment="Center" />
+                        <TextBlock Text="Modo econômico" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,6,0,2" />
+                        <TextBlock Text="{Binding StatusDetail}" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                        <TextBlock Text="A conta segue conectada e caçando sem a página do jogo (poucos MB de RAM). As lives da Twitch desta conta continuam abertas."
+                                   FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,10" />
+                        <Button Style="{StaticResource BarButton}" Content="Abrir o jogo desta conta" HorizontalAlignment="Center" Command="{Binding ToggleEconomyCommand}" />
+                    </StackPanel>
                     <ContentPresenter Content="{Binding Session.WebView}" />
                 </Grid>
 

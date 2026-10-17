@@ -68,8 +68,12 @@ public sealed class SelfTestServer : IDisposable
     public string Url => $"http://localhost:{Port}/";
 
     /// <param name="port">Porta fixa entre as duas fases (Local Storage é por origem, e a origem inclui a porta).</param>
+    /// <summary>O servidor do autoteste em execução (para os testes conferirem o que ele recebeu).</summary>
+    public static SelfTestServer? Current { get; private set; }
+
     public SelfTestServer(int port = 0)
     {
+        Current = this;
         Port = port > 0 ? port : FreePort();
         _listener.Prefixes.Add(Url);
         _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
@@ -97,28 +101,78 @@ public sealed class SelfTestServer : IDisposable
         }
     }
 
+    /// <summary>"hello" recebidos (JSON bruto), na ordem — o autoteste confere o que o cliente leve mandou.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<string> Hellos { get; } = new();
+
+    private int _pings;
+    public int Pings => _pings;
+
+    /// <summary>
+    /// Responde como o servidor do jogo: "hello" → "welcome" (e uma renovação de token); "ping" → "pong".
+    /// Tokens especiais simulam recusas: "tomada" fecha com 4001; "recusa" manda "erro" antes de entrar.
+    /// Retorna true quando a conexão deve terminar.
+    /// </summary>
+    private async Task<bool> AnswerLikeGameAsync(WebSocket ws, string text)
+    {
+        string? type = null, token = null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(text);
+            type = doc.RootElement.TryGetProperty("t", out var t) ? t.GetString() : null;
+            token = doc.RootElement.TryGetProperty("token", out var k) ? k.GetString() : null;
+        }
+        catch { }
+
+        async Task Send(string json) => await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, _cts.Token);
+
+        if (type == "ping")
+        {
+            Interlocked.Increment(ref _pings);
+            await Send("{\"t\":\"pong\"}");
+            return false;
+        }
+        if (type != "hello") return false;
+        Hellos.Enqueue(text);
+        if (token == "tomada")
+        {
+            await ws.CloseAsync((WebSocketCloseStatus)4001, "substituido", _cts.Token);
+            return true;
+        }
+        if (token == "recusa")
+        {
+            await Send("{\"t\":\"erro\",\"chave\":\"auth.tokenInvalido\"}");
+            return false;
+        }
+        await Send("{\"t\":\"welcome\",\"estado\":{\"cheio\":true}}");
+        if (token is not null && !token.EndsWith("-renovado", StringComparison.Ordinal))
+            await Send($"{{\"t\":\"sessao.renovada\",\"token\":\"{token}-renovado\"}}");
+        return false;
+    }
+
     private async Task Handle(HttpListenerContext ctx)
     {
         try
         {
-            if (ctx.Request.IsWebSocketRequest && ctx.Request.Url?.AbsolutePath == "/ws")
+            if (ctx.Request.IsWebSocketRequest)
             {
                 var wsCtx = await ctx.AcceptWebSocketAsync(null);
                 var ws = wsCtx.WebSocket;
-                var buffer = new byte[1024];
+                var buffer = new byte[4096];
                 var receive = ws.ReceiveAsync(buffer, _cts.Token);
                 while (ws.State == WebSocketState.Open && !_cts.IsCancellationRequested)
                 {
                     var tick = Task.Delay(2000, _cts.Token);
                     if (await Task.WhenAny(receive, tick) == receive)
                     {
-                        if (receive.Result.MessageType == WebSocketMessageType.Close) break;
+                        var r = receive.Result;
+                        if (r.MessageType == WebSocketMessageType.Close) break;
+                        if (await AnswerLikeGameAsync(ws, Encoding.UTF8.GetString(buffer, 0, r.Count))) break;
                         receive = ws.ReceiveAsync(buffer, _cts.Token);
                         continue;
                     }
                     await ws.SendAsync(Encoding.UTF8.GetBytes("{\"t\":\"tick\"}"), WebSocketMessageType.Text, true, _cts.Token);
                 }
-                ws.Abort();
+                if (ws.State == WebSocketState.Open) ws.Abort();
                 return;
             }
 

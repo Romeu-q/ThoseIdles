@@ -20,6 +20,12 @@ public sealed class AccountSettings
     /// <summary>Zoom da página desta conta (1.0 = 100%). Ctrl + roda do mouse na página ajusta e salva.</summary>
     public double Zoom { get; set; }
 
+    /// <summary>Modo econômico: a conta fica conectada por um cliente leve, sem a página do jogo.</summary>
+    public bool EconomyMode { get; set; }
+
+    /// <summary>Nick/token/aparelho do jogo para o modo econômico, criptografados com DPAPI (só este usuário do Windows lê).</summary>
+    public string? EconomySessionProtected { get; set; }
+
     /// <summary>Canais da Twitch abertos nesta conta (reabrem com ela). O bônus do jogo soma por live.</summary>
     public List<string> LiveChannels { get; set; } = new();
 

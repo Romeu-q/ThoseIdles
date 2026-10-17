@@ -249,7 +249,7 @@ public sealed partial class BrowserSession
     /// </summary>
     public async Task OpenLiveAsync(string channel)
     {
-        if (_core is null || !TwitchLoginPattern().IsMatch(channel)) return;
+        if ((_core is null && _eco is null) || !TwitchLoginPattern().IsMatch(channel)) return; // conta aberta (página ou modo econômico)
         channel = channel.ToLowerInvariant();
 
         if (FindLive(channel) is { } existing)
