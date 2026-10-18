@@ -179,7 +179,48 @@
       qual: (a.qualidade ?? a.quality ?? f.qualidade ?? f.quality) != null ? num(a.qualidade ?? a.quality ?? f.qualidade ?? f.quality) : null,
       ivs: (a.ivs && typeof a.ivs === 'object') ? a.ivs : (f.ivs && typeof f.ivs === 'object') ? f.ivs : null,
       nota: notaDe(a),
+      // O que mais muda o preço além de IV/Qualidade/Potência: nível, refino (+N) e TM (AoE / elemental).
+      nivel: num(a.level ?? f.level ?? a.nivel ?? f.nivel) || null,
+      refino: refinoTotal(a) ?? refinoTotal(f) ?? 0,
+      aoe: sim(a.tmAoe ?? a.tm_aoe ?? f.tmAoe ?? f.tm_aoe),
+      tmEl: !!(a.tmElemental ?? a.tm_elemental ?? f.tmElemental ?? f.tm_elemental),
     };
+  }
+
+  const sim = v => v === true || v === 1 || v === 'true';
+  function refinoTotal(p) {
+    if (!p) return null;
+    if (num(p.refinoTotal) > 0) return num(p.refinoTotal);
+    if (p.refino && typeof p.refino === 'object') return Object.values(p.refino).reduce((s, v) => s + num(v), 0);
+    return null;
+  }
+
+  // ------------------------------------------------------------------ nível, refino e TM
+
+  // Quanto cada coisa multiplica o preço (estimativa; ajuste aqui se o mercado mostrar outra coisa):
+  //  · nível: o dobro do nível ≈ +25% de preço (subir nível alto custa muito tempo de farm);
+  //  · refino: cada +1 ≈ +6% (as pedras custam 500 × N³ por stat);
+  //  · TM AoE ≈ +35%; TM elemental ≈ +10%.
+  const AJUSTE = { nivelPorDobro: 0.25, porRefino: 0.06, aoe: 0.35, tmEl: 0.10 };
+
+  /** Fator de preço de um Pokémon pelas extras dele (1 = sem nada). */
+  function fatorExtras(p) {
+    let f = 1;
+    if (p.nivel > 0) f *= 1 + AJUSTE.nivelPorDobro * Math.log2(Math.max(1, p.nivel) / 100);
+    f *= Math.pow(1 + AJUSTE.porRefino, num(p.refino));
+    if (p.aoe) f *= 1 + AJUSTE.aoe;
+    if (p.tmEl) f *= 1 + AJUSTE.tmEl;
+    return Math.max(0.2, f);
+  }
+
+  /** Diferença das extras para a distância entre dois Pokémon. */
+  function distExtras(a, b) {
+    let d = 0;
+    if (a.nivel > 0 && b.nivel > 0) d += 0.4 * Math.abs(Math.log2(a.nivel / b.nivel));
+    d += 0.15 * Math.abs(num(a.refino) - num(b.refino));
+    if (!!a.aoe !== !!b.aoe) d += 0.8;
+    if (!!a.tmEl !== !!b.tmEl) d += 0.3;
+    return d;
   }
 
   let base = load(KEY, []).filter(a => Date.now() - a.em < VALIDADE_MS);
@@ -354,6 +395,10 @@
       if (vb.v == null) return Infinity;
       return Math.abs(vb.v - va.v) + Math.abs(b.pot - alvo.pot) * PESO_POT + (vb.aprox || va.aprox ? 0.4 : 0);
     };
+    // O preço de cada anúncio é trazido para o SEU Pokémon: um anúncio com AoE, nível maior ou mais
+    // refino vale mais que o seu, e o preço dele entra na conta reduzido na mesma proporção.
+    const fAlvo = fatorExtras(alvo);
+    const ajustado = b => b.preco * fAlvo / fatorExtras(b);
     const pool = base.filter(b => b.gemas === gemas && b.shiny === !!alvo.shiny);
 
     let comp = pool.filter(b => b.esp === esp).map(b => ({ b, d: dist(b) })).filter(x => x.d <= 3);
@@ -368,7 +413,8 @@
     comp = comp.slice(0, 10);
 
     // Mediana ponderada: os mais parecidos pesam mais.
-    const pesos = comp.map(x => ({ p: x.b.preco, w: 1 / (0.3 + x.d) })).sort((a, b) => a.p - b.p);
+    // Nível, refino e TM diferentes não tiram o anúncio da conta (o preço já foi ajustado), só pesam menos.
+    const pesos = comp.map(x => ({ p: ajustado(x.b), w: 1 / (0.3 + x.d + distExtras(alvo, x.b)) })).sort((a, b) => a.p - b.p);
     const total = pesos.reduce((s, x) => s + x.w, 0);
     let acc = 0, mediana = pesos[0].p;
     for (const x of pesos) { acc += x.w; if (acc >= total / 2) { mediana = x.p; break; } }
@@ -377,9 +423,11 @@
     const dMedia = comp.reduce((s, x) => s + x.d, 0) / comp.length;
     const confianca = origem !== 'mesma espécie' || comp.length < 3 ? 'baixa'
       : comp.length >= 6 && dMedia < 1 ? 'alta' : 'média';
+    const ajustou = comp.some(x => Math.abs(fatorExtras(x.b) - fAlvo) > 0.01);
     return {
       preco: arred(mediana, gemas), de: arred(quantil(precos, 0.25), gemas), ate: arred(quantil(precos, 0.75), gemas),
-      menor: arred(precos[0], gemas), n: comp.length, confianca, base: origem,
+      // "menor" é o anúncio mais barato COMO ESTÁ (o que você encontraria à venda), sem ajuste.
+      menor: arred(Math.min(...comp.map(x => x.b.preco)), gemas), n: comp.length, confianca, base: origem, ajustou,
     };
   }
 
@@ -434,7 +482,8 @@
     if (!e || e.semDados) return `<div class="${classe}"><small>${rotulo}</small><span class="v" style="font-size:14px;color:#9e99b3">Sem dados</span><em>Clique em "Buscar no mercado".${linhaMega(e?.mega)}</em></div>`;
     const detalhe = e.pelaProducao
       ? `${e.mercado != null ? `anúncios da Mega: ${fmtPreco(e.mercado, gemas)} (abaixo do custo)` : 'sem anúncios da Mega'}`
-      : `${fmtPreco(e.de, gemas)} – ${fmtPreco(e.ate, gemas)}${e.menor != null ? ` · menor ${fmtPreco(e.menor, gemas)}` : ''}<br>${e.n} anúncio(s) · confiança ${e.confianca}`;
+      : `${fmtPreco(e.de, gemas)} – ${fmtPreco(e.ate, gemas)}${e.menor != null ? ` · menor à venda ${fmtPreco(e.menor, gemas)}` : ''}<br>${e.n} anúncio(s) · confiança ${e.confianca}`
+        + `${e.ajustou ? '<br>⚖ ajustado pelo nível, refino e TM dos anúncios' : ''}`;
     return `<div class="${classe}"><small>${rotulo}${e.pelaProducao ? ' · pelo custo' : ''}</small><span class="v">${fmtPreco(e.preco, gemas)}</span>
       <em>${detalhe}${linhaMega(e.mega)}</em></div>`;
   }
@@ -457,6 +506,9 @@
           <span>Valor <b style="color:#fff">${dec(r.valor, 1)}</b>/10</span>·
           <span>IVs úteis ${r.ivUtil == null ? '?' : r.ivUtil + '%'}</span>·
           <span>Qualidade ${p.qual == null ? '?' : dec(p.qual, 3)}</span>
+          ${p.nivel ? `·<span>Nv ${Number(p.nivel).toLocaleString('pt-BR')}</span>` : ''}
+          ${num(p.refino) > 0 ? `·<span>+${num(p.refino)}</span>` : ''}
+          ${p.aoe ? '<span class="ti-chip warn">AoE</span>' : ''}${p.tmEl ? '<span class="ti-chip">TM</span>' : ''}
           <span class="ti-grow"></span>
           <select class="ti-in" data-perfil style="width:auto;height:26px;font-size:11.5px" title="O que esta espécie mais usa. Automático pelos status base do jogo.">
             ${opcoes(manualPerfil, [['', `Auto: ${NOME_PERFIL[r.perfil]}`], ['fisico', 'Físico (ATK)'], ['especial', 'Especial (SP.ATK)'], ['misto', 'Misto']])}
@@ -576,8 +628,15 @@
       if (em && k) ivs[k] = num((txt(em).match(/(\d+)/) || [])[1]);
     }
     const shiny = !!corpo.querySelector('.hf-shiny');
+    // Do topo da ficha: o chip "Nv 2.208", o selo "+7" do refino e os selos de TM (AoE / elemental).
+    const heroi = corpo.querySelector('.fi-heroi') || corpo;
+    const nivel = num(txt(heroi.querySelector('.fi-nivel-chip')).replace(/\D/g, '')) || null;
+    const refino = num(txt(heroi.querySelector('.selo-refino')).replace(/\D/g, ''));
+    const aoe = !!heroi.querySelector('.tm-selo.aoe');
+    const tmEl = !!heroi.querySelector('.tm-selo:not(.aoe)');
     if (!nome || (!Object.keys(ivs).length && qual == null)) return null;
-    return { nome, shiny, pot, qual: Number.isFinite(qual) ? qual : null, nota: Number.isFinite(nota) ? nota : null, ivs: Object.keys(ivs).length ? ivs : null };
+    return { nome, shiny, pot, qual: Number.isFinite(qual) ? qual : null, nota: Number.isFinite(nota) ? nota : null,
+      ivs: Object.keys(ivs).length ? ivs : null, nivel, refino, aoe, tmEl };
   }
 
   function desenharNaFicha() {

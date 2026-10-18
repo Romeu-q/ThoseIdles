@@ -456,6 +456,11 @@ canto do jogo faz o mesmo para os seus Pokémon e para um que você digitar.
 - **Perfil da espécie:** automático pelos status base do **catálogo do próprio jogo** (as Megas,
   que não estão nele, pela PokeAPI) ou escolhido à mão no cartão.
 - **Potência:** comparada à parte; anúncio de outra Potência pesa bem menos.
+- **Nível, refino e TM:** o preço de cada anúncio é ajustado para o seu Pokémon antes de entrar na
+  conta. Cada dobro de nível conta cerca de +25%, cada +1 de refino +6%, TM AoE +35% e TM
+  elemental +10% (estimativas, em `AJUSTE` no `price-calc.js`). Um anúncio com AoE, Nv 2.208 e +7
+  vale bem mais que um Nv 523 sem nada, e a calculadora desconta isso. O "menor à venda" continua
+  sendo o preço real do anúncio.
 - **Comparação:** mediana dos anúncios mais parecidos (mesma espécie e shiny). São preços pedidos,
   não vendas fechadas. A base vem das listas do mercado que você abre; **Buscar no mercado** faz uma
   busca daquela espécie quando você clica.
