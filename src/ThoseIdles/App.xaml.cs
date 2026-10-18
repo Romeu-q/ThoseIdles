@@ -80,6 +80,24 @@ public partial class App : Application
             ev.SetObserved();
         };
 
+        // Aberto pela atualização: espera a versão antiga terminar de fechar antes de pegar os perfis.
+        if (args.TryGetValue("wait-pid", out var waitPid))
+        {
+            LoggingService.Log.Info($"Aberto após atualização; esperando o processo {waitPid} sair.");
+            AppUpdateService.WaitForPreviousInstance(waitPid);
+        }
+        AppUpdateService.CleanupOld();
+        var restartArgs = new List<string>();
+        if (root is not null) restartArgs.AddRange(new[] { "--data-root", root });
+        // Teste da atualização de ponta a ponta: fonte alternativa, aceita SÓ em localhost.
+        if (args.TryGetValue("update-feed", out var feed) && Uri.TryCreate(feed, UriKind.Absolute, out var feedUri) && feedUri.IsLoopback)
+        {
+            AppUpdateService.LatestReleaseApi = new Uri(feedUri, "releases/latest").ToString();
+            AppUpdateService.AllowedAssetPrefix = new Uri(feedUri, "asset/").ToString();
+            restartArgs.AddRange(new[] { "--update-feed", feed! });
+        }
+        AppUpdateService.RestartArgs = restartArgs;
+
         if (!AcquireSingleInstance())
         {
             MessageBox.Show("O ThoseIdles já está aberto.", "ThoseIdles", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -134,6 +152,7 @@ public partial class App : Application
             EconomyClient.PingEvery = TimeSpan.FromSeconds(2); // o oficial usa 25 s; o teste encurta
             BrowserSession.ExportFolder = Path.Combine(AppPaths.Root, "exportados"); // não toca na sua pasta Downloads
             AppUpdateService.LatestReleaseApi = _testServer.Url + "releases/latest";
+            AppUpdateService.AllowedAssetPrefix = _testServer.Url + "asset/";
             settings.StartAllOnLaunch = false;
             settings.EnableSniper = true; // o autoteste confere o sniper contra o mercado falso
             settings.MonitorGameConnection = true;

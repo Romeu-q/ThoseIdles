@@ -112,6 +112,9 @@ public sealed class SelfTestServer : IDisposable
     /// <summary>Tag que a "API do GitHub" falsa devolve como última Release.</summary>
     public string LatestReleaseTag { get; set; } = "v0.0.1";
 
+    /// <summary>Hash publicado no lugar do verdadeiro (para testar a recusa).</summary>
+    public string? AssetDigestOverride { get; set; }
+
     /// <summary>Pedidos "market.comprar" recebidos (JSON bruto), na ordem.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> BuyRequests { get; } = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, bool> _sold = new();
@@ -235,10 +238,22 @@ public sealed class SelfTestServer : IDisposable
                 return;
             }
 
+            if (ctx.Request.Url?.AbsolutePath == "/asset/ThoseIdles.exe")
+            {
+                // O "exe da Release" é o próprio exe do autoteste.
+                var exe = await File.ReadAllBytesAsync(Environment.ProcessPath!);
+                ctx.Response.ContentType = "application/octet-stream";
+                ctx.Response.ContentLength64 = exe.Length;
+                await ctx.Response.OutputStream.WriteAsync(exe);
+                ctx.Response.Close();
+                return;
+            }
             if (ctx.Request.Url?.AbsolutePath == "/releases/latest")
             {
                 // Imita a API do GitHub; html_url fora do repositório para conferir que o app não o abre.
-                var json = Encoding.UTF8.GetBytes($$"""{"tag_name":"{{LatestReleaseTag}}","draft":false,"prerelease":false,"html_url":"https://exemplo.invalid/x"}""");
+                var exeBytes = await File.ReadAllBytesAsync(Environment.ProcessPath!);
+                var sha = AssetDigestOverride ?? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(exeBytes)).ToLowerInvariant();
+                var json = Encoding.UTF8.GetBytes($$"""{"tag_name":"{{LatestReleaseTag}}","draft":false,"prerelease":false,"html_url":"https://exemplo.invalid/x","assets":[{"name":"ThoseIdles-{{LatestReleaseTag}}.exe","size":{{exeBytes.Length}},"digest":"sha256:{{sha}}","browser_download_url":"{{Url}}asset/ThoseIdles.exe"}]}""");
                 ctx.Response.ContentType = "application/json";
                 ctx.Response.ContentLength64 = json.Length;
                 await ctx.Response.OutputStream.WriteAsync(json);

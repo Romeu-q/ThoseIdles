@@ -461,13 +461,23 @@ regras antes de ligar.
 
 **Sem o app (Chrome/Edge):** extensão em `extensions/sniper`, carregada como as outras.
 
-### Aviso de versão nova
+### Atualização pelo próprio app
 
 Ao abrir, e a cada 6 h, o app consulta a última Release deste repositório no GitHub (consulta
-pública, sem login, sem enviar dados). Se houver versão mais nova, aparece uma faixa verde com o
-botão **Baixar**, que abre a página da Release no navegador. O app **não** se baixa nem se instala
-sozinho: feche o app e troque o `.exe` pelo novo (as contas continuam logadas). O **X** dispensa o
-aviso daquela versão. Pode ser desligado em Configurações.
+pública, sem login, sem enviar dados). Se houver versão mais nova, aparece uma faixa verde:
+
+- **Atualizar agora:** baixa o `.exe` da Release, confere o arquivo e reabre o app na versão nova.
+  As contas voltam logadas, porque o login fica nos perfis, não no `.exe`. A conferência exige que:
+  - o download venha do endereço de Releases deste repositório;
+  - o **SHA-256** seja igual ao que o GitHub publica para o arquivo;
+  - a versão dentro do `.exe` seja a da Release.
+
+  Se algo não bater, nada é trocado.
+- **Ver novidades:** abre a página da Release.
+- **X:** dispensa o aviso daquela versão.
+
+Em **Configurações → Geral → Procurar atualização** dá para consultar na hora. Se a pasta do app não
+aceitar gravação (por exemplo, dentro de "Arquivos de Programas"), o botão abre a página para baixar.
 
 ## 9. Testes
 

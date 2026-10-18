@@ -266,8 +266,15 @@
             <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" Command="{Binding DismissAppUpdateCommand}"
                         ToolTip="Não avisar mais sobre esta versão" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Baixar" Command="{Binding OpenAppUpdateCommand}"
-                        ToolTip="Abre a página da Release no navegador. Feche o app e troque o .exe pelo novo: as contas continuam logadas." />
+                <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Content="Ver novidades" Command="{Binding OpenAppUpdateCommand}"
+                        ToolTip="Abre a página da versão nova no navegador (o que mudou)." />
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Command="{Binding UpdateNowCommand}"
+                        ToolTip="Baixa a versão nova do GitHub, confere o arquivo e reabre o app. As contas voltam logadas.">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE896;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="Atualizar agora" />
+                    </StackPanel>
+                </Button>
                 <TextBlock DockPanel.Dock="Left" Text="&#xE896;" FontFamily="{StaticResource Icons}" Foreground="{StaticResource Good}"
                            VerticalAlignment="Center" Margin="0,0,8,0" />
                 <TextBlock Text="{Binding AppUpdateText}" FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" />

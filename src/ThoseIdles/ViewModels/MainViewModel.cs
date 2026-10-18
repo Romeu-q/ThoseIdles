@@ -456,14 +456,68 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Texto da faixa "versão nova disponível" (vazio = faixa escondida).</summary>
     public string AppUpdateText => _appUpdate is { } r
-        ? $"Nova versão do ThoseIdles disponível: {r.Tag} (você está na v{AppUpdateService.CurrentVersion})."
+        ? _updateStatus ?? $"Nova versão do ThoseIdles disponível: {r.Tag} (você está na v{AppUpdateService.CurrentVersion})."
         : "";
 
+    private string? _updateStatus;
+    private bool _updating;
+
+    private void SetUpdateStatus(string? text)
+    {
+        _updateStatus = text;
+        OnPropertyChanged(nameof(AppUpdateText));
+    }
+
+    /// <summary>"Ver novidades": abre a página da Release.</summary>
     public ICommand OpenAppUpdateCommand => new RelayCommand(() =>
     {
         if (_appUpdate is { } r)
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(r.Url) { UseShellExecute = true });
     });
+
+    /// <summary>
+    /// "Atualizar agora": baixa, confere (SHA-256 + versão), troca o .exe e reabre o app.
+    /// As contas fecham e reabrem logadas (o login fica nos perfis, não no .exe).
+    /// </summary>
+    public ICommand UpdateNowCommand => _updateNow ??= new AsyncCommand(async () =>
+    {
+        if (_appUpdate is not { } r || _updating) return;
+        if (r.AssetUrl is null || !AppUpdateService.CanWriteNextToExe(out _))
+        {
+            Notice = "Não dá para atualizar sozinho aqui (a pasta do app não aceita gravação). Abrindo a página para baixar.";
+            OpenAppUpdateCommand.Execute(null);
+            return;
+        }
+        _updating = true;
+        try
+        {
+            var dest = Environment.ProcessPath + ".new";
+            var progress = new Progress<double>(p => SetUpdateStatus($"Baixando {r.Tag}… {p:P0}"));
+            SetUpdateStatus($"Baixando {r.Tag}…");
+            var (ok, why) = await AppUpdateService.DownloadAsync(r, dest, progress, CancellationToken.None);
+            if (!ok)
+            {
+                SetUpdateStatus(null);
+                Notice = $"A atualização não foi instalada: {why}. Nada foi trocado; você pode baixar pela página (Ver novidades).";
+                return;
+            }
+            SetUpdateStatus($"Instalando {r.Tag}… o app vai fechar e abrir de novo, com as contas logadas.");
+            await Task.Delay(800);
+            if (!AppUpdateService.InstallAndRestart(dest, AppUpdateService.RestartArgs, out var msg))
+            {
+                try { File.Delete(dest); } catch { }
+                SetUpdateStatus(null);
+                Notice = $"Não deu para trocar o arquivo do app: {msg}. Nada foi trocado.";
+                return;
+            }
+            System.Windows.Application.Current.MainWindow?.Close();
+        }
+        finally
+        {
+            _updating = false;
+        }
+    });
+    private ICommand? _updateNow;
 
     public ICommand DismissAppUpdateCommand => new RelayCommand(() =>
     {
@@ -514,7 +568,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SaveSettings();
         _appUpdate = r;
         OnPropertyChanged(nameof(AppUpdateText));
-        Notice = $"Tem versão nova: {r.Tag}. Clique em \"Baixar\" na faixa verde.";
+        Notice = $"Tem versão nova: {r.Tag}. Clique em \"Atualizar agora\" na faixa verde.";
     });
     private ICommand? _checkNow;
 

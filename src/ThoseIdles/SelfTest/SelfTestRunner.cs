@@ -1075,6 +1075,47 @@ public sealed class SelfTestRunner
     private async Task RunAppUpdateTestsAsync()
     {
         var server = SelfTestServer.Current!;
+        await Test("atualizar pelo app: baixa e confere; recusa hash errado, versão errada e endereço estranho", async () =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "ti-update-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var cur = $"v{AppUpdateService.CurrentVersion}";
+                server.LatestReleaseTag = cur;
+                server.AssetDigestOverride = null;
+                var r = await AppUpdateService.GetLatestAsync(CancellationToken.None);
+                var good = Path.Combine(dir, "ok.exe");
+                var (ok, why) = await AppUpdateService.DownloadAsync(r!, good, null, CancellationToken.None);
+                var same = ok && File.Exists(good) && File.ReadAllBytes(good).AsSpan().SequenceEqual(File.ReadAllBytes(Environment.ProcessPath!));
+
+                server.AssetDigestOverride = new string('0', 64);
+                var rBad = await AppUpdateService.GetLatestAsync(CancellationToken.None);
+                var badHash = Path.Combine(dir, "hash.exe");
+                var (okHash, whyHash) = await AppUpdateService.DownloadAsync(rBad!, badHash, null, CancellationToken.None);
+
+                server.AssetDigestOverride = null;
+                server.LatestReleaseTag = "v99.0.0";
+                var rVer = await AppUpdateService.GetLatestAsync(CancellationToken.None);
+                var badVer = Path.Combine(dir, "ver.exe");
+                var (okVer, whyVer) = await AppUpdateService.DownloadAsync(rVer!, badVer, null, CancellationToken.None);
+
+                var rUrl = r! with { AssetUrl = "https://exemplo.invalid/ThoseIdles.exe" };
+                var (okUrl, whyUrl) = await AppUpdateService.DownloadAsync(rUrl, Path.Combine(dir, "url.exe"), null, CancellationToken.None);
+
+                var leftovers = Directory.GetFiles(dir).Select(Path.GetFileName).Where(n => n != "ok.exe").ToList();
+                var pass = same && r!.Sha256 is { Length: 64 } && !okHash && !okVer && !okUrl && leftovers.Count == 0;
+                return pass
+                    ? Pass($"baixou {cur} e conferiu (SHA-256 + versão); recusou: hash ≠ publicado, versão do arquivo ≠ v99.0.0, endereço fora do GitHub; nenhum arquivo ruim ficou no disco")
+                    : Fail($"ok={ok}({why}) igual={same} hash={okHash}({whyHash}) versão={okVer}({whyVer}) url={okUrl}({whyUrl}) sobras=[{string.Join(",", leftovers)}]");
+            }
+            finally
+            {
+                server.LatestReleaseTag = "v0.0.1";
+                server.AssetDigestOverride = null;
+                try { Directory.Delete(dir, true); } catch { }
+            }
+        });
         await Test("aviso de versão nova: só aparece para versão maior, some ao dispensar", async () =>
         {
             server.LatestReleaseTag = "v0.0.1";
