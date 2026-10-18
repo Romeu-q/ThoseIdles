@@ -551,8 +551,11 @@ public sealed partial class BrowserSession
         var isLiveSite = HostIs("twitch.tv") || HostIs("kick.com");
         var isLocalTest = _policy.AllowLocalhostHttp && u is not null && u.IsLoopback;
         if (decision == NavigationDecision.Allow && (isLiveSite || isLocalTest || e.IsRedirected || e.Uri == "about:blank")) return;
+        // Login na própria aba (o "Continuar com Google" da Kick vai e volta por aqui).
+        if (IsLoginPage(e.Uri)) return;
 
         e.Cancel = true;
+        LoggingService.Log.Info($"[conta{Slot}] Live: navegação para {(ok ? u!.Host : "?")} bloqueada{(e.IsUserInitiated ? "; aberta no navegador padrão" : "")}.");
         if (e.IsUserInitiated && NavigationPolicy.IsSafeExternalUrl(e.Uri)) OpenExternal(e.Uri);
     }
 
@@ -571,6 +574,7 @@ public sealed partial class BrowserSession
             OpenLoginPopup(e);
             return;
         }
+        LoggingService.Log.Info($"[conta{Slot}] Live: pop-up para {(Uri.TryCreate(e.Uri, UriKind.Absolute, out var pu) ? pu.Host : "?")} aberto no navegador padrão.");
         if (NavigationPolicy.IsSafeExternalUrl(e.Uri) && DateTime.UtcNow - _lastExternalOpenUtc > TimeSpan.FromSeconds(2))
             OpenExternal(e.Uri);
     }

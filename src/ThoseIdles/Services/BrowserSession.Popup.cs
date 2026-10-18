@@ -31,7 +31,16 @@ public sealed partial class BrowserSession
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
         if (_policy.AllowLocalhostHttp && u.IsLoopback && u.AbsolutePath.StartsWith("/popup", StringComparison.Ordinal)) return true; // autoteste
-        if (u.Scheme != Uri.UriSchemeHttps) return false;
+        return IsLoginPage(url);
+    }
+
+    /// <summary>
+    /// Página de login (Google, Apple, Kick, Twitch, Discord), em https. A Kick, por exemplo, leva a
+    /// PRÓPRIA aba para o "Continuar com Google" (sem pop-up): a aba da live precisa poder ir até lá e voltar.
+    /// </summary>
+    public static bool IsLoginPage(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return false;
         var host = u.Host.ToLowerInvariant();
         return LoginPopupHosts.Any(h => host == h || host.EndsWith("." + h, StringComparison.Ordinal));
     }
