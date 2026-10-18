@@ -612,3 +612,13 @@ tools/benchmark.ps1             benchmark automático com perfis temporários (A
 tools/make-icon.ps1             gera o ícone (pokébola) em src/ThoseIdles/Assets/pokeball.ico
 tests/run-selftest.ps1          autoteste em duas fases
 ```
+
+## Licença
+
+Código sob a [licença MIT](LICENSE): pode usar, estudar, modificar e redistribuir, mantendo o aviso de
+copyright. O `.exe` inclui componentes de terceiros com licenças próprias (.NET e o SDK do Microsoft
+Edge WebView2).
+
+O ThoseIdles é um projeto independente, feito por fã. Não tem vínculo com o PokeIdle.io, a Twitch, a
+Microsoft nem com os titulares de Pokémon (Nintendo, Game Freak, Creatures). Os nomes citados pertencem
+aos seus donos.
