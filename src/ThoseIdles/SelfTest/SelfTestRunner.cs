@@ -980,9 +980,59 @@ public sealed class SelfTestRunner
         });
     }
 
+    private async Task RunPriceCalcTestsAsync()
+    {
+        await Test("calculadora de preço: IVs úteis pelo perfil + Qualidade + Potência; RMT só com nota 3,5+", async () =>
+        {
+            var core = _manager[1].Core!;
+            await core.ExecuteScriptAsync("localStorage.removeItem('ti-preco-anuncios'); location.reload()");
+            for (var i = 0; i < 60 && await core.ExecuteScriptAsync("window.wsOpen === true && !!window.__tiPreco?.avaliar") != "true"; i++)
+                await Task.Delay(250);
+            var hasButton = await core.ExecuteScriptAsync("!!document.querySelector('#ti-dock #ti-prc-btn')") == "true";
+            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial')");
+            // Meus Pokémon com IVs em português (o classificador tem que reconhecer).
+            const string estado = """{"t":"estado","pokemons":[{"nome":"Rattata","potencia":1,"qualidade":20,"ivs":{"ps":10,"ataque":10,"defesa":10,"atq_esp":10,"def_esp":10,"velocidade":10}}]}""";
+            // Charizard especial: A/C/D parecidos; B tem IV alto só no Ataque (inútil para especial); E é P5.
+            var mercado = """
+              {"t":"market","aba":"pokemon","linhas":[
+              {"id":601,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":90,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31},"preco":2000,"moeda":"orb"},
+              {"id":602,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":90,"ivs":{"hp":31,"atk":31,"def":20,"spa":0,"spd":20,"spe":31},"preco":600,"moeda":"orb"},
+              {"id":603,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":88,"ivs":{"hp":31,"atk":0,"def":20,"spa":29,"spd":20,"spe":30},"preco":1800,"moeda":"orb"},
+              {"id":604,"ficha":{"nome":"Charizard","shiny":true,"potencia":4,"qualidade":95,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31}},"preco":2200,"moeda":"orb"},
+              {"id":605,"pokemonNome":"Charizard","shiny":true,"potencia":5,"qualidade":90,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31},"preco":9000,"moeda":"orb"},
+              {"id":606,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":90,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31},"preco":80000,"moeda":"gold"},
+              {"id":607,"itemId":7,"itemNome":"Charizardite","preco":5,"moeda":"orb"}]}
+              """.Replace("\r", "").Replace("\n", "");
+            foreach (var msg in new[] { estado, mercado })
+                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
+            await Task.Delay(1500);
+            async Task<JsonElement> Eval(string js) =>
+                JsonDocument.Parse(JsonDocument.Parse(await core.ExecuteScriptAsync($"JSON.stringify({js})")).RootElement.GetString()!).RootElement;
+            const string alvo = "{ nome: 'Charizard', shiny: true, pot: 4, qual: 90, nota: 4.2, ivs: { hp: 31, atk: 0, def: 20, spa: 31, spd: 20, spe: 31 } }";
+            var esp = await Eval($"window.__tiPreco.avaliar({alvo})");
+            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'fisico')");
+            var fis = await Eval($"window.__tiPreco.avaliar({alvo})");
+            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial')");
+            var baixa = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 90, nota: 3.4, ivs: { spa: 31 } })");
+            var limite = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 90, nota: 3500, ivs: { spa: 31 } })");
+            var meus = await Eval("window.__tiPreco.meus().map(p => window.__tiPreco.avaliar(p))");
+            var gemas = esp.GetProperty("gemas").GetProperty("preco").GetDouble();
+            var ouro = esp.GetProperty("ouro").GetProperty("preco").GetDouble();
+            var ivEsp = esp.GetProperty("ivUtil").GetInt32();
+            var ivFis = fis.GetProperty("ivUtil").GetInt32();
+            var ivRattata = meus[0].GetProperty("ivUtil").GetInt32();
+            var ok = hasButton && gemas == 2000 && ouro == 80000 && ivEsp == 92 && ivFis == 56 && ivRattata == 32
+                     && !baixa.GetProperty("podeRmt").GetBoolean() && limite.GetProperty("podeRmt").GetBoolean();
+            return ok
+                ? Pass($"Charizard especial: IVs úteis {ivEsp}% (como físico seriam {ivFis}%), valor {esp.GetProperty("valor")}/10 → {gemas} Gemas e {ouro} ouro; o anúncio com IV só em Ataque e o P5 pesaram pouco; nota 3,4 bloqueada, 3500 (=3,5) liberada; IVs em português reconhecidos ({ivRattata}%)")
+                : Fail($"botão={hasButton} esp={esp} fis={fis} baixa={baixa} limite={limite} meus={meus}");
+        });
+    }
+
     private async Task RunRmtAlertTestsAsync()
     {
         await RunSniperTestsAsync();
+        await RunPriceCalcTestsAsync();
         await RunAccountCountLayoutTestAsync();
         await Test("alerta de RMT: avisa só anúncio em Gemas que bate com a regra; não envia nada", async () =>
         {

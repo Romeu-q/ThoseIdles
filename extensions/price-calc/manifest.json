@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "ThoseIdles — Calculadora de preço",
+  "version": "1.0.0",
+  "description": "Estima quanto vale um Pokémon no PokéIdle (RMT em Gemas e ouro) comparando com anúncios parecidos do mercado. RMT só a partir de nota 3,5.",
+  "content_scripts": [
+    {
+      "matches": ["https://pokeidle.io/*"],
+      "js": ["price-calc.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

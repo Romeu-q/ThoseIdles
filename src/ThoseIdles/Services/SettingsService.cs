@@ -159,6 +159,9 @@ public sealed class AppSettings
     /// <summary>Botão "🎯 Sniper" no jogo (compra automática por regras). Desligado por padrão.</summary>
     public bool EnableSniper { get; set; }
 
+    /// <summary>Botão "💰 Preço" no jogo: calculadora de preço por anúncios parecidos.</summary>
+    public bool EnablePriceCalc { get; set; } = true;
+
     /// <summary>O usuário já fechou o "como usar" do topo.</summary>
     public bool WelcomeDismissed { get; set; }
 

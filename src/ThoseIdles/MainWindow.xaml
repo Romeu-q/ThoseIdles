@@ -125,6 +125,8 @@
                                       Tag="Botão &quot;Exportar TXT&quot; na página Shinies: espécie, potência, qualidade, IVs e valor no RMT." />
                             <CheckBox Content="Alerta de RMT" IsChecked="{Binding EnableRmtAlert}"
                                       Tag="Botão &quot;🔔 RMT&quot; no canto do jogo: avisa anúncios em Gemas que batem com as suas regras. Só avisa, nunca compra." />
+                            <CheckBox Content="Calculadora de preço" IsChecked="{Binding EnablePriceCalc}"
+                                      Tag="Botão &quot;💰 Preço&quot; no jogo: quanto vale o seu Pokémon no RMT (nota 3,5 ou mais) e em ouro, comparando com o mercado." />
                             <CheckBox Content="Sniper do mercado (compra automática)" IsChecked="{Binding EnableSniper}"
                                       Tag="Botão &quot;🎯 Sniper&quot; no jogo: compra sozinho o que bater com as suas regras (preço máximo e limite de compras obrigatórios). Sempre abre desligado." />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"

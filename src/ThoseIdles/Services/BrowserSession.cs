@@ -459,11 +459,16 @@ public sealed partial class BrowserSession : ObservableObject
         // carregado só age com o interruptor do painel ligado (que volta desligado a cada recarga).
         if (_settings.EnableSniper && SniperScript.Value is { Length: > 0 } sniper)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(sniper);
+
+        // Calculadora de preço (lê o mercado; só busca uma espécie quando o usuário clica).
+        if (_settings.EnablePriceCalc && PriceCalcScript.Value is { Length: > 0 } preco)
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(preco);
     }
 
     private static readonly Lazy<string> ShinyExportScript = new(() => ReadResource("ShinyExport.js"));
     private static readonly Lazy<string> RmtAlertScript = new(() => ReadResource("RmtAlert.js"));
     private static readonly Lazy<string> SniperScript = new(() => ReadResource("Sniper.js"));
+    private static readonly Lazy<string> PriceCalcScript = new(() => ReadResource("PriceCalc.js"));
 
     private static string ReadResource(string name)
     {

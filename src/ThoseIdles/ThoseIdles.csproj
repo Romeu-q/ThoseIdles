@@ -43,6 +43,7 @@
     <EmbeddedResource Include="..\..\extensions\shiny-export\shiny-export.js" LogicalName="ShinyExport.js" />
     <EmbeddedResource Include="..\..\extensions\rmt-alert\rmt-alert.js" LogicalName="RmtAlert.js" />
     <EmbeddedResource Include="..\..\extensions\sniper\sniper.js" LogicalName="Sniper.js" />
+    <EmbeddedResource Include="..\..\extensions\price-calc\price-calc.js" LogicalName="PriceCalc.js" />
     <None Remove="Assets\pokeball.preview.png" />
   </ItemGroup>
 

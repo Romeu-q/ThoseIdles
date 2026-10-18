@@ -217,7 +217,7 @@
   // ------------------------------------------------------------------ interface
 
   const css = `
-    #ti-snp-btn{position:fixed;left:84px;bottom:8px;z-index:2147483000;background:#2a1a1add;color:#eee;border:1px solid #7a3f3f;
+    #ti-snp-btn{background:#2a1a1add;color:#eee;border:1px solid #7a3f3f;
       border-radius:14px;font:600 12px Segoe UI,sans-serif;padding:4px 10px;cursor:pointer;opacity:.8}
     #ti-snp-btn:hover{opacity:1} #ti-snp-btn.on{background:#5a1d22;border-color:#e5484d;opacity:1}
     #ti-snp{position:fixed;left:8px;bottom:40px;z-index:2147483000;width:380px;max-height:75vh;overflow:auto;background:#1b1517f5;
@@ -233,6 +233,12 @@
   let painelAberto = false;
   let painel = null;
 
+  function dock() {
+    let d = document.getElementById('ti-dock');
+    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483000;display:flex;gap:6px'; document.body.appendChild(d); }
+    return d;
+  }
+
   function montar() {
     if (document.getElementById('ti-snp-btn') || !document.body) return;
     const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
@@ -240,7 +246,7 @@
     btn.id = 'ti-snp-btn';
     btn.title = 'ThoseIdles: sniper do mercado (compra automática por regras)';
     btn.onclick = () => { painelAberto = !painelAberto; desenhar(); };
-    document.body.appendChild(btn);
+    dock().appendChild(btn);
     atualizarBotao();
   }
 

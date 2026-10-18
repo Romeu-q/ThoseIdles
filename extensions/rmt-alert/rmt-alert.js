@@ -92,7 +92,7 @@
   // ------------------------------------------------------------------ interface
 
   const css = `
-    #ti-rmt-btn{position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#1d1a2bdd;color:#e6e6ea;border:1px solid #4a3f7a;
+    #ti-rmt-btn{background:#1d1a2bdd;color:#e6e6ea;border:1px solid #4a3f7a;
       border-radius:14px;font:600 12px Segoe UI,sans-serif;padding:4px 10px;cursor:pointer;opacity:.8}
     #ti-rmt-btn:hover{opacity:1} #ti-rmt-btn .n{background:#8b6cff;border-radius:8px;padding:0 5px;margin-left:5px}
     #ti-rmt{position:fixed;left:8px;bottom:40px;z-index:2147483000;width:320px;max-height:70vh;overflow:auto;background:#17151ff5;
@@ -110,6 +110,12 @@
   let painel = null;
   let naoVistos = 0;
 
+  function dock() {
+    let d = document.getElementById('ti-dock');
+    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483000;display:flex;gap:6px'; document.body.appendChild(d); }
+    return d;
+  }
+
   function montar() {
     if (document.getElementById('ti-rmt-btn') || !document.body) return;
     const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -117,7 +123,7 @@
     btn.id = 'ti-rmt-btn';
     btn.title = 'ThoseIdles: alerta de anúncios em Gemas (RMT). Só avisa; não compra.';
     btn.onclick = () => { painelAberto = !painelAberto; naoVistos = 0; atualizarBotao(); desenhar(); };
-    document.body.appendChild(btn);
+    dock().appendChild(btn);
     atualizarBotao();
   }
 

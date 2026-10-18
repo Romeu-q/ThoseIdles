@@ -423,6 +423,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool EnablePriceCalc
+    {
+        get => _settings.EnablePriceCalc;
+        set
+        {
+            _settings.EnablePriceCalc = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = "A calculadora de preço muda nas contas a partir de agora (Mais → Reiniciar esta conta para aplicar já).";
+        }
+    }
+
     public bool EnableSniper
     {
         get => _settings.EnableSniper;

@@ -428,6 +428,21 @@ Configurações.
 **Sem o app (Chrome/Edge):** também existe como extensão em `extensions/rmt-alert`, carregada do
 mesmo jeito que a de shinies (Modo do desenvolvedor → Carregar sem compactação).
 
+### Calculadora de preço
+
+Botão **💰 Preço** no canto do jogo. Para cada Pokémon seu (e para um que você digitar), mostra
+quanto ele vale no **RMT (Gemas)** e em **ouro**, com faixa de preço, menor anúncio e confiança.
+
+- **Valor (0–10):** 60% IVs úteis + 40% Qualidade. "IVs úteis" pesa o que a espécie usa: físico →
+  Ataque, especial → Ataque Especial; Velocidade e HP contam para todos.
+- **Perfil da espécie:** automático pelos status base (consulta a PokeAPI uma vez por espécie e
+  guarda) ou escolhido à mão no painel.
+- **Potência:** comparada à parte; anúncio de outra Potência pesa bem menos.
+- **Comparação:** mediana dos anúncios mais parecidos (mesma espécie e shiny). São preços pedidos,
+  não vendas fechadas. A base vem das listas do mercado que você abre; **Buscar no mercado** faz uma
+  busca daquela espécie quando você clica.
+- **RMT só a partir de nota 3,5:** abaixo disso mostra só o preço em ouro.
+
 ### Sniper do mercado (compra automática)
 
 Réplica própria, escrita do zero, do "Rotom Sniper" divulgado no Discord do jogo. Vem **desativado**:
