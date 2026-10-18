@@ -445,6 +445,11 @@ canto do jogo faz o mesmo para os seus Pokémon e para um que você digitar.
   não vendas fechadas. A base vem das listas do mercado que você abre; **Buscar no mercado** faz uma
   busca daquela espécie quando você clica.
 - **RMT só a partir de nota 3,5:** abaixo disso mostra só o preço em ouro.
+- **Megas:** o preço nunca fica abaixo do **custo de produção**, que é a forma base com os mesmos
+  status mais os fragmentos da pedra (10 Mega Stone Fragments, ou os shiny para a Mega shiny, pela
+  configuração do jogo), ao preço deles no mercado. O cartão mostra a conta, por exemplo
+  "Charizard 1.200 + 10 fragmentos × 45 = 1.650". Na Mega, **Buscar no mercado** também busca a
+  forma base e o preço dos fragmentos.
 
 ### Sniper do mercado (compra automática)
 

@@ -235,26 +235,103 @@
   });
 
   function onMensagem(texto) {
-    if (!texto.includes('"market"') && !texto.includes('pokemons') && !texto.includes('"depot"')) return;
+    if (!texto.includes('"market"') && !texto.includes('pokemons') && !texto.includes('"depot"') && !texto.includes('"welcome"')) return;
     let m;
     try { m = JSON.parse(texto); } catch { return; }
     lerMeus(m);
+    if (m.t === 'welcome' && m.mega) lerConfigMega(m.mega);
     if (m.t === 'market' && !String(m.aba || '').startsWith('historico') && m.aba !== 'meus') {
-      const lista = [].concat(m.anuncios || [], m.linhas || [], m.anuncio ? [m.anuncio] : []);
       let n = 0;
-      for (const a of lista) if (a) { aprender(a); n++; }
-      if (n) { salvar(); redesenharTudo(); }
+      if (m.aba === 'itens' && m.resumo) n += aprenderResumoItens(m.resumo);
+      const lista = [].concat(m.anuncios || [], m.linhas || [], m.anuncio ? [m.anuncio] : []);
+      for (const a of lista) if (a) { aprender(a); aprenderItem(a, m); n++; }
+      if (n) { salvar(); salvarItens(); redesenharTudo(); }
     }
   }
 
   let ultimaBusca = 0;
   function buscarNoMercado(nome) {
-    // Só quando você clica, no máximo uma busca a cada 3 s (são 2 pedidos: Gemas e ouro).
+    // Só quando você clica, no máximo uma busca a cada 3 s: a espécie em Gemas e em ouro e, se for
+    // Mega, também a forma base e o resumo dos itens (preço dos fragmentos).
     if (!ws || ws.readyState !== 1 || Date.now() - ultimaBusca < 3000) return false;
     ultimaBusca = Date.now();
-    for (const moeda of ['orb', 'gold'])
-      ws.send(JSON.stringify({ t: 'market.listar', tipo: 'pokemon', ordem: 'menor_preco', moeda, busca: nome, criterios: [], elemento: '' }));
+    const nomes = ehMega(nome) ? [nome, baseDaMega(nome)] : [nome];
+    for (const n of nomes) for (const moeda of ['orb', 'gold'])
+      ws.send(JSON.stringify({ t: 'market.listar', tipo: 'pokemon', ordem: 'menor_preco', moeda, busca: n, criterios: [], elemento: '' }));
+    if (ehMega(nome)) ws.send(JSON.stringify({ t: 'market.itens' }));
     return true;
+  }
+
+  // ------------------------------------------------------------------ Mega: custo dos fragmentos
+
+  // A pedra de cada Mega é fabricada com fragmentos (Mega Stone Fragment; a Mega shiny usa o
+  // Mega Shiny Stone Fragment). A quantidade vem da config do jogo no "welcome"; 10 é o padrão dele.
+  const megaCfg = { custo: 10, custoShiny: 10, frag: 70014, fragShiny: 70015 };
+  function lerConfigMega(c) {
+    if (num(c.custo) > 0) megaCfg.custo = num(c.custo);
+    if (num(c.custoShiny) > 0) megaCfg.custoShiny = num(c.custoShiny);
+    if (num(c.fragmentoId) > 0) megaCfg.frag = num(c.fragmentoId);
+    if (num(c.fragmentoShinyId) > 0) megaCfg.fragShiny = num(c.fragmentoShinyId);
+  }
+  const ehMega = nome => /^mega\s/i.test(String(nome || '').trim());
+  const baseDaMega = nome => String(nome).trim().replace(/^mega\s+/i, '').replace(/\s+[xy]$/i, '');
+
+  // Preço de itens: o resumo do mercado (menor preço em ouro e em Gemas por item) e anúncios de item.
+  const KEY_ITENS = 'ti-preco-itens';
+  const itens = load(KEY_ITENS, {}); // itemId → { minOrb, minGold, em, amostras: [{ p, gemas, em }] }
+  let salvarItensPendente = false;
+  function salvarItens() {
+    if (salvarItensPendente) return;
+    salvarItensPendente = true;
+    setTimeout(() => { salvarItensPendente = false; save(KEY_ITENS, itens); }, 2000);
+  }
+  function aprenderResumoItens(resumo) {
+    let n = 0;
+    for (const [id, r] of Object.entries(resumo)) {
+      if (!r) continue;
+      const it = itens[id] ||= { amostras: [] };
+      it.minOrb = num(r.minOrb) || null;
+      it.minGold = num(r.minGold) || null;
+      it.em = Date.now();
+      n++;
+    }
+    return n;
+  }
+  function aprenderItem(a, m) {
+    const id = num(a.itemId || a.ficha?.itemId || (m.aba === 'item' ? m.itemId : 0));
+    const preco = num(a.preco);
+    if (!id || preco <= 0 || a.comprador) return;
+    const it = itens[id] ||= { amostras: [] };
+    it.amostras = [...(it.amostras || []).filter(x => Date.now() - x.em < VALIDADE_MS && x.id !== a.id).slice(-30),
+      { id: a.id, p: preco, gemas: ehGemas(a.moeda || m.moeda), em: Date.now() }];
+  }
+  /** Preço de UMA unidade do item na moeda (o menor do resumo; senão a mediana dos anúncios). */
+  function precoItem(id, gemas) {
+    const it = itens[id];
+    if (!it) return null;
+    const min = gemas ? it.minOrb : it.minGold;
+    if (min > 0 && Date.now() - (it.em || 0) < VALIDADE_MS) return min;
+    const ps = (it.amostras || []).filter(x => x.gemas === gemas && Date.now() - x.em < VALIDADE_MS).map(x => x.p).sort((a, b) => a - b);
+    return ps.length ? quantil(ps, 0.5) : null;
+  }
+
+  /**
+   * Para uma Mega: o que custa FAZER ela = a forma base com os mesmos status + os fragmentos da pedra.
+   * Um anúncio de Mega abaixo disso está barato demais (ou é de outro jogador desfazendo-se rápido).
+   */
+  function custoMega(alvo, gemas) {
+    if (!ehMega(alvo.nome)) return null;
+    const qtd = alvo.shiny ? megaCfg.custoShiny : megaCfg.custo;
+    const fragId = alvo.shiny ? megaCfg.fragShiny : megaCfg.frag;
+    const unit = precoItem(fragId, gemas);
+    const baseNome = baseDaMega(alvo.nome);
+    const b = estimar({ ...alvo, nome: baseNome }, gemas);
+    const fragTotal = unit != null ? unit * qtd : null;
+    return {
+      qtd, shinyFrag: !!alvo.shiny, unit, fragTotal, baseNome,
+      basePreco: b.semDados ? null : b.preco,
+      total: fragTotal != null && !b.semDados ? arred(b.preco + fragTotal, gemas) : null,
+    };
   }
 
   // ------------------------------------------------------------------ estimativa
@@ -311,13 +388,23 @@
     const a = { pot: 1, ...alvo, pot: num(alvo.pot) || 1 };
     const va = valorDe(a);
     const podeRmt = (a.nota ?? notaDe(a) ?? 0) >= NOTA_MIN_RMT;
+    const comCusto = gemas => {
+      const e = estimar(a, gemas);
+      const c = custoMega(a, gemas);
+      if (!c) return e;
+      // Mega: nunca abaixo do custo de produção (base + fragmentos).
+      if (c.total != null && (e.semDados || e.preco < c.total))
+        return { ...(e.semDados ? { de: c.total, ate: c.total, menor: null, n: 0, confianca: 'baixa' } : e),
+          semDados: false, preco: c.total, mercado: e.semDados ? null : e.preco, pelaProducao: true, mega: c, base: e.semDados ? 'custo de produção' : e.base };
+      return { ...e, mega: c };
+    };
     return {
       valor: va.v == null ? null : Math.round(va.v * 10) / 10,
       ivUtil: va.u == null ? null : Math.round(va.u * 100),
       perfil: va.perfil,
       podeRmt,
-      gemas: podeRmt ? estimar(a, true) : null,
-      ouro: estimar(a, false),
+      gemas: podeRmt ? comCusto(true) : null,
+      ouro: comCusto(false),
     };
   }
 
@@ -337,9 +424,19 @@
     const classe = gemas ? 'gem' : 'gold';
     const rotulo = gemas ? '💎 RMT · Gemas' : 'Ouro';
     if (bloqueio) return `<div class="${classe}"><small>${rotulo}</small><span class="v" style="font-size:14px;color:#ff8a95">Não pode</span><em>${bloqueio}</em></div>`;
-    if (!e || e.semDados) return `<div class="${classe}"><small>${rotulo}</small><span class="v" style="font-size:14px;color:#9e99b3">Sem dados</span><em>Clique em "Buscar no mercado".</em></div>`;
-    return `<div class="${classe}"><small>${rotulo}</small><span class="v">${fmtPreco(e.preco, gemas)}</span>
-      <em>${fmtPreco(e.de, gemas)} – ${fmtPreco(e.ate, gemas)} · menor ${fmtPreco(e.menor, gemas)}<br>${e.n} anúncio(s) · confiança ${e.confianca}</em></div>`;
+    const linhaMega = c => {
+      if (!c) return '';
+      const frag = `${c.qtd} ${c.shinyFrag ? 'fragmentos shiny' : 'fragmentos'}`;
+      if (c.unit == null) return `<br>🧪 Mega: falta o preço do fragmento (Buscar no mercado)`;
+      return `<br>🧪 Mega: ${c.baseNome} ${c.basePreco == null ? '?' : fmtPreco(c.basePreco, gemas)} + ${frag} × ${fmtPreco(c.unit, gemas)}`
+        + `${c.total != null ? ` = <b style="color:#fff">${fmtPreco(c.total, gemas)}</b>` : ''}`;
+    };
+    if (!e || e.semDados) return `<div class="${classe}"><small>${rotulo}</small><span class="v" style="font-size:14px;color:#9e99b3">Sem dados</span><em>Clique em "Buscar no mercado".${linhaMega(e?.mega)}</em></div>`;
+    const detalhe = e.pelaProducao
+      ? `${e.mercado != null ? `anúncios da Mega: ${fmtPreco(e.mercado, gemas)} (abaixo do custo)` : 'sem anúncios da Mega'}`
+      : `${fmtPreco(e.de, gemas)} – ${fmtPreco(e.ate, gemas)}${e.menor != null ? ` · menor ${fmtPreco(e.menor, gemas)}` : ''}<br>${e.n} anúncio(s) · confiança ${e.confianca}`;
+    return `<div class="${classe}"><small>${rotulo}${e.pelaProducao ? ' · pelo custo' : ''}</small><span class="v">${fmtPreco(e.preco, gemas)}</span>
+      <em>${detalhe}${linhaMega(e.mega)}</em></div>`;
   }
 
   /** O cartão de resultado (usado no painel e na ficha do jogo). */

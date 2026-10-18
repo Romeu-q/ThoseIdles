@@ -1077,11 +1077,44 @@ public sealed class SelfTestRunner
         });
     }
 
+    private async Task RunMegaPriceTestAsync()
+    {
+        await Test("preço de Mega: nunca abaixo do custo (forma base + fragmentos da pedra)", async () =>
+        {
+            var core = _manager[1].Core!;
+            const string ivs = """{"hp":17,"atk":25,"def":11,"spAtk":21,"spDef":31,"speed":5}""";
+            var msgs = new[]
+            {
+                """{"t":"welcome","mega":{"custo":10,"custoShiny":10,"fragmentoId":70014,"fragmentoShinyId":70015}}""",
+                """{"t":"market","aba":"itens","resumo":{"70014":{"minOrb":45,"minGold":9000},"70015":{"minOrb":300,"minGold":0}}}""",
+                // Três Charizard comuns P4 iguais ao da ficha a 1.200 Gemas, e UM anúncio de Mega Charizard Y a 450.
+                $$"""{"t":"market","aba":"pokemon","linhas":[{"id":701,"pokemonNome":"Charizard","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":1200,"moeda":"orb"},{"id":702,"pokemonNome":"Charizard","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":1200,"moeda":"orb"},{"id":703,"pokemonNome":"Charizard","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":1200,"moeda":"orb"},{"id":704,"pokemonNome":"Mega Charizard Y","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":450,"moeda":"orb"}]}""",
+            };
+            foreach (var msg in msgs)
+                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
+            await Task.Delay(1500);
+            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial'); window.__tiPreco.definirPerfil('Mega Charizard Y', 'especial')");
+            var json = await core.ExecuteScriptAsync($"JSON.stringify(window.__tiPreco.avaliar({{ nome: 'Mega Charizard Y', shiny: false, pot: 4, qual: 1.796, nota: 4.283, ivs: {ivs} }}))");
+            var r = JsonDocument.Parse(JsonDocument.Parse(json).RootElement.GetString()!).RootElement;
+            var g = r.GetProperty("gemas");
+            var preco = g.GetProperty("preco").GetDouble();
+            var mega = g.GetProperty("mega");
+            var custo = mega.GetProperty("total").GetDouble();
+            var frag = mega.GetProperty("unit").GetDouble();
+            var pelaProducao = g.TryGetProperty("pelaProducao", out var pp) && pp.GetBoolean();
+            var ok = preco == 1650 && custo == 1650 && frag == 45 && pelaProducao && mega.GetProperty("basePreco").GetDouble() == 1200;
+            return ok
+                ? Pass($"anúncio de Mega a 450 ignorado como piso: Charizard 1.200 + 10 fragmentos × 45 = {preco} Gemas (pelo custo de produção)")
+                : Fail($"resultado={r}");
+        });
+    }
+
     private async Task RunRmtAlertTestsAsync()
     {
         await RunSniperTestsAsync();
         await RunPriceCalcTestsAsync();
         await RunPriceInFichaTestAsync();
+        await RunMegaPriceTestAsync();
         await RunAccountCountLayoutTestAsync();
         await Test("alerta de RMT: avisa só anúncio em Gemas que bate com a regra; não envia nada", async () =>
         {
