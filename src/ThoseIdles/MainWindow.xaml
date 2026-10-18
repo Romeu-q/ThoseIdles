@@ -54,6 +54,8 @@
                     <CheckBox Content="Gravar CSV de memória" IsChecked="{Binding RecordBenchmarkCsv}" />
                     <CheckBox Content="Botão &quot;Exportar TXT&quot; na página Shinies" IsChecked="{Binding EnableShinyExport}"
                               ToolTip="Na página Shinies do jogo, baixa todos os shinies da lista (com os filtros da tela) num .txt: espécie, potência, qualidade, IVs e valor no RMT. Só lê; vai para a pasta Downloads." />
+                    <CheckBox Content="Avisar quando sair versão nova" IsChecked="{Binding CheckAppUpdates}"
+                              ToolTip="Consulta as Releases do GitHub ao abrir e a cada 6 h. Só mostra um aviso com link; não baixa nem instala nada." />
                     <CheckBox Content="Modo desenvolvedor (DevTools)" IsChecked="{Binding DeveloperMode}" />
                 </WrapPanel>
                 <WrapPanel Margin="0,6,0,0" VerticalAlignment="Center">
@@ -101,6 +103,17 @@
                     <Run Text="  ·  Dados:" /> <Run Text="{Binding DataFolder, Mode=OneWay}" />
                 </TextBlock>
             </StackPanel>
+        </Border>
+
+        <!-- Versão nova no GitHub -->
+        <Border DockPanel.Dock="Top" Background="#24402A" Padding="12,4" Visibility="{Binding AppUpdateText, Converter={StaticResource StrToVis}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" Command="{Binding DismissAppUpdateCommand}"
+                        ToolTip="Não avisar mais sobre esta versão" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Content="Baixar" Command="{Binding OpenAppUpdateCommand}"
+                        ToolTip="Abre a página da Release no navegador. Feche o app e troque o .exe pelo novo: as contas continuam logadas." />
+                <TextBlock Text="{Binding AppUpdateText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+            </DockPanel>
         </Border>
 
         <!-- Avisos curtos -->

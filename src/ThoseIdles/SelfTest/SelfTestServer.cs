@@ -109,6 +109,9 @@ public sealed class SelfTestServer : IDisposable
     /// <summary>Pedidos "shiny.listar" recebidos (JSON bruto), na ordem.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> ShinyRequests { get; } = new();
 
+    /// <summary>Tag que a "API do GitHub" falsa devolve como última Release.</summary>
+    public string LatestReleaseTag { get; set; } = "v0.0.1";
+
     private int _pings;
     public int Pings => _pings;
 
@@ -201,6 +204,16 @@ public sealed class SelfTestServer : IDisposable
                 return;
             }
 
+            if (ctx.Request.Url?.AbsolutePath == "/releases/latest")
+            {
+                // Imita a API do GitHub; html_url fora do repositório para conferir que o app não o abre.
+                var json = Encoding.UTF8.GetBytes($$"""{"tag_name":"{{LatestReleaseTag}}","draft":false,"prerelease":false,"html_url":"https://exemplo.invalid/x"}""");
+                ctx.Response.ContentType = "application/json";
+                ctx.Response.ContentLength64 = json.Length;
+                await ctx.Response.OutputStream.WriteAsync(json);
+                ctx.Response.Close();
+                return;
+            }
             var bytes = Encoding.UTF8.GetBytes(ctx.Request.Url?.AbsolutePath == "/live" ? LivePage : Page);
             ctx.Response.ContentType = "text/html; charset=utf-8";
             ctx.Response.ContentLength64 = bytes.Length;

@@ -414,6 +414,14 @@ Pode ser desligado em Configurações.
 Abra `chrome://extensions`, ative o **Modo do desenvolvedor**, clique em **Carregar sem compactação**
 e escolha essa pasta.
 
+### Aviso de versão nova
+
+Ao abrir, e a cada 6 h, o app consulta a última Release deste repositório no GitHub (consulta
+pública, sem login, sem enviar dados). Se houver versão mais nova, aparece uma faixa verde com o
+botão **Baixar**, que abre a página da Release no navegador. O app **não** se baixa nem se instala
+sozinho: feche o app e troque o `.exe` pelo novo (as contas continuam logadas). O **X** dispensa o
+aviso daquela versão. Pode ser desligado em Configurações.
+
 ## 9. Testes
 
 ### Autoteste automático (WebView2 real, sem tocar nas suas contas)

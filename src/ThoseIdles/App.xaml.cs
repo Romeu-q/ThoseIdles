@@ -116,6 +116,7 @@ public partial class App : Application
             BrowserSession.LiveQualityHosts = new[] { "twitch.tv", "127.0.0.1" };
             EconomyClient.PingEvery = TimeSpan.FromSeconds(2); // o oficial usa 25 s; o teste encurta
             BrowserSession.ExportFolder = Path.Combine(AppPaths.Root, "exportados"); // não toca na sua pasta Downloads
+            AppUpdateService.LatestReleaseApi = _testServer.Url + "releases/latest";
             settings.StartAllOnLaunch = false;
             settings.MonitorGameConnection = true;
             settings.FocusMode = false;
@@ -162,6 +163,7 @@ public partial class App : Application
                 // Antes de abrir as contas (no máx. 8 s), para elas já carregarem a versão nova da /hunt.
                 await _vm.CheckHuntUpdateAsync(TimeSpan.FromSeconds(8));
                 _vm.StartHuntUpdateTimer();
+                _vm.StartAppUpdateChecks();
                 if (settings.StartAllOnLaunch) await _manager.StartAllAsync();
             }
         };

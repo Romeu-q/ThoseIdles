@@ -319,6 +319,65 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ------------------------------------------------------------------ atualização do app
+
+    private AppUpdateService.Release? _appUpdate;
+    private System.Windows.Threading.DispatcherTimer? _appUpdateTimer;
+
+    /// <summary>Texto da faixa "versão nova disponível" (vazio = faixa escondida).</summary>
+    public string AppUpdateText => _appUpdate is { } r
+        ? $"Nova versão do ThoseIdles disponível: {r.Tag} (você está na v{AppUpdateService.CurrentVersion})."
+        : "";
+
+    public ICommand OpenAppUpdateCommand => new RelayCommand(() =>
+    {
+        if (_appUpdate is { } r)
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(r.Url) { UseShellExecute = true });
+    });
+
+    public ICommand DismissAppUpdateCommand => new RelayCommand(() =>
+    {
+        if (_appUpdate is null) return;
+        _settings.DismissedAppUpdate = _appUpdate.Tag;
+        SaveSettings();
+        _appUpdate = null;
+        OnPropertyChanged(nameof(AppUpdateText));
+    });
+
+    public bool CheckAppUpdates
+    {
+        get => _settings.CheckAppUpdates;
+        set
+        {
+            _settings.CheckAppUpdates = value;
+            OnPropertyChanged();
+            SaveSettings();
+            if (value) _ = CheckAppUpdateAsync();
+            else { _appUpdate = null; OnPropertyChanged(nameof(AppUpdateText)); }
+        }
+    }
+
+    /// <summary>Consulta agora e depois a cada 6 h.</summary>
+    public void StartAppUpdateChecks()
+    {
+        _appUpdateTimer ??= new System.Windows.Threading.DispatcherTimer(TimeSpan.FromHours(6),
+            System.Windows.Threading.DispatcherPriority.Background, async (_, _) => await CheckAppUpdateAsync(),
+            System.Windows.Threading.Dispatcher.CurrentDispatcher);
+        _appUpdateTimer.Start();
+        _ = CheckAppUpdateAsync();
+    }
+
+    public async Task CheckAppUpdateAsync()
+    {
+        if (!_settings.CheckAppUpdates) return;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var r = await AppUpdateService.CheckAsync(cts.Token);
+        if (r is null || string.Equals(r.Tag, _settings.DismissedAppUpdate, StringComparison.OrdinalIgnoreCase)) return;
+        if (_appUpdate?.Tag != r.Tag) LoggingService.Log.Info($"Versão nova do app disponível: {r.Tag} ({r.Url})");
+        _appUpdate = r;
+        OnPropertyChanged(nameof(AppUpdateText));
+    }
+
     public bool RecordBenchmarkCsv
     {
         get => _settings.RecordBenchmarkCsv;

@@ -437,6 +437,7 @@ public sealed class SelfTestRunner
         await RunLiveTestsAsync();
         await RunExtensionTestsAsync();
         await RunShinyExportTestsAsync();
+        await RunAppUpdateTestsAsync();
         await RunEconomyTestsAsync();
 
         await Test("memória: renderers atribuídos por conta", async () =>
@@ -908,6 +909,35 @@ public sealed class SelfTestRunner
             return countAfter == countBefore && !leaked
                 ? Pass("3 downloads com outros nomes (incluindo .exe disfarçado) foram bloqueados; nada foi salvo")
                 : Fail($"arquivos antes={countBefore}, depois={countAfter}, vazou para Downloads={leaked}");
+        });
+    }
+
+    // ------------------------------------------------------------------ aviso de versão nova
+
+    private async Task RunAppUpdateTestsAsync()
+    {
+        var server = SelfTestServer.Current!;
+        await Test("aviso de versão nova: só aparece para versão maior, some ao dispensar", async () =>
+        {
+            server.LatestReleaseTag = "v0.0.1";
+            await _vm.CheckAppUpdateAsync();
+            var older = _vm.AppUpdateText;
+            server.LatestReleaseTag = $"v{AppUpdateService.CurrentVersion}";
+            await _vm.CheckAppUpdateAsync();
+            var same = _vm.AppUpdateText;
+            server.LatestReleaseTag = "v99.0.0";
+            await _vm.CheckAppUpdateAsync();
+            var newer = _vm.AppUpdateText;
+            var release = await AppUpdateService.CheckAsync(CancellationToken.None);
+            _vm.DismissAppUpdateCommand.Execute(null);
+            var afterDismiss = _vm.AppUpdateText;
+            await _vm.CheckAppUpdateAsync();
+            var again = _vm.AppUpdateText;
+            var ok = older == "" && same == "" && newer.Contains("v99.0.0") && afterDismiss == "" && again == ""
+                     && release?.Url == AppUpdateService.ReleasesPage;
+            return ok
+                ? Pass($"v0.0.1 e a própria versão: sem aviso; v99.0.0: \"{newer}\"; link estranho trocado pela página de Releases; dispensado não volta")
+                : Fail($"antiga=\"{older}\" igual=\"{same}\" nova=\"{newer}\" link={release?.Url} dispensado=\"{afterDismiss}\" de novo=\"{again}\"");
         });
     }
 

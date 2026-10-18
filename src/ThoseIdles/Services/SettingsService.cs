@@ -150,6 +150,12 @@ public sealed class AppSettings
     /// <summary>Botão "Exportar TXT" na página Shinies do jogo (espécie, potência, qualidade, IVs, valor no RMT).</summary>
     public bool EnableShinyExport { get; set; } = true;
 
+    /// <summary>Avisa quando sai uma versão nova do app no GitHub (só avisa; não baixa nada).</summary>
+    public bool CheckAppUpdates { get; set; } = true;
+
+    /// <summary>Versão cujo aviso o usuário dispensou (não avisa de novo por ela).</summary>
+    public string? DismissedAppUpdate { get; set; }
+
     /// <summary>Grava amostras de memória em CSV na pasta benchmark.</summary>
     public bool RecordBenchmarkCsv { get; set; }
 
