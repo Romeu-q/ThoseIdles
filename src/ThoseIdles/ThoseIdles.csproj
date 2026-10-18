@@ -41,7 +41,7 @@
     <Resource Include="Assets\pokeball.ico" />
     <!-- Exportar shinies: o MESMO script da extensão do Chrome (extensions/shiny-export). -->
     <EmbeddedResource Include="..\..\extensions\shiny-export\shiny-export.js" LogicalName="ShinyExport.js" />
-    <EmbeddedResource Include="..\..\extensions\farm-assist\farm-assist.js" LogicalName="FarmAssist.js" />
+    <EmbeddedResource Include="..\..\extensions\rmt-alert\rmt-alert.js" LogicalName="RmtAlert.js" />
     <None Remove="Assets\pokeball.preview.png" />
   </ItemGroup>
 

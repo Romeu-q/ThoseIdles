@@ -15,6 +15,15 @@ public partial class AccountPanel : UserControl
 
     private void OnLiveSizeChanged(object sender, SizeChangedEventArgs e) => Vm?.OnLiveResized(e.NewSize.Width);
 
+    /// <summary>Abre o menu "⋯" logo abaixo do botão (clique esquerdo).</summary>
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu } b) return;
+        menu.PlacementTarget = b;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
     private void OnNameBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (NameBox.IsVisible)

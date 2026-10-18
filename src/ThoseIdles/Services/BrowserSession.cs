@@ -451,13 +451,13 @@ public sealed partial class BrowserSession : ObservableObject
         if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
 
-        // Painel de farm + alerta de mercado (só lê o que o jogo manda; nunca envia nada).
-        if (_settings.EnableFarmAssist && FarmAssistScript.Value is { Length: > 0 } farm)
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(farm);
+        // Alerta de RMT (só lê o que o jogo manda; nunca envia nada).
+        if (_settings.EnableRmtAlert && RmtAlertScript.Value is { Length: > 0 } rmt)
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(rmt);
     }
 
     private static readonly Lazy<string> ShinyExportScript = new(() => ReadResource("ShinyExport.js"));
-    private static readonly Lazy<string> FarmAssistScript = new(() => ReadResource("FarmAssist.js"));
+    private static readonly Lazy<string> RmtAlertScript = new(() => ReadResource("RmtAlert.js"));
 
     private static string ReadResource(string name)
     {

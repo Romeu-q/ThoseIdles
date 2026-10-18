@@ -6,6 +6,28 @@ using ThoseIdles.Services;
 
 namespace ThoseIdles.ViewModels;
 
+/// <summary>Um botão do seletor "Contas: 1 2 3 4".</summary>
+public sealed class AccountCountChoice : ObservableObject
+{
+    private readonly MainViewModel _main;
+
+    public AccountCountChoice(int count, MainViewModel main)
+    {
+        Count = count;
+        _main = main;
+    }
+
+    public int Count { get; }
+
+    public bool IsSelected
+    {
+        get => _main.VisibleAccounts == Count;
+        set { if (value) _main.VisibleAccounts = Count; else Refresh(); }
+    }
+
+    public void Refresh() => OnPropertyChanged(nameof(IsSelected));
+}
+
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private readonly SettingsService _settingsService;
@@ -94,6 +116,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public int[] AccountCountOptions { get; } = Enumerable.Range(1, AppSettings.AccountCount).ToArray();
 
+    /// <summary>Botões 1 2 3 4 da barra (um marcado por vez).</summary>
+    public IReadOnlyList<AccountCountChoice> AccountCountChoices => _countChoices ??=
+        AccountCountOptions.Select(n => new AccountCountChoice(n, this)).ToList();
+    private List<AccountCountChoice>? _countChoices;
+
     /// <summary>
     /// Quantas contas usar. As que saem são fechadas (o login fica salvo no perfil: voltar a
     /// mostrar a conta e abri-la não pede login de novo).
@@ -117,6 +144,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             }
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanToggleLayout));
+            foreach (var c in AccountCountChoices) c.Refresh();
             OnSessionStatusChanged();
             SaveSettings();
             if (grew) _ = _manager.StartAllAsync();
@@ -355,15 +383,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool EnableFarmAssist
+    public bool EnableRmtAlert
     {
-        get => _settings.EnableFarmAssist;
+        get => _settings.EnableRmtAlert;
         set
         {
-            _settings.EnableFarmAssist = value;
+            _settings.EnableRmtAlert = value;
             OnPropertyChanged();
             SaveSettings();
-            Notice = "O painel de farm muda nas contas abertas a partir de agora (reinicie a conta ↻ para aplicar já).";
+            Notice = "O alerta de RMT muda nas contas abertas a partir de agora (reinicie a conta ↻ para aplicar já).";
         }
     }
 

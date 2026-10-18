@@ -414,21 +414,18 @@ Pode ser desligado em Configurações.
 Abra `chrome://extensions`, ative o **Modo do desenvolvedor**, clique em **Carregar sem compactação**
 e escolha essa pasta.
 
-### Painel de farm e alerta de mercado
+### Alerta de RMT
 
-No canto inferior esquerdo do jogo aparece o botão **📊 Farm**. Ele abre um painel com o farm da
-sessão: abates, XP, ouro, capturas (e shinies) e drops, com o total e a taxa por hora. **Zerar
-sessão** recomeça a contagem.
+No canto inferior esquerdo do jogo aparece o botão **🔔 RMT**. Nele você cria regras (nome contém,
+só shiny, potência mínima, preço máximo em Gemas). Quando você abrir uma lista no mercado e aparecer
+um anúncio **em Gemas** que bate com uma regra, surge um aviso no canto da tela com um bipe, e o
+botão mostra quantos alertas novos há. Anúncios em ouro são ignorados.
 
-No mesmo painel dá para criar **regras de alerta de mercado** (nome contém, só shiny, potência
-mínima, preço máximo, moeda). Quando você abrir uma lista no mercado e aparecer um anúncio que bate
-com a regra, surge um aviso no canto da tela com um bipe.
-
-O painel **só lê** as mensagens que o jogo já manda para a página: não envia nada ao servidor, não
+O alerta **só lê** as mensagens que o jogo já manda para a página: não envia nada ao servidor, não
 consulta o mercado sozinho e **não compra**. A compra é sempre você que faz. Pode ser desligado em
 Configurações.
 
-**Sem o app (Chrome/Edge):** também existe como extensão em `extensions/farm-assist`, carregada do
+**Sem o app (Chrome/Edge):** também existe como extensão em `extensions/rmt-alert`, carregada do
 mesmo jeito que a de shinies (Modo do desenvolvedor → Carregar sem compactação).
 
 ### Aviso de versão nova

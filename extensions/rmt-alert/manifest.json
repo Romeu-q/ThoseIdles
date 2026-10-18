@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "ThoseIdles — Alerta de RMT",
+  "version": "2.0.0",
+  "description": "Avisa quando aparece no mercado do PokéIdle um anúncio em Gemas (RMT) que bate com as suas regras. Só leitura: não envia nada ao servidor e não compra.",
+  "content_scripts": [
+    {
+      "matches": ["https://pokeidle.io/*"],
+      "js": ["rmt-alert.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

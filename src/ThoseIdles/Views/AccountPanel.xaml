@@ -6,10 +6,10 @@
              xmlns:vm="clr-namespace:ThoseIdles.ViewModels"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:AccountViewModel}"
              SizeChanged="OnSizeChanged">
-    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
         <DockPanel>
             <!-- Cabeçalho -->
-            <Grid DockPanel.Dock="Top" Height="28" Background="{StaticResource HeaderBg}">
+            <Grid DockPanel.Dock="Top" Height="32" Background="{StaticResource HeaderBg}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -117,9 +117,6 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE70F;" Command="{Binding BeginRenameCommand}" ToolTip="Renomear (não altera a sessão)" />
-                        <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RequestClearCommand}" ToolTip="Limpar dados desta conta (desloga)" />
-                        <Button Style="{StaticResource IconButton}" Content="&#xE943;" Command="{Binding DevToolsCommand}" ToolTip="Ferramentas de desenvolvedor (ative o modo desenvolvedor nas configurações)" />
                         <Button Style="{StaticResource IconButton}" Content="&#xE72C;" Command="{Binding ReloadCommand}" ToolTip="Recarregar a página" />
                         <Button Style="{StaticResource IconButton}" Content="&#xE777;" Command="{Binding RestartCommand}" ToolTip="Reiniciar só esta instância" />
                         <Button Command="{Binding ToggleOpenCommand}">
@@ -135,6 +132,22 @@
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
+                        </Button>
+                        <!-- Ações raras ficam no menu "⋯" -->
+                        <Button Style="{StaticResource IconButton}" Content="&#xE712;" ToolTip="Mais opções" Click="OnMoreClick">
+                            <Button.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="Renomear" Command="{Binding BeginRenameCommand}">
+                                        <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Ferramentas de desenvolvedor" Command="{Binding DevToolsCommand}">
+                                        <MenuItem.Icon><TextBlock Text="&#xE943;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Sair desta conta (apagar login e dados)" Command="{Binding RequestClearCommand}" Foreground="#FF8A8D">
+                                        <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
                         </Button>
                     </StackPanel>
                     <Button Command="{Binding FocusCommand}">

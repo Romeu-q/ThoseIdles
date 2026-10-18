@@ -10,129 +10,226 @@
         Background="{StaticResource WindowBg}" Foreground="{StaticResource Text}"
         FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True">
     <DockPanel>
-        <!-- Barra superior -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource BarBg}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="10,0">
-            <DockPanel Height="38">
+        <!-- Barra superior: estado à esquerda, ações à direita -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource BarBg}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="12,0">
+            <DockPanel Height="46">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="pack://application:,,,/Assets/pokeball.ico" Width="18" Height="18" Margin="0,0,8,0"
+                    <Image Source="pack://application:,,,/Assets/pokeball.ico" Width="20" Height="20" Margin="0,0,8,0"
                            RenderOptions.BitmapScalingMode="HighQuality" />
-
-                    <TextBlock Text="ThoseIdles" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
-                    <Border Width="1" Height="16" Background="{StaticResource Border}" Margin="14,0" />
-                    <TextBlock Text="{Binding SummaryText}" Foreground="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" />
-                    <Border Width="1" Height="16" Background="{StaticResource Border}" Margin="14,0" />
-                    <TextBlock Text="{Binding MemoryText}" FontSize="12.5" VerticalAlignment="Center" ToolTip="{Binding MemoryTooltip}"
-                               ToolTipService.ShowDuration="60000" />
+                    <TextBlock Text="ThoseIdles" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Border Style="{StaticResource Pill}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{StaticResource Good}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding SummaryText}" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Pill}" ToolTip="{Binding MemoryTooltip}" ToolTipService.ShowDuration="60000">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE964;" FontFamily="{StaticResource Icons}" FontSize="11" Foreground="{StaticResource Muted}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding MemoryText}" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Contas:" Foreground="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <ComboBox ItemsSource="{Binding AccountCountOptions}" SelectedItem="{Binding VisibleAccounts}" Width="48" FontSize="12.5"
-                              VerticalAlignment="Center" Margin="0,0,10,0"
-                              ToolTip="Quantas contas usar. As que saem são fechadas, mas o login fica salvo: ao voltar, a conta abre logada." />
-                    <Button Style="{StaticResource BarButton}" Content="{Binding LayoutButtonText}" Command="{Binding ToggleLayoutCommand}"
-                            IsEnabled="{Binding CanToggleLayout}"
-                            ToolTip="Alterna entre a grade e uma conta em destaque. As outras continuam rodando como miniaturas." />
-                    <Button Style="{StaticResource BarButton}" Content="Abrir todas" Command="{Binding StartAllCommand}" />
-                    <Button Style="{StaticResource BarButton}" Content="Fechar todas" Command="{Binding CloseAllCommand}" />
-                    <Button Style="{StaticResource BarButton}" Content="Reiniciar todas" Command="{Binding RestartAllCommand}" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE713;" FontSize="14" Width="32" Height="28" Margin="4,0,0,0"
-                            Command="{Binding ToggleSettingsCommand}" ToolTip="Configurações e diagnóstico" />
+                    <!-- Quantas contas usar -->
+                    <TextBlock Text="Contas" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <Border Background="#24242C" CornerRadius="6" Padding="2" Margin="0,0,12,0"
+                            ToolTip="Quantas contas usar. As que saem são fechadas, mas o login fica salvo: ao voltar, a conta abre logada.">
+                        <ItemsControl ItemsSource="{Binding AccountCountChoices}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <RadioButton Style="{StaticResource SegmentButton}" GroupName="contas" Content="{Binding Count}"
+                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+
+                    <Button Style="{StaticResource BarButton}" Command="{Binding ToggleLayoutCommand}" IsEnabled="{Binding CanToggleLayout}"
+                            ToolTip="Alterna entre a grade e uma conta em destaque. As outras continuam rodando como miniaturas.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE80A;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding LayoutButtonText}" />
+                        </StackPanel>
+                    </Button>
+                    <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="8,0" />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding StartAllCommand}" ToolTip="Abre todas as contas que estão fechadas">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE768;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Abrir todas" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Command="{Binding RestartAllCommand}" ToolTip="Fecha e abre de novo todas as contas (continuam logadas)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Reiniciar" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Command="{Binding CloseAllCommand}" ToolTip="Fecha todas as contas">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Fechar" />
+                        </StackPanel>
+                    </Button>
+                    <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="8,0" />
+                    <Button Style="{StaticResource BarButton}" Command="{Binding ToggleSettingsCommand}" ToolTip="Configurações e diagnóstico">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE713;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Configurações" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
                 <Grid />
             </DockPanel>
         </Border>
 
-        <!-- Configurações (ocupa espaço de layout; nunca é sobreposta aos jogos) -->
+        <!-- Configurações em cartões (ocupa espaço de layout; nunca é sobreposta aos jogos) -->
         <Border DockPanel.Dock="Top" Background="{StaticResource BarBg}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1"
-                Padding="14,8" Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}">
-            <StackPanel>
+                Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}">
+            <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto" Padding="14,12,4,2">
                 <WrapPanel>
-                    <CheckBox Content="Abrir as contas ao iniciar" IsChecked="{Binding StartAllOnLaunch}" />
-                    <CheckBox Content="Monitorar conexão do jogo (WebSocket)" IsChecked="{Binding MonitorGameConnection}"
-                              ToolTip="Só observa abertura/fechamento do WebSocket do jogo via DevTools Protocol, para o indicador 'Conectada'. Não lê nem altera mensagens." />
-                    <CheckBox Content="Miniaturas com zoom reduzido" IsChecked="{Binding ScaleThumbnails}" />
-                    <CheckBox Content="Memória baixa nas miniaturas (experimental)" IsChecked="{Binding LowMemoryTargetForThumbnails}"
-                              ToolTip="Pede ao WebView2 MemoryUsageTargetLevel=Low nas miniaturas. Não pausa o jogo, mas pode descartar caches e deixar a volta ao foco mais lenta. Meça antes de manter ligado." />
-                    <CheckBox Content="Interface por software" IsChecked="{Binding SoftwareRenderingForUi}"
-                              ToolTip="A interface WPF não carrega Direct3D (economiza memória do processo do app). Os jogos continuam com GPU. Vale na próxima abertura." />
-                    <CheckBox Content="Gravar CSV de memória" IsChecked="{Binding RecordBenchmarkCsv}" />
-                    <CheckBox Content="Botão &quot;Exportar TXT&quot; na página Shinies" IsChecked="{Binding EnableShinyExport}"
-                              ToolTip="Na página Shinies do jogo, baixa todos os shinies da lista (com os filtros da tela) num .txt: espécie, potência, qualidade, IVs e valor no RMT. Só lê; vai para a pasta Downloads." />
-                    <CheckBox Content="Painel de farm e alerta de mercado" IsChecked="{Binding EnableFarmAssist}"
-                              ToolTip="Botão &quot;📊 Farm&quot; no canto do jogo: abates, XP, ouro e drops por hora, e aviso quando um anúncio que você abriu no mercado bate com a sua regra. Só lê o que o jogo já manda; não compra nem consulta nada sozinho." />
-                    <CheckBox Content="Avisar quando sair versão nova" IsChecked="{Binding CheckAppUpdates}"
-                              ToolTip="Consulta as Releases do GitHub ao abrir e a cada 6 h. Só mostra um aviso com link; não baixa nem instala nada." />
-                    <CheckBox Content="Modo desenvolvedor (DevTools)" IsChecked="{Binding DeveloperMode}" />
+                    <!-- Geral -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Geral" />
+                            <CheckBox Content="Abrir as contas ao iniciar" IsChecked="{Binding StartAllOnLaunch}"
+                                      Tag="Quando o app abre, já entra em todas as contas escolhidas." />
+                            <CheckBox Content="Avisar quando sair versão nova" IsChecked="{Binding CheckAppUpdates}"
+                                      Tag="Mostra uma faixa com link para baixar. Não instala nada sozinho." />
+                            <TextBlock Text="Zoom de todas as contas" FontSize="12.5" Margin="0,8,0,2" />
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding GridZoomPercent, StringFormat={}{0:0}%}" FontSize="12" Width="40"
+                                           TextAlignment="Right" VerticalAlignment="Center" />
+                                <Slider Minimum="50" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True"
+                                        Value="{Binding GridZoomPercent}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Hint}" Text="Para uma conta só: botões − / + no topo dela, ou Ctrl + roda do mouse." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Ferramentas no jogo -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Ferramentas no jogo" />
+                            <CheckBox Content="Exportar shinies para TXT" IsChecked="{Binding EnableShinyExport}"
+                                      Tag="Botão &quot;Exportar TXT&quot; na página Shinies: espécie, potência, qualidade, IVs e valor no RMT." />
+                            <CheckBox Content="Alerta de RMT" IsChecked="{Binding EnableRmtAlert}"
+                                      Tag="Botão &quot;🔔 RMT&quot; no canto do jogo: avisa anúncios em Gemas que batem com as suas regras. Só avisa, nunca compra." />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                       Text="As duas só leem o que o jogo já mostra. Mudanças valem ao reiniciar a conta (↻)." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Twitch -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Lives da Twitch (bônus de XP)" />
+                            <CheckBox Content="Abrir muda" IsChecked="{Binding LiveMutedByDefault}" />
+                            <CheckBox Content="Menor qualidade (160p)" IsChecked="{Binding LiveLowestQuality}"
+                                      Tag="Gasta menos internet e processador." />
+                            <CheckBox Content="Reabrir as lives junto com a conta" IsChecked="{Binding ReopenLives}" />
+                            <CheckBox Content="Economizar memória com a live escondida" IsChecked="{Binding LiveHiddenLowMemory}" />
+                            <DockPanel Margin="0,6,0,0">
+                                <TextBlock Text="Recarregar lives a cada" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock DockPanel.Dock="Right" Text="min" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                <ComboBox ItemsSource="{Binding LiveReloadOptions}" SelectedItem="{Binding LiveReloadMinutes}" Width="64" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Hint}" Text="O chat acumula memória; recarregar libera. 0 = nunca." Margin="0,2,0,6" />
+                            <Button Style="{StaticResource BarButton}" Content="Recarregar lives agora" Command="{Binding ReloadLivesNowCommand}"
+                                    HorizontalAlignment="Left" Margin="0,0,0,4" />
+                            <CheckBox Content="Modo leve (experimental)" IsChecked="{Binding LiveLightMode}"
+                                      Tag="Só o player e o chat, sem o resto do site. Confira se o chat mostra você logado." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- /hunt -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Extensão /hunt for PokeIdle" />
+                            <TextBlock Style="{StaticResource Hint}" Text="Guia de hunts dentro do jogo (só leitura)." Margin="0,0,0,6" />
+                            <CheckBox Content="Usar nas contas" IsChecked="{Binding EnableHuntExtension}"
+                                      Tag="Reabre as contas abertas (continuam logadas). A lupa em cada conta liga/desliga só nela." />
+                            <CheckBox Content="Atualizar automaticamente" IsChecked="{Binding AutoUpdateHuntExtension}"
+                                      Tag="Confere a loja ao abrir e a cada 12 h." />
+                            <DockPanel Margin="0,6,0,0">
+                                <Button Style="{StaticResource BarButton}" Content="Baixar / atualizar" Command="{Binding DownloadHuntCommand}" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding HuntStatusText}" Style="{StaticResource Hint}" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Desempenho -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Desempenho" />
+                            <CheckBox Content="Miniaturas com zoom reduzido" IsChecked="{Binding ScaleThumbnails}"
+                                      Tag="No modo destaque, as contas pequenas mostram a página inteira." />
+                            <CheckBox Content="Memória baixa nas miniaturas (experimental)" IsChecked="{Binding LowMemoryTargetForThumbnails}"
+                                      Tag="Não pausa o jogo, mas a volta ao destaque pode ficar mais lenta." />
+                            <CheckBox Content="Interface por software" IsChecked="{Binding SoftwareRenderingForUi}"
+                                      Tag="Economiza memória do app; os jogos continuam com GPU. Vale na próxima abertura." />
+                            <CheckBox Content="Indicador de conexão do jogo" IsChecked="{Binding MonitorGameConnection}"
+                                      Tag="Mostra &quot;Conectada&quot; no topo de cada conta." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Diagnóstico -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Diagnóstico" />
+                            <DockPanel Margin="0,0,0,4">
+                                <TextBlock Text="Medir memória a cada" FontSize="12.5" VerticalAlignment="Center" />
+                                <TextBlock DockPanel.Dock="Right" Text="s" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                <ComboBox ItemsSource="{Binding PollIntervals}" SelectedItem="{Binding MemoryPollSeconds}" Width="64" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <CheckBox Content="Gravar CSV de memória" IsChecked="{Binding RecordBenchmarkCsv}" />
+                            <CheckBox Content="Modo desenvolvedor (DevTools)" IsChecked="{Binding DeveloperMode}" />
+                            <WrapPanel Margin="0,6,0,6">
+                                <Button Style="{StaticResource BarButton}" Content="Snapshot (CSV)" Command="{Binding ExportSnapshotCommand}" Margin="0,0,6,6" />
+                                <Button Style="{StaticResource BarButton}" Content="Pasta de logs" Command="{Binding OpenLogsCommand}" Margin="0,0,6,6" />
+                                <Button Style="{StaticResource BarButton}" Content="Pasta de dados" Command="{Binding OpenDataCommand}" Margin="0,0,6,6" />
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Hint}">
+                                <Run Text="WebView2" /> <Run Text="{Binding RuntimeVersion, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
                 </WrapPanel>
-                <WrapPanel Margin="0,6,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Zoom de todas as contas:" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center"
-                               ToolTip="Ajusta as 4 de uma vez. Para uma conta só: Ctrl + roda do mouse na página dela." />
-                    <Slider Width="140" Minimum="50" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True" Margin="6,0"
-                            Value="{Binding GridZoomPercent}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding GridZoomPercent, StringFormat={}{0:0}%}" FontSize="12" Width="40" VerticalAlignment="Center" />
-                    <TextBlock Text="Medir memória a cada:" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="12,0,6,0" />
-                    <ComboBox ItemsSource="{Binding PollIntervals}" SelectedItem="{Binding MemoryPollSeconds}" Width="60" FontSize="12" VerticalAlignment="Center" />
-                    <TextBlock Text="s" FontSize="12" VerticalAlignment="Center" Margin="4,0,16,0" />
-                    <Button Style="{StaticResource BarButton}" Content="Exportar snapshot de memória (CSV)" Command="{Binding ExportSnapshotCommand}" />
-                    <Button Style="{StaticResource BarButton}" Content="Abrir pasta de logs" Command="{Binding OpenLogsCommand}" />
-                    <Button Style="{StaticResource BarButton}" Content="Abrir pasta de dados" Command="{Binding OpenDataCommand}" />
-                </WrapPanel>
-                <WrapPanel Margin="0,8,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Extensão /hunt for PokeIdle (guia de hunts, só leitura):" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <CheckBox Content="Usar nas contas" IsChecked="{Binding EnableHuntExtension}" VerticalAlignment="Center"
-                              ToolTip="Liga o suporte a extensões do WebView2 e carrega a /hunt nos perfis. Reabre as contas abertas (continuam logadas). Use o botão de lupa em cada conta para ligar/desligar só nela." />
-                    <Button Style="{StaticResource BarButton}" Content="Baixar / atualizar" Command="{Binding DownloadHuntCommand}"
-                            ToolTip="Baixa a versão mais recente da Chrome Web Store (servidor de atualização do Google) e valida o manifesto antes de instalar." />
-                    <CheckBox Content="Atualizar automaticamente" IsChecked="{Binding AutoUpdateHuntExtension}" VerticalAlignment="Center" Margin="8,3,18,3"
-                              ToolTip="Consulta a loja ao abrir o app e a cada 12 h. Versão nova é baixada, conferida (SHA-256 + manifesto) e usada quando cada conta recarregar ou reabrir — nenhuma conta é recarregada sozinha." />
-                    <TextBlock Text="{Binding HuntStatusText}" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
-                </WrapPanel>
-                <WrapPanel Margin="0,6,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Live da Twitch (bônus de XP):" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"
-                               ToolTip="Clique num canal na tela &quot;Twitch&quot; do jogo: a live abre abaixo da conta, no perfil dela (login da Twitch daquela conta)." />
-                    <CheckBox Content="Abrir muda" IsChecked="{Binding LiveMutedByDefault}" />
-                    <CheckBox Content="Menor qualidade (160p)" IsChecked="{Binding LiveLowestQuality}"
-                              ToolTip="Define 160p como padrão do player uma vez por conta. Se você trocar a qualidade no player, a sua escolha vale." />
-                    <CheckBox Content="Reabrir a live com a conta" IsChecked="{Binding ReopenLives}" />
-                    <CheckBox Content="Memória baixa na live escondida" IsChecked="{Binding LiveHiddenLowMemory}"
-                              ToolTip="Com a live em segundo plano, pede ao WebView2 para reduzir a memória daquela aba. Só a live é afetada, nunca o jogo." />
-                    <TextBlock Text="Recarregar lives a cada" FontSize="12" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"
-                               ToolTip="O chat de uma live acumula memória com o tempo. Recarregar volta ao tamanho inicial (chat fora por alguns segundos; o jogo confere a cada minuto). 0 = nunca." />
-                    <ComboBox ItemsSource="{Binding LiveReloadOptions}" SelectedItem="{Binding LiveReloadMinutes}" Width="56" FontSize="12" VerticalAlignment="Center" />
-                    <TextBlock Text="min" FontSize="12" VerticalAlignment="Center" Margin="4,0,8,0" />
-                    <Button Style="{StaticResource BarButton}" Content="Recarregar lives agora" Command="{Binding ReloadLivesNowCommand}" />
-                    <CheckBox Content="Modo leve (experimental)" IsChecked="{Binding LiveLightMode}"
-                              ToolTip="Só o player e o chat oficiais da Twitch (embed), sem o resto do site: bem menos memória. Confira se o chat mostra você logado — é assim que o jogo detecta quem assiste." />
-                </WrapPanel>
-                <TextBlock Margin="0,6,0,0" Foreground="{StaticResource Muted}" FontSize="11.5" TextWrapping="Wrap">
-                    <Run Text="WebView2 Runtime:" /> <Run Text="{Binding RuntimeVersion, Mode=OneWay}" />
-                    <Run Text="  ·  Dados:" /> <Run Text="{Binding DataFolder, Mode=OneWay}" />
-                </TextBlock>
-            </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- Versão nova no GitHub -->
-        <Border DockPanel.Dock="Top" Background="#24402A" Padding="12,4" Visibility="{Binding AppUpdateText, Converter={StaticResource StrToVis}}">
+        <Border DockPanel.Dock="Top" Background="#1F3A2A" BorderBrush="#2F6B45" BorderThickness="0,0,0,1" Padding="14,6"
+                Visibility="{Binding AppUpdateText, Converter={StaticResource StrToVis}}">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" Command="{Binding DismissAppUpdateCommand}"
                         ToolTip="Não avisar mais sobre esta versão" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Content="Baixar" Command="{Binding OpenAppUpdateCommand}"
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Baixar" Command="{Binding OpenAppUpdateCommand}"
                         ToolTip="Abre a página da Release no navegador. Feche o app e troque o .exe pelo novo: as contas continuam logadas." />
-                <TextBlock Text="{Binding AppUpdateText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock DockPanel.Dock="Left" Text="&#xE896;" FontFamily="{StaticResource Icons}" Foreground="{StaticResource Good}"
+                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding AppUpdateText}" FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" />
             </DockPanel>
         </Border>
 
         <!-- Avisos curtos -->
-        <Border DockPanel.Dock="Top" Background="#1E2433" Padding="12,4" Visibility="{Binding Notice, Converter={StaticResource StrToVis}}">
+        <Border DockPanel.Dock="Top" Background="#1E2433" BorderBrush="#2F3A55" BorderThickness="0,0,0,1" Padding="14,6"
+                Visibility="{Binding Notice, Converter={StaticResource StrToVis}}">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" Click="OnDismissNotice" />
-                <TextBlock Text="{Binding Notice}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" Click="OnDismissNotice" ToolTip="Fechar aviso" />
+                <TextBlock DockPanel.Dock="Left" Text="&#xE946;" FontFamily="{StaticResource Icons}" Foreground="#7FA2FF"
+                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding Notice}" FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" />
             </DockPanel>
         </Border>
 
-        <!-- As quatro contas: sempre presentes e visíveis; o modo só muda a disposição -->
-        <v:SessionLayoutPanel Margin="4" IsFocusMode="{Binding IsFocusMode}" FocusedIndex="{Binding FocusedIndex}" VisibleCount="{Binding VisibleAccounts}"
+        <!-- As contas: sempre presentes e visíveis; o modo só muda a disposição -->
+        <v:SessionLayoutPanel Margin="6" IsFocusMode="{Binding IsFocusMode}" FocusedIndex="{Binding FocusedIndex}" VisibleCount="{Binding VisibleAccounts}"
                               RowSplit="{Binding RowSplit}" TopSplit="{Binding TopSplit}" BottomSplit="{Binding BottomSplit}"
                               FocusSplit="{Binding FocusSplit}" SplitCommitted="OnSplitCommitted">
             <v:AccountPanel DataContext="{Binding Account1}" />
