@@ -112,6 +112,12 @@ public sealed class SelfTestServer : IDisposable
     /// <summary>Tag que a "API do GitHub" falsa devolve como última Release.</summary>
     public string LatestReleaseTag { get; set; } = "v0.0.1";
 
+    /// <summary>Pedidos "market.comprar" recebidos (JSON bruto), na ordem.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<string> BuyRequests { get; } = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, bool> _sold = new();
+    private int _marketScans, _sentCooldown;
+    public int MarketScans => _marketScans;
+
     private int _pings;
     public int Pings => _pings;
 
@@ -138,6 +144,24 @@ public sealed class SelfTestServer : IDisposable
             // O autoteste pede ao "servidor" para mandar uma mensagem do jogo (batalha, mercado).
             using var d = System.Text.Json.JsonDocument.Parse(text);
             await Send(d.RootElement.GetProperty("msg").GetRawText());
+            return false;
+        }
+        if (type == "market.listar")
+        {
+            Interlocked.Increment(ref _marketScans);
+            // 1: compra já · 2: caro · 3: em Gemas (regra é de ouro) · 4: sem shiny · 6: libera daqui a 1,5 s (só na 1ª listagem).
+            var libera = Interlocked.Exchange(ref _sentCooldown, 1) == 0 ? DateTimeOffset.Now.ToUnixTimeMilliseconds() + 1500 : 0;
+            await Send($$"""{"t":"market","aba":"pokemon","linhas":[{"id":1,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":1500,"moeda":"gold"},{"id":2,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":9000,"moeda":"gold"},{"id":3,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":10,"moeda":"orb"},{"id":4,"pokemonNome":"Charmander","potencia":5,"preco":10,"moeda":"gold"},{"id":6,"pokemonNome":"Charmeleon","shiny":true,"potencia":3,"preco":800,"moeda":"gold","compravelEm":{{libera}}}]}""");
+            return false;
+        }
+        if (type == "market.comprar")
+        {
+            BuyRequests.Enqueue(text);
+            using var d = System.Text.Json.JsonDocument.Parse(text);
+            var id = d.RootElement.GetProperty("id").GetInt32();
+            // Como o jogo: só a primeira tentativa por anúncio dá certo; as repetidas são recusadas.
+            if (_sold.TryAdd(id, true)) await Send($$"""{"t":"batalha","ev":[{"k":"marketComprado","descricao":"anúncio {{id}} comprado"}]}""");
+            else await Send("""{"t":"erro","chave":"market.indisponivel"}""");
             return false;
         }
         if (type == "shiny.listar")

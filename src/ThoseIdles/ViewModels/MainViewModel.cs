@@ -395,6 +395,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool EnableSniper
+    {
+        get => _settings.EnableSniper;
+        set
+        {
+            _settings.EnableSniper = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = value
+                ? "Sniper disponível a partir da próxima abertura/reinício de cada conta (↻). Ele aparece DESLIGADO no jogo: crie as regras e ligue no botão \"🎯 Sniper\". Use por sua conta e risco."
+                : "Sniper desativado nas contas abertas/reiniciadas a partir de agora (↻ para aplicar já).";
+        }
+    }
+
     // ------------------------------------------------------------------ atualização do app
 
     private AppUpdateService.Release? _appUpdate;

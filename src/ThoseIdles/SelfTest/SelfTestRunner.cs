@@ -945,8 +945,44 @@ public sealed class SelfTestRunner
         });
     }
 
+    private async Task RunSniperTestsAsync()
+    {
+        var server = SelfTestServer.Current!;
+        await Test("sniper: desligado não consulta nem compra; ligado compra só o que bate, espera a carência e respeita o limite", async () =>
+        {
+            var core = _manager[1].Core!;
+            // Regra: Pokémon shiny com "char", P3+, até 2000 de ouro, no máximo 2 compras.
+            await core.ExecuteScriptAsync("""localStorage.setItem('ti-sniper', JSON.stringify({ intervalo: 3, regras: [{ ativa: true, tipo: 'pokemon', texto: 'char', soShiny: true, potMin: 3, precoMax: 2000, moeda: 'gold', maxCompras: 2, compradas: 0 }] }))""");
+            await core.ExecuteScriptAsync("location.reload()");
+            for (var i = 0; i < 60 && await core.ExecuteScriptAsync("window.wsOpen === true && !!window.__tiSniper?.estado") != "true"; i++)
+                await Task.Delay(250);
+            var hasButton = await core.ExecuteScriptAsync("!!document.getElementById('ti-snp-btn')") == "true";
+
+            // Desligado (como sempre abre): nenhuma consulta nem compra, mesmo recebendo anúncios.
+            var scans0 = server.MarketScans; var buys0 = server.BuyRequests.Count;
+            await core.ExecuteScriptAsync("window.__ws.send(JSON.stringify({ t: 'teste.eco', msg: { t: 'market', aba: 'pokemon', linhas: [{ id: 99, pokemonNome: 'Charizard', shiny: true, potencia: 5, preco: 1, moeda: 'gold' }] } }))");
+            await Task.Delay(4000);
+            var offQuiet = server.MarketScans == scans0 && server.BuyRequests.Count == buys0;
+
+            await core.ExecuteScriptAsync("window.__tiSniper.ligar(true)");
+            await Task.Delay(9000); // ~3 varreduras e a liberação do anúncio 6
+            await core.ExecuteScriptAsync("window.__tiSniper.ligar(false)");
+            var buys = server.BuyRequests.Skip(buys0).Select(b => JsonDocument.Parse(b).RootElement).ToList();
+            var ids = buys.Select(b => b.GetProperty("id").GetInt32()).ToList();
+            var est = JsonDocument.Parse(JsonDocument.Parse(await core.ExecuteScriptAsync("JSON.stringify(window.__tiSniper.estado())")).RootElement.GetString()!).RootElement;
+            var compradas = est.GetProperty("regras")[0].GetProperty("compradas").GetInt32();
+            var scans = server.MarketScans - scans0;
+            var ok = hasButton && offQuiet && ids.Count(i => i == 1) == 1 && ids.Count(i => i == 6) >= 1 && ids.All(i => i is 1 or 6)
+                     && compradas == 2 && scans is >= 2 and <= 5 && buys.All(b => b.GetProperty("moeda").GetString() == "gold");
+            return ok
+                ? Pass($"desligado: 0 consultas; ligado: {scans} consultas em 9 s, comprou o anúncio 1 na hora e o 6 depois da carência ({ids.Count(i => i == 6)} disparo(s)); ignorou o caro, o em Gemas e o sem shiny; parou em 2/2 compras")
+                : Fail($"botão={hasButton} desligadoQuieto={offQuiet} consultas={scans} compras=[{string.Join(",", ids)}] compradas={compradas}");
+        });
+    }
+
     private async Task RunRmtAlertTestsAsync()
     {
+        await RunSniperTestsAsync();
         await RunAccountCountLayoutTestAsync();
         await Test("alerta de RMT: avisa só anúncio em Gemas que bate com a regra; não envia nada", async () =>
         {

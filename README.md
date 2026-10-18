@@ -428,6 +428,24 @@ Configurações.
 **Sem o app (Chrome/Edge):** também existe como extensão em `extensions/rmt-alert`, carregada do
 mesmo jeito que a de shinies (Modo do desenvolvedor → Carregar sem compactação).
 
+### Sniper do mercado (compra automática)
+
+Réplica própria, escrita do zero, do "Rotom Sniper" divulgado no Discord do jogo. Vem **desativado**:
+ative em Configurações → Ferramentas no jogo e reinicie a conta (↻). Aparece então o botão
+**🎯 Sniper** no jogo, com:
+
+- **Regras:** Pokémon ou item, nome contém, só shiny, potência mínima, **preço máximo** (obrigatório),
+  moeda (ouro ou Gemas) e **limite de compras** por regra.
+- **Interruptor "Sniper ligado":** só com ele ligado o sniper consulta o mercado (a cada 5 s por
+  padrão, mínimo 3 s) e compra. Ele **volta desligado** sempre que a página recarrega.
+- **Carência:** anúncio que ainda não pode ser comprado é agendado para logo depois de liberar.
+- **Registro:** o que foi enviado, comprado, recusado ou ignorado por falta de saldo.
+
+Use por sua conta e risco: compra automática gasta seu ouro e suas Gemas sem perguntar. Confira as
+regras antes de ligar.
+
+**Sem o app (Chrome/Edge):** extensão em `extensions/sniper`, carregada como as outras.
+
 ### Aviso de versão nova
 
 Ao abrir, e a cada 6 h, o app consulta a última Release deste repositório no GitHub (consulta

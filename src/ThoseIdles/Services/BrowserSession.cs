@@ -454,10 +454,16 @@ public sealed partial class BrowserSession : ObservableObject
         // Alerta de RMT (só lê o que o jogo manda; nunca envia nada).
         if (_settings.EnableRmtAlert && RmtAlertScript.Value is { Length: > 0 } rmt)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(rmt);
+
+        // Sniper do mercado (compra automática). Desligado por padrão nas configurações, e mesmo
+        // carregado só age com o interruptor do painel ligado (que volta desligado a cada recarga).
+        if (_settings.EnableSniper && SniperScript.Value is { Length: > 0 } sniper)
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(sniper);
     }
 
     private static readonly Lazy<string> ShinyExportScript = new(() => ReadResource("ShinyExport.js"));
     private static readonly Lazy<string> RmtAlertScript = new(() => ReadResource("RmtAlert.js"));
+    private static readonly Lazy<string> SniperScript = new(() => ReadResource("Sniper.js"));
 
     private static string ReadResource(string name)
     {

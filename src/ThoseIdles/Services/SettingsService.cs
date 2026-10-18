@@ -156,6 +156,9 @@ public sealed class AppSettings
     /// <summary>Botão "🔔 RMT" no jogo: avisa anúncios em Gemas que batem com as regras (só leitura).</summary>
     public bool EnableRmtAlert { get; set; } = true;
 
+    /// <summary>Botão "🎯 Sniper" no jogo (compra automática por regras). Desligado por padrão.</summary>
+    public bool EnableSniper { get; set; }
+
     /// <summary>Avisa quando sai uma versão nova do app no GitHub (só avisa; não baixa nada).</summary>
     public bool CheckAppUpdates { get; set; } = true;
 

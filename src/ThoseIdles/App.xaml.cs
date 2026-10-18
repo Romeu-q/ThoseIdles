@@ -135,6 +135,7 @@ public partial class App : Application
             BrowserSession.ExportFolder = Path.Combine(AppPaths.Root, "exportados"); // não toca na sua pasta Downloads
             AppUpdateService.LatestReleaseApi = _testServer.Url + "releases/latest";
             settings.StartAllOnLaunch = false;
+            settings.EnableSniper = true; // o autoteste confere o sniper contra o mercado falso
             settings.MonitorGameConnection = true;
             settings.FocusMode = false;
         }

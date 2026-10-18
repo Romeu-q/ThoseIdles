@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "ThoseIdles — Sniper do mercado",
+  "version": "1.0.0",
+  "description": "Compra automática no mercado do PokéIdle por regras (nome, shiny, potência, preço máximo, moeda, limite de compras). Começa sempre desligado.",
+  "content_scripts": [
+    {
+      "matches": ["https://pokeidle.io/*"],
+      "js": ["sniper.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
