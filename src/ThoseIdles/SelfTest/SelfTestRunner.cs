@@ -438,6 +438,7 @@ public sealed class SelfTestRunner
         await RunExtensionTestsAsync();
         await RunShinyExportTestsAsync();
         await RunAppUpdateTestsAsync();
+        await RunFarmAssistTestsAsync();
         await RunEconomyTestsAsync();
 
         await Test("memória: renderers atribuídos por conta", async () =>
@@ -909,6 +910,50 @@ public sealed class SelfTestRunner
             return countAfter == countBefore && !leaked
                 ? Pass("3 downloads com outros nomes (incluindo .exe disfarçado) foram bloqueados; nada foi salvo")
                 : Fail($"arquivos antes={countBefore}, depois={countAfter}, vazou para Downloads={leaked}");
+        });
+    }
+
+    // ------------------------------------------------------------------ painel de farm + alerta de mercado
+
+    private async Task RunFarmAssistTestsAsync()
+    {
+        await Test("painel de farm: conta abates, XP, ouro e drops; alerta só o anúncio que bate; não envia nada", async () =>
+        {
+            var core = _manager[1].Core!;
+            var hasButton = await core.ExecuteScriptAsync("!!document.getElementById('ti-fa-btn')") == "true";
+            // Zera a sessão e cria uma regra: shiny com "char" no nome, P3+, até 2000 Gemas.
+            await core.ExecuteScriptAsync("""
+                localStorage.setItem('ti-mercado-regras', JSON.stringify([{ ativa: true, texto: 'char', soShiny: true, potMin: 3, precoMax: 2000, moeda: 'orb' }]));
+                document.getElementById('ti-fa-btn').click();
+                document.getElementById('ti-fa-zerar').click();
+                """);
+            await core.ExecuteScriptAsync("location.reload()"); // recarrega para o script ler as regras salvas
+            for (var i = 0; i < 60 && await core.ExecuteScriptAsync("window.wsOpen === true && !!window.__tiFarmAssistState") != "true"; i++)
+                await Task.Delay(250);
+            // Conta o que a página manda ao servidor a partir daqui (o painel não pode mandar nada).
+            await core.ExecuteScriptAsync("""
+                window.__enviados = [];
+                const s = WebSocket.prototype.send;
+                WebSocket.prototype.send = function (d) { window.__enviados.push(String(d)); return s.apply(this, arguments); };
+                """);
+            const string batalha = """{"t":"batalha","ev":[{"k":"morte","nome":"Rattata","xp":100,"ouro":20,"drops":[{"nome":"Boss Token","qtd":2}]},{"k":"morte","xp":50},{"k":"drop","nome":"Boss Token"},{"k":"capturado","shiny":true},{"k":"ouro","qtd":5}]}""";
+            const string mercado = """{"t":"market","aba":"pokemon","linhas":[{"id":1,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":1500,"moeda":"orb","vendedor":"fulano"},{"id":2,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":2500,"moeda":"orb"},{"id":3,"pokemonNome":"Charmander","potencia":5,"preco":10,"moeda":"orb"},{"id":4,"pokemonNome":"Charmeleon","shiny":true,"potencia":3,"preco":100,"moeda":"gold"},{"id":5,"pokemonNome":"Charizard","shiny":true,"potencia":5,"preco":900,"moeda":"orb","comprador":"x"}]}""";
+            foreach (var msg in new[] { batalha, mercado, mercado })
+                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
+            await Task.Delay(1500);
+            var state = JsonDocument.Parse(JsonDocument.Parse(await core.ExecuteScriptAsync("JSON.stringify(window.__tiFarmAssistState())")).RootElement.GetString()!).RootElement;
+            var st = state.GetProperty("stats");
+            var alertas = state.GetProperty("alertas").EnumerateArray().Select(a => a.GetProperty("desc").GetString()!).ToList();
+            var enviados = JsonDocument.Parse(await core.ExecuteScriptAsync("JSON.stringify(window.__enviados)")).RootElement.GetString()!;
+            var proprios = JsonDocument.Parse(enviados).RootElement.EnumerateArray().Select(e => e.GetString()!).Where(s => !s.Contains("teste.eco")).ToList();
+            var kills = st.GetProperty("kills").GetInt32(); var xp = st.GetProperty("xp").GetInt32(); var ouro = st.GetProperty("ouro").GetInt32();
+            var tokens = st.GetProperty("drops").TryGetProperty("Boss Token", out var bt) ? bt.GetInt32() : 0;
+            var shinies = st.GetProperty("shinies").GetInt32();
+            var ok = hasButton && kills == 2 && xp == 150 && ouro == 25 && tokens == 3 && shinies == 1
+                     && alertas.Count == 1 && alertas[0].StartsWith("Charizard ✨ P4 por 1500 Gemas") && proprios.Count == 0;
+            return ok
+                ? Pass($"2 abates, 150 XP, 25 ouro, 3 Boss Token, 1 shiny; de 5 anúncios (repetidos 2×) só 1 alertou: \"{alertas[0]}\"; nenhuma mensagem enviada pelo painel")
+                : Fail($"botão={hasButton} abates={kills} xp={xp} ouro={ouro} tokens={tokens} shinies={shinies} alertas=[{string.Join(" | ", alertas)}] enviados=[{string.Join(" | ", proprios)}]");
         });
     }
 

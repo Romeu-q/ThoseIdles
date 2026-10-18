@@ -319,6 +319,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool EnableFarmAssist
+    {
+        get => _settings.EnableFarmAssist;
+        set
+        {
+            _settings.EnableFarmAssist = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = "O painel de farm muda nas contas abertas a partir de agora (reinicie a conta ↻ para aplicar já).";
+        }
+    }
+
     // ------------------------------------------------------------------ atualização do app
 
     private AppUpdateService.Release? _appUpdate;

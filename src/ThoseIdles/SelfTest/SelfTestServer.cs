@@ -133,6 +133,13 @@ public sealed class SelfTestServer : IDisposable
 
         async Task Send(string json) => await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, _cts.Token);
 
+        if (type == "teste.eco")
+        {
+            // O autoteste pede ao "servidor" para mandar uma mensagem do jogo (batalha, mercado).
+            using var d = System.Text.Json.JsonDocument.Parse(text);
+            await Send(d.RootElement.GetProperty("msg").GetRawText());
+            return false;
+        }
         if (type == "shiny.listar")
         {
             ShinyRequests.Enqueue(text);

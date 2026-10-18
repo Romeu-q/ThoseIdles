@@ -150,6 +150,9 @@ public sealed class AppSettings
     /// <summary>Botão "Exportar TXT" na página Shinies do jogo (espécie, potência, qualidade, IVs, valor no RMT).</summary>
     public bool EnableShinyExport { get; set; } = true;
 
+    /// <summary>Botão "📊 Farm" no jogo: painel de farm e alerta de mercado (só leitura).</summary>
+    public bool EnableFarmAssist { get; set; } = true;
+
     /// <summary>Avisa quando sai uma versão nova do app no GitHub (só avisa; não baixa nada).</summary>
     public bool CheckAppUpdates { get; set; } = true;
 

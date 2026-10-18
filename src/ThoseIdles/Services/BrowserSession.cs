@@ -450,15 +450,22 @@ public sealed partial class BrowserSession : ObservableObject
         // Botão "Exportar TXT" na página Shinies (o mesmo script da extensão do Chrome).
         if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
+
+        // Painel de farm + alerta de mercado (só lê o que o jogo manda; nunca envia nada).
+        if (_settings.EnableFarmAssist && FarmAssistScript.Value is { Length: > 0 } farm)
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(farm);
     }
 
-    private static readonly Lazy<string> ShinyExportScript = new(() =>
+    private static readonly Lazy<string> ShinyExportScript = new(() => ReadResource("ShinyExport.js"));
+    private static readonly Lazy<string> FarmAssistScript = new(() => ReadResource("FarmAssist.js"));
+
+    private static string ReadResource(string name)
     {
-        using var s = typeof(BrowserSession).Assembly.GetManifestResourceStream("ShinyExport.js");
+        using var s = typeof(BrowserSession).Assembly.GetManifestResourceStream(name);
         if (s is null) return "";
         using var r = new StreamReader(s);
         return r.ReadToEnd();
-    });
+    }
 
     /// <summary>Pasta onde o .txt exportado é salvo (Downloads do usuário; o autoteste troca).</summary>
     public static string ExportFolder { get; set; } =
