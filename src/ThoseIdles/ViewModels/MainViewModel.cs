@@ -497,6 +497,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ = CheckAppUpdateAsync();
     }
 
+    public string CurrentVersionText => $"Você está na versão {AppUpdateService.CurrentVersion}";
+
+    /// <summary>Botão "Procurar atualização": consulta agora e sempre responde algo.</summary>
+    public ICommand CheckAppUpdateNowCommand => _checkNow ??= new AsyncCommand(async () =>
+    {
+        Notice = "Procurando atualização…";
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var r = await AppUpdateService.CheckAsync(cts.Token);
+        if (r is null)
+        {
+            Notice = $"Nenhuma atualização: a versão {AppUpdateService.CurrentVersion} é a mais nova (ou não deu para consultar agora).";
+            return;
+        }
+        _settings.DismissedAppUpdate = null; // pediu para procurar: mostra mesmo se tinha dispensado
+        SaveSettings();
+        _appUpdate = r;
+        OnPropertyChanged(nameof(AppUpdateText));
+        Notice = $"Tem versão nova: {r.Tag}. Clique em \"Baixar\" na faixa verde.";
+    });
+    private ICommand? _checkNow;
+
     public async Task CheckAppUpdateAsync()
     {
         if (!_settings.CheckAppUpdates) return;

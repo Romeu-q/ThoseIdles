@@ -105,7 +105,16 @@
                             <CheckBox Content="Abrir as contas ao iniciar" IsChecked="{Binding StartAllOnLaunch}"
                                       Tag="Quando o app abre, já entra em todas as contas escolhidas." />
                             <CheckBox Content="Avisar quando sair versão nova" IsChecked="{Binding CheckAppUpdates}"
-                                      Tag="Mostra uma faixa com link para baixar. Não instala nada sozinho." />
+                                      Tag="Mostra uma faixa verde com link para baixar. Não instala nada sozinho." />
+                            <DockPanel Margin="0,2,0,6">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Command="{Binding CheckAppUpdateNowCommand}" Margin="0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE895;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Procurar atualização" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource Hint}" />
+                            </DockPanel>
                             <TextBlock Text="Zoom de todas as contas" FontSize="12.5" Margin="0,8,0,2" />
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding GridZoomPercent, StringFormat={}{0:0}%}" FontSize="12" Width="40"
