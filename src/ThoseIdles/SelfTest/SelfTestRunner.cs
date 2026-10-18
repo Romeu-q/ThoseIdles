@@ -995,12 +995,12 @@ public sealed class SelfTestRunner
             // Charizard especial: A/C/D parecidos; B tem IV alto só no Ataque (inútil para especial); E é P5.
             var mercado = """
               {"t":"market","aba":"pokemon","linhas":[
-              {"id":601,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":90,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31},"preco":2000,"moeda":"orb"},
-              {"id":602,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":90,"ivs":{"hp":31,"atk":31,"def":20,"spa":0,"spd":20,"spe":31},"preco":600,"moeda":"orb"},
-              {"id":603,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":88,"ivs":{"hp":31,"atk":0,"def":20,"spa":29,"spd":20,"spe":30},"preco":1800,"moeda":"orb"},
-              {"id":604,"ficha":{"nome":"Charizard","shiny":true,"potencia":4,"qualidade":95,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31}},"preco":2200,"moeda":"orb"},
-              {"id":605,"pokemonNome":"Charizard","shiny":true,"potencia":5,"qualidade":90,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31},"preco":9000,"moeda":"orb"},
-              {"id":606,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":90,"ivs":{"hp":31,"atk":0,"def":20,"spa":31,"spd":20,"spe":31},"preco":80000,"moeda":"gold"},
+              {"id":601,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.7,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31},"preco":2000,"moeda":"orb"},
+              {"id":602,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.7,"ivs":{"hp":31,"atk":31,"def":20,"spatk":0,"spdef":20,"spd":31},"preco":600,"moeda":"orb"},
+              {"id":603,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.68,"ivs":{"hp":31,"atk":0,"def":20,"spatk":29,"spdef":20,"spd":30},"preco":1800,"moeda":"orb"},
+              {"id":604,"ficha":{"nome":"Charizard","shiny":true,"potencia":4,"qualidade":1.75,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31}},"preco":2200,"moeda":"orb"},
+              {"id":605,"pokemonNome":"Charizard","shiny":true,"potencia":5,"qualidade":1.7,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31},"preco":9000,"moeda":"orb"},
+              {"id":606,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.7,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31},"preco":80000,"moeda":"gold"},
               {"id":607,"itemId":7,"itemNome":"Charizardite","preco":5,"moeda":"orb"}]}
               """.Replace("\r", "").Replace("\n", "");
             foreach (var msg in new[] { estado, mercado })
@@ -1008,24 +1008,29 @@ public sealed class SelfTestRunner
             await Task.Delay(1500);
             async Task<JsonElement> Eval(string js) =>
                 JsonDocument.Parse(JsonDocument.Parse(await core.ExecuteScriptAsync($"JSON.stringify({js})")).RootElement.GetString()!).RootElement;
-            const string alvo = "{ nome: 'Charizard', shiny: true, pot: 4, qual: 90, nota: 4.2, ivs: { hp: 31, atk: 0, def: 20, spa: 31, spd: 20, spe: 31 } }";
+            const string alvo = "{ nome: 'Charizard', shiny: true, pot: 4, qual: 1.7, nota: 4.2, ivs: { hp: 31, atk: 0, def: 20, spatk: 31, spdef: 20, spd: 31 } }";
             var esp = await Eval($"window.__tiPreco.avaliar({alvo})");
             await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'fisico')");
             var fis = await Eval($"window.__tiPreco.avaliar({alvo})");
             await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial')");
-            var baixa = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 90, nota: 3.4, ivs: { spa: 31 } })");
-            var limite = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 90, nota: 3500, ivs: { spa: 31 } })");
+            var baixa = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 1.7, nota: 3.4, ivs: { spatk: 31 } })");
+            var limite = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 1.7, nota: 3500, ivs: { spatk: 31 } })");
             var meus = await Eval("window.__tiPreco.meus().map(p => window.__tiPreco.avaliar(p))");
             var gemas = esp.GetProperty("gemas").GetProperty("preco").GetDouble();
             var ouro = esp.GetProperty("ouro").GetProperty("preco").GetDouble();
             var ivEsp = esp.GetProperty("ivUtil").GetInt32();
             var ivFis = fis.GetProperty("ivUtil").GetInt32();
             var ivRattata = meus[0].GetProperty("ivUtil").GetInt32();
-            var ok = hasButton && gemas == 2000 && ouro == 80000 && ivEsp == 92 && ivFis == 56 && ivRattata == 32
+            // A ficha real que o usuário mandou (Mega Charizard Y P4, Qualidade 1,796, IVs 17/25/11/21/31/5, nota 4,283).
+            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Mega Charizard Y', 'especial')");
+            var ficha = await Eval("window.__tiPreco.avaliar({ nome: 'Mega Charizard Y', shiny: false, pot: 4, qual: 1.796, nota: 4.283, ivs: { hp: 17, atk: 25, def: 11, spatk: 21, spdef: 31, spd: 5 } })");
+            var fichaIv = ficha.GetProperty("ivUtil").GetInt32();
+            var fichaValor = ficha.GetProperty("valor").GetDouble();
+            var ok = hasButton && gemas == 2000 && ouro == 80000 && ivEsp == 89 && ivFis == 55 && ivRattata == 31 && fichaIv == 52 && Math.Abs(fichaValor - 7.1) < 0.05
                      && !baixa.GetProperty("podeRmt").GetBoolean() && limite.GetProperty("podeRmt").GetBoolean();
             return ok
-                ? Pass($"Charizard especial: IVs úteis {ivEsp}% (como físico seriam {ivFis}%), valor {esp.GetProperty("valor")}/10 → {gemas} Gemas e {ouro} ouro; o anúncio com IV só em Ataque e o P5 pesaram pouco; nota 3,4 bloqueada, 3500 (=3,5) liberada; IVs em português reconhecidos ({ivRattata}%)")
-                : Fail($"botão={hasButton} esp={esp} fis={fis} baixa={baixa} limite={limite} meus={meus}");
+                ? Pass($"Charizard especial: IVs úteis {ivEsp}% (como físico seriam {ivFis}%), valor {esp.GetProperty("valor")}/10 → {gemas} Gemas e {ouro} ouro; o anúncio com IV só em Ataque e o P5 pesaram pouco; nota 3,4 bloqueada, 3500 (=3,5) liberada; IVs em português reconhecidos ({ivRattata}%); ficha do Mega Charizard Y: IVs úteis {fichaIv}%, valor {fichaValor}/10")
+                : Fail($"botão={hasButton} ficha={ficha} esp={esp} fis={fis} baixa={baixa} limite={limite} meus={meus}");
         });
     }
 

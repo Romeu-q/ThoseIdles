@@ -19,7 +19,7 @@
   const KEY_PERFIS = 'ti-preco-perfis';
   const MAX_ANUNCIOS = 4000;
   const VALIDADE_MS = 14 * 24 * 3600 * 1000; // anúncios vistos há mais de 14 dias não contam
-  const IV_MAX = 31;
+  const IV_MAX = 32; // no PokéIdle cada IV vai de 1 a 32 (6 a 192 somados)
   const PESO_POT = 1.5; // 1 nível de Potência de diferença "vale" 1,5 ponto de valor
 
   const num = v => Number(v) || 0;
@@ -37,15 +37,16 @@
     if (/^(atk|ataque|attack|at)$/.test(k)) return 'atk';
     if (/^(def|defesa|defense)$/.test(k)) return 'def';
     if (/^(spa|spatk|sp_atk|satk|sa|atqesp|atq_esp|ataque_?especial|special_?attack|spattack)$/.test(k)) return 'spa';
-    if (/^(spd|spdef|sp_def|sdef|sd|defesp|def_esp|defesa_?especial|special_?defense|spdefense)$/.test(k)) return 'spd';
-    if (/^(spe|vel|velocidade|speed|spd_?speed)$/.test(k)) return 'spe';
+    if (/^(sdf|spdef|sp_def|sdef|sd|defesp|def_esp|defesa_?especial|special_?defense|spdefense)$/.test(k)) return 'sdf';
+    // No PokéIdle "SPD" é a Velocidade (a Defesa Especial é SP.DEF).
+    if (/^(spd|spe|vel|velocidade|speed)$/.test(k)) return 'spe';
     return null;
   }
 
   const PESOS = {
-    fisico:   { atk: 3, spa: 0, spe: 2, hp: 1.5, def: 1, spd: 1 },
-    especial: { atk: 0, spa: 3, spe: 2, hp: 1.5, def: 1, spd: 1 },
-    misto:    { atk: 2, spa: 2, spe: 2, hp: 1.5, def: 1, spd: 1 },
+    fisico:   { atk: 3, spa: 0, spe: 2, hp: 1.5, def: 1, sdf: 1 },
+    especial: { atk: 0, spa: 3, spe: 2, hp: 1.5, def: 1, sdf: 1 },
+    misto:    { atk: 2, spa: 2, spe: 2, hp: 1.5, def: 1, sdf: 1 },
   };
   const NOME_PERFIL = { fisico: 'físico', especial: 'especial', misto: 'misto' };
 
@@ -63,15 +64,30 @@
     return max > 0 ? soma / max : null;
   }
 
-  /** Nota na escala 0–10 (a do jogo; "3500" vira 3,5). Sem nota, calcula por IVs + Qualidade. */
+  /**
+   * Qualidade como fração 0–1. No PokéIdle ela vai de 0,8 a 1,8 (1,796 = quase a melhor possível).
+   * Aceita também 800–1800 (milésimos) e 0–100 (porcentagem), por segurança.
+   */
+  function qualFrac(q) {
+    if (q == null || q === '' || isNaN(Number(q))) return null;
+    q = Number(q);
+    if (q >= 800) q = q / 1000;                      // 1796 → 1,796
+    else if (q > 2) return Math.min(1, q / 100);     // porcentagem
+    return Math.min(1, Math.max(0, q - 0.8));        // 0,8 → 0 · 1,8 → 1
+  }
+
+  /**
+   * Nota 0–10 do jogo (dentro da espécie; "4283" vira 4,283). Sem a nota do jogo, uma aproximação
+   * por IVs + Qualidade, só para ordenar.
+   */
   function notaDe(p) {
     let n = p.nota ?? p.ficha?.nota;
     if (n != null && !isNaN(Number(n))) { n = Number(n); return n > 10 ? n / 1000 : n; }
     const ivs = p.ivs || p.ficha?.ivs;
     const ivTot = ivs && typeof ivs === 'object' ? Object.values(ivs).reduce((s, v) => s + num(v), 0) : num(p.iv ?? p.ivTotal);
-    const q = num(p.qualidade ?? p.quality ?? p.ficha?.qualidade ?? p.ficha?.quality);
-    if (!ivTot && !q) return null;
-    return Math.round(((ivTot / 192) * 5 + (q / 100) * 5) * 10) / 10;
+    const q = qualFrac(p.qualidade ?? p.quality ?? p.ficha?.qualidade ?? p.ficha?.quality);
+    if (!ivTot && q == null) return null;
+    return Math.round(((ivTot / 192) * 5 + (q ?? 0) * 5) * 10) / 10;
   }
 
   /**
@@ -81,8 +97,8 @@
   function valorDe(p) {
     const perfil = perfilDe(p.nome);
     const u = ivUtil(p.ivs, perfil);
-    const q = p.qual;
-    if (u != null && q != null) return { v: 10 * (0.6 * u + 0.4 * q / 100), aprox: false, u, perfil };
+    const q = qualFrac(p.qual);
+    if (u != null && q != null) return { v: 10 * (0.6 * u + 0.4 * q), aprox: false, u, perfil };
     if (u != null) return { v: 10 * u, aprox: true, u, perfil };
     if (p.nota != null) return { v: p.nota, aprox: true, u: null, perfil };
     return { v: null, aprox: true, u: null, perfil };
@@ -297,7 +313,7 @@
 
   let painelAberto = false;
   let painel = null;
-  let manual = { nome: '', shiny: false, pot: 1, qual: 80, nota: 4, ivs: { atk: 25, spa: 25, spe: 25, hp: 25, def: 25, spd: 25 } };
+  let manual = { nome: '', shiny: false, pot: 1, qual: 1.3, nota: 4, ivs: { hp: 16, atk: 16, def: 16, spatk: 16, spdef: 16, spd: 16 } };
 
   function dock() {
     let d = document.getElementById('ti-dock');
@@ -345,7 +361,7 @@
     if (!painelAberto) { painel?.remove(); painel = null; return; }
     if (!painel) { painel = document.createElement('div'); painel.id = 'ti-prc'; document.body.appendChild(painel); }
     const lista = [...meus].sort((a, b) => (avaliar(b).valor ?? 0) - (avaliar(a).valor ?? 0)).slice(0, 30);
-    const iv = k => `<label>${k.toUpperCase()} <input data-iv="${k}" type="number" min="0" max="31" value="${manual.ivs[k] ?? 0}" style="width:38px"></label>`;
+    const iv = ([k, rot]) => `<label>${rot} <input data-iv="${k}" type="number" min="1" max="32" value="${manual.ivs[k] ?? 0}" style="width:38px"></label>`;
     painel.innerHTML = `
       <div class="t">Calculadora de preço</div>
       <div class="muted">O valor junta <b>IVs</b> (os que a espécie usa: físico → Ataque, especial → Atq. Especial; Velocidade e HP contam para todos),
@@ -357,9 +373,9 @@
         <input id="ti-prc-nome" placeholder="espécie (ex.: Charizard)" value="${esc(manual.nome)}" style="width:130px">
         <label><input type="checkbox" id="ti-prc-shiny" ${manual.shiny ? 'checked' : ''}> shiny</label>
         P <input id="ti-prc-pot" type="number" min="1" max="5" value="${manual.pot}" style="width:34px">
-        Qualidade <input id="ti-prc-qual" type="number" min="0" max="100" value="${manual.qual}" style="width:42px">
+        Qualidade <input id="ti-prc-qual" type="number" min="0.8" max="1.8" step="0.001" value="${manual.qual}" style="width:56px" title="De 0,8 a 1,8, como na ficha">
         nota <input id="ti-prc-nota" type="number" step="0.1" min="0" max="10" value="${manual.nota}" style="width:46px">
-        <div style="margin-top:4px">IVs: ${['hp', 'atk', 'def', 'spa', 'spd', 'spe'].map(iv).join(' ')}</div>
+        <div style="margin-top:4px">IVs (1–32): ${[['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'], ['spatk', 'SP.ATK'], ['spdef', 'SP.DEF'], ['spd', 'SPD']].map(iv).join(' ')}</div>
         <button id="ti-prc-calc" style="margin-top:4px">Calcular</button>
         <div style="margin-top:4px">${manual.nome ? cartao(manual, 'm') : ''}</div>
       </div>
@@ -372,11 +388,11 @@
     painel.querySelector('#ti-prc-calc').onclick = () => {
       const q = sel => painel.querySelector(sel);
       const ivs = {};
-      painel.querySelectorAll('[data-iv]').forEach(inp => { ivs[inp.dataset.iv] = Math.min(IV_MAX, Math.max(0, num(inp.value))); });
+      painel.querySelectorAll('[data-iv]').forEach(inp => { ivs[inp.dataset.iv] = Math.min(IV_MAX, Math.max(1, num(inp.value))); });
       manual = {
         nome: q('#ti-prc-nome').value.trim(), shiny: q('#ti-prc-shiny').checked,
         pot: Math.min(5, Math.max(1, num(q('#ti-prc-pot').value) || 1)),
-        qual: Math.min(100, Math.max(0, num(q('#ti-prc-qual').value))),
+        qual: Math.min(1.8, Math.max(0.8, num(String(q('#ti-prc-qual').value).replace(',', '.')))),
         nota: num(String(q('#ti-prc-nota').value).replace(',', '.')), ivs,
       };
       desenhar();
