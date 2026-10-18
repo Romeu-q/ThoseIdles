@@ -127,13 +127,13 @@ public sealed class AccountViewModel : ObservableObject
     public string StatusText => Session.Status switch
     {
         SessionStatus.Closed => "Fechada",
-        SessionStatus.Loading => "Carregando",
-        SessionStatus.AwaitingConnection => "Sem conexão do jogo",
-        SessionStatus.Loaded => "Carregada",
-        SessionStatus.Connected => "Conectada",
-        SessionStatus.Disconnected => "Reconectando",
-        SessionStatus.Offline => "Offline",
-        SessionStatus.Error => "Erro",
+        SessionStatus.Loading => "Abrindo…",
+        SessionStatus.AwaitingConnection => "Esperando você entrar no jogo",
+        SessionStatus.Loaded => "Aberta",
+        SessionStatus.Connected => "Jogando",
+        SessionStatus.Disconnected => "Reconectando…",
+        SessionStatus.Offline => "Sem internet",
+        SessionStatus.Error => "Deu erro",
         _ => "",
     };
 
@@ -148,7 +148,8 @@ public sealed class AccountViewModel : ObservableObject
     };
 
     /// <summary>Faixa de aviso acima da página (não pode ser sobreposição: o WebView2 é um HWND).</summary>
-    public bool ShowBanner => Session.Status is SessionStatus.Error or SessionStatus.Offline || !Session.IsRunning;
+    // Conta fechada já mostra o botão grande "Abrir esta conta"; a faixa fica só para erro/sem internet.
+    public bool ShowBanner => Session.IsRunning && Session.Status is SessionStatus.Error or SessionStatus.Offline;
 
     public string MemoryText
     {

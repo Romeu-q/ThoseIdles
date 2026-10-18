@@ -282,7 +282,17 @@
                 </Setter>
             </Style>
 
-            <!-- Menu "⋯" das contas -->
+            <Style TargetType="Separator">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Separator">
+                            <Border Height="1" Background="{StaticResource Border}" Margin="6,4" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Menu "Mais" das contas -->
             <Style TargetType="ContextMenu">
                 <Setter Property="Background" Value="#24242C" />
                 <Setter Property="BorderBrush" Value="{StaticResource Border}" />
@@ -304,13 +314,18 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="MenuItem">
-                            <Border x:Name="bd" Background="Transparent" CornerRadius="4" Padding="8,5">
-                                <StackPanel Orientation="Horizontal">
-                                    <ContentPresenter ContentSource="Icon" Width="22" />
+                            <Border x:Name="bd" Background="Transparent" CornerRadius="4" Padding="8,6" MinWidth="250">
+                                <DockPanel>
+                                    <TextBlock x:Name="check" DockPanel.Dock="Right" Text="LIGADO" FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Good}" VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Collapsed" />
+                                    <ContentPresenter ContentSource="Icon" Width="22" VerticalAlignment="Center" />
                                     <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
-                                </StackPanel>
+                                </DockPanel>
                             </Border>
                             <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="check" Property="Visibility" Value="Visible" />
+                                </Trigger>
                                 <Trigger Property="IsHighlighted" Value="True">
                                     <Setter TargetName="bd" Property="Background" Value="{StaticResource Hover}" />
                                 </Trigger>

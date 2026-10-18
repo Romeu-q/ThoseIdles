@@ -112,7 +112,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Índice 0-based da conta em foco (usado pelo painel de layout).</summary>
     public int FocusedIndex => _focusedSlot - 1;
 
-    public string LayoutButtonText => _isFocusMode ? "Grade" : "Destacar uma";
+    public string LayoutButtonText => _isFocusMode ? "Ver todas" : "Ver uma grande";
 
     public int[] AccountCountOptions { get; } = Enumerable.Range(1, AppSettings.AccountCount).ToArray();
 
@@ -212,10 +212,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var c = used.Count(a => a.Session.Status == SessionStatus.Connected);
         var running = used.Count(a => a.Session.IsRunning);
         var errors = used.Count(a => a.Session.Status == SessionStatus.Error);
+        // Frase simples: "2 de 3 contas jogando", "Nenhuma conta aberta", "Todas as 4 contas jogando".
         var sb = new StringBuilder();
-        sb.Append(c).Append('/').Append(n).Append(n == 1 ? " conectada" : " conectadas");
-        if (running < n) sb.Append(" · ").Append(n - running).Append(" fechada(s)");
-        if (errors > 0) sb.Append(" · ").Append(errors).Append(" com erro");
+        if (running == 0) sb.Append("Nenhuma conta aberta");
+        else if (c == n) sb.Append(n == 1 ? "A conta está jogando" : $"Todas as {n} contas jogando");
+        else sb.Append(c).Append(" de ").Append(n).Append(n == 1 ? " conta jogando" : " contas jogando");
+        if (errors > 0) sb.Append(" · ").Append(errors).Append(errors == 1 ? " com erro" : " com erro");
         SummaryText = sb.ToString();
         _benchmark.SetConnectedCount(c);
     }
@@ -263,6 +265,32 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _showSettings;
         set => Set(ref _showSettings, value);
     }
+
+    /// <summary>Configurações avançadas à mostra (as básicas aparecem sempre).</summary>
+    public bool ShowAdvanced
+    {
+        get => _showAdvanced;
+        set => Set(ref _showAdvanced, value);
+    }
+    private bool _showAdvanced;
+
+    /// <summary>Faixa "como usar" (até o usuário clicar em "Entendi").</summary>
+    public bool ShowWelcome => !_settings.WelcomeDismissed;
+
+    public ICommand DismissWelcomeCommand => new RelayCommand(() =>
+    {
+        _settings.WelcomeDismissed = true;
+        SaveSettings();
+        OnPropertyChanged(nameof(ShowWelcome));
+    });
+
+    public ICommand ShowWelcomeCommand => new RelayCommand(() =>
+    {
+        _settings.WelcomeDismissed = false;
+        SaveSettings();
+        OnPropertyChanged(nameof(ShowWelcome));
+        ShowSettings = false;
+    });
 
     public bool StartAllOnLaunch
     {

@@ -38,127 +38,133 @@
                                VerticalAlignment="Center" ToolTip="{Binding StatusDetail}" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
-                        <Button Style="{StaticResource IconButton}" Content="&#xE71F;" Width="20" Command="{Binding ZoomOutCommand}" ToolTip="Diminuir o zoom desta conta (−10%)" />
-                        <Button Style="{StaticResource IconButton}" Content="&#xE8A3;" Width="20" Command="{Binding ZoomInCommand}" ToolTip="Aumentar o zoom desta conta (+10%)" />
-                    </StackPanel>
-                    <Button Command="{Binding ResetZoomCommand}" Content="{Binding ZoomText}"
-                            Style="{StaticResource IconButton}" FontFamily="Segoe UI" FontSize="11" Width="Auto" MinWidth="34"
-                            Visibility="{Binding ZoomText, Converter={StaticResource StrToVis}}"
-                            ToolTip="Zoom desta conta (Ctrl + roda do mouse na página). Clique para voltar a 100%." />
-                    <TextBlock Text="{Binding MemoryText}" Foreground="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" Margin="4,0,2,0"
-                               ToolTip="Memória dos processos de renderização desta conta (privada em RAM). Navegador, GPU e rede são compartilhados e aparecem no total da barra superior." />
-                </StackPanel>
+                <!-- Memória (discreta) -->
+                <TextBlock Grid.Column="2" Text="{Binding MemoryText}" Foreground="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" Margin="4,0,6,0"
+                           Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
+                           ToolTip="Quanta memória (RAM) esta conta está usando." />
 
-                <!-- Botões normais -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,3,0"
+                <!-- Poucos botões, com texto; o resto fica no menu "Mais" -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,4,0"
                             Visibility="{Binding IsConfirmingClear, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
-                        <!-- Modo econômico desta conta: liga / desliga -->
-                        <Button Command="{Binding ToggleEconomyCommand}" ToolTip="{Binding EconomyTooltip}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                    <Setter Property="Width" Value="Auto" />
-                                    <Setter Property="Content">
-                                        <Setter.Value>
-                                            <TextBlock Text="Eco" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold" Margin="5,0" />
-                                        </Setter.Value>
-                                    </Setter>
-                                    <Setter Property="Opacity" Value="0.55" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsEconomy}" Value="True">
-                                            <Setter Property="Foreground" Value="#3FC46E" />
-                                            <Setter Property="Opacity" Value="1" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <!-- Live da Twitch desta conta: esconder / reabrir -->
-                        <Button Command="{Binding ToggleLiveCommand}" ToolTip="{Binding LiveToggleTooltip}"
-                                Visibility="{Binding HasLiveChannel, Converter={StaticResource BoolToVis}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                    <Setter Property="Width" Value="Auto" />
-                                    <Setter Property="MinWidth" Value="26" />
-                                    <Setter Property="Content">
-                                        <Setter.Value>
-                                            <StackPanel Orientation="Horizontal" Margin="4,0">
-                                                <TextBlock Text="&#xE714;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
-                                                <TextBlock Text="{Binding LiveCountText}" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold"
-                                                           Margin="3,0,0,0" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Setter.Value>
-                                    </Setter>
-                                    <Setter Property="Opacity" Value="0.45" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLiveOpen}" Value="True">
-                                            <Setter Property="Foreground" Value="#A970FF" />
-                                            <Setter Property="Opacity" Value="1" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <!-- Extensão /hunt: liga/desliga só nesta conta -->
-                        <Button Command="{Binding ToggleHuntCommand}" ToolTip="{Binding HuntTooltip}"
-                                Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                    <Setter Property="Content" Value="&#xE721;" />
-                                    <Setter Property="Opacity" Value="0.45" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HuntEnabled}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource Accent}" />
-                                            <Setter Property="Opacity" Value="1" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE72C;" Command="{Binding ReloadCommand}" ToolTip="Recarregar a página" />
-                        <Button Style="{StaticResource IconButton}" Content="&#xE777;" Command="{Binding RestartCommand}" ToolTip="Reiniciar só esta instância" />
-                        <Button Command="{Binding ToggleOpenCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                    <Setter Property="Content" Value="&#xE7E8;" />
-                                    <Setter Property="ToolTip" Value="Fechar só esta instância" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRunning}" Value="False">
-                                            <Setter Property="Content" Value="&#xE768;" />
-                                            <Setter Property="ToolTip" Value="Abrir esta conta" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <!-- Ações raras ficam no menu "⋯" -->
-                        <Button Style="{StaticResource IconButton}" Content="&#xE712;" ToolTip="Mais opções" Click="OnMoreClick">
-                            <Button.ContextMenu>
-                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="Renomear" Command="{Binding BeginRenameCommand}">
-                                        <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                    </MenuItem>
-                                    <MenuItem Header="Ferramentas de desenvolvedor" Command="{Binding DevToolsCommand}">
-                                        <MenuItem.Icon><TextBlock Text="&#xE943;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                    </MenuItem>
-                                    <MenuItem Header="Sair desta conta (apagar login e dados)" Command="{Binding RequestClearCommand}" Foreground="#FF8A8D">
-                                        <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                    </MenuItem>
-                                </ContextMenu>
-                            </Button.ContextMenu>
-                        </Button>
-                    </StackPanel>
+                    <!-- Selo do modo econômico (só aparece quando ligado) -->
+                    <Border Background="#1F3A2A" CornerRadius="9" Padding="8,1" Margin="0,0,6,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsEconomy, Converter={StaticResource BoolToVis}}" ToolTip="{Binding EconomyTooltip}">
+                        <TextBlock Text="Modo econômico" Foreground="{StaticResource Good}" FontSize="11" FontWeight="SemiBold" />
+                    </Border>
+                    <!-- Lives da Twitch desta conta -->
+                    <Button Command="{Binding ToggleLiveCommand}" ToolTip="{Binding LiveToggleTooltip}"
+                            Visibility="{Binding HasLiveChannel, Converter={StaticResource BoolToVis}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Setter Property="Width" Value="Auto" />
+                                <Setter Property="MinWidth" Value="26" />
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" Margin="4,0">
+                                            <TextBlock Text="&#xE714;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding LiveCountText, StringFormat={}{0} live(s)}" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold"
+                                                       Margin="4,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="Opacity" Value="0.55" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLiveOpen}" Value="True">
+                                        <Setter Property="Foreground" Value="#A970FF" />
+                                        <Setter Property="Opacity" Value="1" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Command="{Binding ReloadCommand}" ToolTip="Recarregar o jogo nesta conta (resolve a maioria dos travamentos)"
+                            Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Setter Property="Width" Value="Auto" />
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" Margin="6,0">
+                                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Recarregar" FontFamily="Segoe UI" FontSize="11.5" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <!-- Menu "Mais": tudo o que é menos comum, escrito por extenso -->
+                    <Button ToolTip="Mais opções desta conta" Click="OnMoreClick">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Setter Property="Width" Value="Auto" />
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" Margin="6,0">
+                                            <TextBlock Text="&#xE712;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Mais" FontFamily="Segoe UI" FontSize="11.5" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Command="{Binding ToggleOpenCommand}">
+                                    <MenuItem.Style>
+                                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                            <Setter Property="Header" Value="Fechar esta conta" />
+                                            <Setter Property="Icon"><Setter.Value><TextBlock Text="&#xE7E8;" FontFamily="{StaticResource Icons}" /></Setter.Value></Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRunning}" Value="False">
+                                                    <Setter Property="Header" Value="Abrir esta conta" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </MenuItem.Style>
+                                </MenuItem>
+                                <MenuItem Header="Reiniciar esta conta" Command="{Binding RestartCommand}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE777;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Modo econômico (gasta quase nada de RAM)" Command="{Binding ToggleEconomyCommand}" IsChecked="{Binding IsEconomy, Mode=OneWay}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Extensão /hunt nesta conta" Command="{Binding ToggleHuntCommand}" IsChecked="{Binding HuntEnabled, Mode=OneWay}"
+                                          Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Header="Aumentar o zoom" Command="{Binding ZoomInCommand}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE8A3;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Diminuir o zoom" Command="{Binding ZoomOutCommand}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE71F;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Zoom normal (100%)" Command="{Binding ResetZoomCommand}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE71E;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Header="Mudar o nome" Command="{Binding BeginRenameCommand}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Ferramentas de desenvolvedor" Command="{Binding DevToolsCommand}">
+                                    <MenuItem.Icon><TextBlock Text="&#xE943;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Sair desta conta (apaga o login)" Command="{Binding RequestClearCommand}" Foreground="#FF8A8D">
+                                    <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button Command="{Binding FocusCommand}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
                                 <Setter Property="Content" Value="&#xE740;" />
-                                <Setter Property="ToolTip" Value="Maximizar esta conta (as outras seguem rodando)" />
+                                <Setter Property="ToolTip" Value="Deixar esta conta grande (as outras continuam rodando)" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsFocused}" Value="True">
                                         <Setter Property="Content" Value="&#xE73F;" />
-                                        <Setter Property="ToolTip" Value="Voltar para a grade 2x2" />
+                                        <Setter Property="ToolTip" Value="Voltar a ver todas as contas" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -206,8 +212,19 @@
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
-                    <TextBlock Text="Conta fechada" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                    <!-- Conta fechada: um botão grande e óbvio -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <TextBlock Text="Esta conta está fechada" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Clique no botão para entrar no jogo com ela." FontSize="12" Foreground="{StaticResource Muted}"
+                                   HorizontalAlignment="Center" Margin="0,4,0,12" />
+                        <Button Style="{StaticResource PrimaryButton}" Command="{Binding ToggleOpenCommand}" HorizontalAlignment="Center" Padding="22,8" FontSize="14">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE768;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="Abrir esta conta" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                     <!-- Modo econômico: a página do jogo está fechada, mas a conta segue conectada -->
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Margin="16"
                                 Visibility="{Binding ShowEconomyNotice, Converter={StaticResource BoolToVis}}">

@@ -34,7 +34,7 @@
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Quantas contas usar -->
-                    <TextBlock Text="Contas" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="Quantas contas?" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <Border Background="#24242C" CornerRadius="6" Padding="2" Margin="0,0,12,0"
                             ToolTip="Quantas contas usar. As que saem são fechadas, mas o login fica salvo: ao voltar, a conta abre logada.">
                         <ItemsControl ItemsSource="{Binding AccountCountChoices}">
@@ -58,22 +58,22 @@
                         </StackPanel>
                     </Button>
                     <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="8,0" />
+                    <Button Style="{StaticResource BarButton}" Command="{Binding ShowWelcomeCommand}" ToolTip="Mostra de novo o passo a passo">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE897;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Ajuda" />
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource PrimaryButton}" Command="{Binding StartAllCommand}" ToolTip="Abre todas as contas que estão fechadas">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE768;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBlock Text="Abrir todas" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource BarButton}" Command="{Binding RestartAllCommand}" ToolTip="Fecha e abre de novo todas as contas (continuam logadas)">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="Reiniciar" />
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource BarButton}" Command="{Binding CloseAllCommand}" ToolTip="Fecha todas as contas">
+                    <Button Style="{StaticResource BarButton}" Command="{Binding CloseAllCommand}" ToolTip="Fecha todas as contas (o login fica salvo)">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="Fechar" />
+                            <TextBlock Text="Fechar todas" />
                         </StackPanel>
                     </Button>
                     <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="8,0" />
@@ -92,6 +92,11 @@
         <Border DockPanel.Dock="Top" Background="{StaticResource BarBg}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1"
                 Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}">
             <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto" Padding="14,12,4,2">
+                <StackPanel>
+                <DockPanel Margin="2,0,10,8">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Content="Fechar configurações" Command="{Binding ToggleSettingsCommand}" />
+                    <TextBlock Text="Configurações — o básico" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </DockPanel>
                 <WrapPanel>
                     <!-- Geral -->
                     <Border Style="{StaticResource Card}">
@@ -108,7 +113,7 @@
                                 <Slider Minimum="50" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True"
                                         Value="{Binding GridZoomPercent}" VerticalAlignment="Center" />
                             </DockPanel>
-                            <TextBlock Style="{StaticResource Hint}" Text="Para uma conta só: botões − / + no topo dela, ou Ctrl + roda do mouse." />
+                            <TextBlock Style="{StaticResource Hint}" Text="Para uma conta só: botão &quot;Mais&quot; no topo dela → zoom." />
                         </StackPanel>
                     </Border>
 
@@ -123,7 +128,7 @@
                             <CheckBox Content="Sniper do mercado (compra automática)" IsChecked="{Binding EnableSniper}"
                                       Tag="Botão &quot;🎯 Sniper&quot; no jogo: compra sozinho o que bater com as suas regras (preço máximo e limite de compras obrigatórios). Sempre abre desligado." />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                       Text="Mudanças valem ao reiniciar a conta (↻)." />
+                                       Text="Depois de mudar, use &quot;Mais → Reiniciar esta conta&quot; para valer." />
                         </StackPanel>
                     </Border>
 
@@ -131,10 +136,23 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource CardTitle}" Text="Lives da Twitch (bônus de XP)" />
-                            <CheckBox Content="Abrir muda" IsChecked="{Binding LiveMutedByDefault}" />
-                            <CheckBox Content="Menor qualidade (160p)" IsChecked="{Binding LiveLowestQuality}"
-                                      Tag="Gasta menos internet e processador." />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6"
+                                       Text="Abra a tela &quot;Twitch&quot; dentro do jogo e clique num canal: a live abre escondida, embaixo da conta." />
+                            <CheckBox Content="Abrir sem som" IsChecked="{Binding LiveMutedByDefault}" />
+                            <CheckBox Content="Qualidade mais baixa" IsChecked="{Binding LiveLowestQuality}"
+                                      Tag="Gasta menos internet e computador." />
                             <CheckBox Content="Reabrir as lives junto com a conta" IsChecked="{Binding ReopenLives}" />
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <!-- Avançado: escondido até o usuário pedir -->
+                <CheckBox Content="Mostrar opções avançadas" IsChecked="{Binding ShowAdvanced}" Margin="2,2,0,10"
+                          Tag="Desempenho, extensão /hunt, diagnóstico. Não precisa mexer para jogar." />
+                <WrapPanel Visibility="{Binding ShowAdvanced, Converter={StaticResource BoolToVis}}">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Lives da Twitch — avançado" />
                             <CheckBox Content="Economizar memória com a live escondida" IsChecked="{Binding LiveHiddenLowMemory}" />
                             <DockPanel Margin="0,6,0,0">
                                 <TextBlock Text="Recarregar lives a cada" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -202,7 +220,33 @@
                         </StackPanel>
                     </Border>
                 </WrapPanel>
+                </StackPanel>
             </ScrollViewer>
+        </Border>
+
+        <!-- Como usar (primeira vez; volta pelo botão "Ajuda") -->
+        <Border DockPanel.Dock="Top" Background="#221D38" BorderBrush="#3F3570" BorderThickness="0,0,0,1" Padding="16,12"
+                Visibility="{Binding ShowWelcome, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Entendi" Command="{Binding DismissWelcomeCommand}"
+                        VerticalAlignment="Center" Padding="18,6" />
+                <StackPanel>
+                    <TextBlock Text="Como usar — é só 3 passos" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <WrapPanel>
+                        <Border Background="#2C2547" CornerRadius="6" Padding="10,6" Margin="0,0,8,4">
+                            <TextBlock FontSize="12.5"><Run Text="1." FontWeight="Bold" /> Lá em cima, em <Run Text="Quantas contas?" FontWeight="SemiBold" />, clique no número.</TextBlock>
+                        </Border>
+                        <Border Background="#2C2547" CornerRadius="6" Padding="10,6" Margin="0,0,8,4">
+                            <TextBlock FontSize="12.5"><Run Text="2." FontWeight="Bold" /> Clique no botão roxo <Run Text="Abrir todas" FontWeight="SemiBold" />.</TextBlock>
+                        </Border>
+                        <Border Background="#2C2547" CornerRadius="6" Padding="10,6" Margin="0,0,8,4">
+                            <TextBlock FontSize="12.5"><Run Text="3." FontWeight="Bold" /> Entre no jogo em cada quadro. O login fica salvo: da próxima vez já abre logado.</TextBlock>
+                        </Border>
+                    </WrapPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
+                               Text="Algo travou? Clique em &quot;Recarregar&quot; no topo da conta. Outras opções ficam em &quot;Mais&quot;." />
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- Versão nova no GitHub -->
