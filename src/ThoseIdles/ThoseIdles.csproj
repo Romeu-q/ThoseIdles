@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>ThoseIdles</AssemblyName>
     <RootNamespace>ThoseIdles</RootNamespace>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <Product>ThoseIdles</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Ícone do .exe (Explorer, atalhos, barra de tarefas). Gerado por tools/make-icon.ps1. -->
