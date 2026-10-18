@@ -6,7 +6,7 @@
   "content_scripts": [
     {
       "matches": ["https://pokeidle.io/*"],
-      "js": ["price-calc.js"],
+      "js": ["ti-ui.js", "price-calc.js"],
       "run_at": "document_start",
       "world": "MAIN"
     }

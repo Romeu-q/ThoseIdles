@@ -1034,10 +1034,54 @@ public sealed class SelfTestRunner
         });
     }
 
+    private async Task RunPriceInFichaTestAsync()
+    {
+        await Test("calcular preço na ficha do Pokémon: botão nas ações da ficha e cartão com o preço", async () =>
+        {
+            var core = _manager[1].Core!;
+            // Mesmo HTML da ficha do jogo (#ficha-corpo, placas, .fi-stat com .fi-iv, nota em data-nota).
+            await core.ExecuteScriptAsync("""
+                (() => {
+                  document.getElementById('ficha-corpo')?.remove();
+                  const d = document.createElement('div');
+                  d.id = 'ficha-corpo';
+                  const stat = (n, v) => `<div class="fi-stat"><span class="fi-stat-nome">${n}</span><b class="fi-stat-num">100</b><em class="fi-iv">IV ${v}</em></div>`;
+                  d.innerHTML = `<div class="fi-heroi"><div class="fi-heroi-info">
+                      <div class="fi-nome">✨Charizard</div>
+                      <div class="fi-placas-heroi"><div class="fi-placas-linha">
+                        <div class="fi-placa pk-selo pk-selo-pot t4"><small><span>Potência</span></small><b>P4</b></div>
+                        <div class="fi-placa pk-selo pk-selo-q t5"><small><span>Qualidade</span></small><b>1,700</b></div>
+                      </div></div>
+                      <div class="fi-acoes"><button class="fi-calc fi-acao" id="fi-calc">Calcular</button></div>
+                    </div>
+                    <div class="fi-heroi-palcos"><div class="fi-palco hf-shiny"><b class="fi-nota-num" data-nota="4.2">4,2</b></div></div></div>
+                    <section class="fi-cartao"><div class="fi-stats">${stat('HP',31)}${stat('ATK',0)}${stat('DEF',20)}${stat('SP.ATK',31)}${stat('SP.DEF',20)}${stat('SPD',31)}</div></section>
+                    <section class="fi-cartao"><div class="fi-placas"><div class="fi-placa"><small><span>Espécie</span></small><b>#6 Charizard</b></div></div></section>`;
+                  document.body.appendChild(d);
+                })();
+                """);
+            var temBotao = false;
+            for (var i = 0; i < 20 && !(temBotao = await core.ExecuteScriptAsync("!!document.querySelector('#ficha-corpo .fi-acoes #ti-fi-preco')") == "true"); i++)
+                await Task.Delay(100);
+            var lido = await core.ExecuteScriptAsync("JSON.stringify(window.__tiPreco.lerFicha(document.getElementById('ficha-corpo')))");
+            await core.ExecuteScriptAsync("document.getElementById('ti-fi-preco').click()");
+            await Task.Delay(800);
+            var texto = JsonDocument.Parse(await core.ExecuteScriptAsync("document.getElementById('ti-fi-card')?.innerText ?? ''")).RootElement.GetString() ?? "";
+            var depoisDoHeroi = await core.ExecuteScriptAsync("document.querySelector('#ficha-corpo .fi-heroi').nextElementSibling?.id") == "\"ti-fi-card\"";
+            await core.ExecuteScriptAsync("document.getElementById('ficha-corpo')?.remove()");
+            var ok = temBotao && depoisDoHeroi && texto.Contains("2.000") && texto.Contains("80.000") && texto.Contains("Charizard")
+                     && lido.Contains("spAtk") && lido.Contains("1.7");
+            return ok
+                ? Pass("botão \"💰 Calcular preço\" entrou nas ações da ficha; o cartão abriu logo abaixo do topo com 2.000 Gemas e 80.000 ouro (lidos da ficha: P4, Qualidade 1,700, IVs por stat, nota 4,2, shiny)")
+                : Fail($"botão={temBotao} posição={depoisDoHeroi} lido={lido} cartão=[{texto.Replace("\n", " | ")}]");
+        });
+    }
+
     private async Task RunRmtAlertTestsAsync()
     {
         await RunSniperTestsAsync();
         await RunPriceCalcTestsAsync();
+        await RunPriceInFichaTestAsync();
         await RunAccountCountLayoutTestAsync();
         await Test("alerta de RMT: avisa só anúncio em Gemas que bate com a regra; não envia nada", async () =>
         {
@@ -1063,7 +1107,7 @@ public sealed class SelfTestRunner
             var badge = await core.ExecuteScriptAsync("document.getElementById('ti-rmt-btn').textContent");
             var enviados = JsonDocument.Parse(await core.ExecuteScriptAsync("JSON.stringify(window.__enviados)")).RootElement.GetString()!;
             var proprios = JsonDocument.Parse(enviados).RootElement.EnumerateArray().Select(e => e.GetString()!).Where(s => !s.Contains("teste.eco")).ToList();
-            var ok = hasButton && alertas.Count == 1 && alertas[0].StartsWith("Charizard ✨ P4 por 1500 Gemas") && badge.Contains("RMT1") && proprios.Count == 0;
+            var ok = hasButton && alertas.Count == 1 && alertas[0].StartsWith("Charizard ✨ P4 por 1500 Gemas") && System.Text.RegularExpressions.Regex.IsMatch(badge, @"RMT\s*1") && proprios.Count == 0;
             return ok
                 ? Pass($"de 5 anúncios (repetidos 2×; 1 em ouro, 1 caro, 1 sem shiny, 1 vendido) só 1 alertou: \"{alertas[0]}\"; botão {badge}; nenhuma mensagem enviada")
                 : Fail($"botão={hasButton} badge={badge} alertas=[{string.Join(" | ", alertas)}] enviados=[{string.Join(" | ", proprios)}]");

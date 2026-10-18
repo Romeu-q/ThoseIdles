@@ -6,7 +6,7 @@
   "content_scripts": [
     {
       "matches": ["https://pokeidle.io/*"],
-      "js": ["rmt-alert.js"],
+      "js": ["ti-ui.js", "rmt-alert.js"],
       "run_at": "document_start",
       "world": "MAIN"
     }

@@ -89,97 +89,78 @@
     if (novos) { atualizarBotao(); if (painelAberto) desenhar(); }
   }
 
-  // ------------------------------------------------------------------ interface
+  // ------------------------------------------------------------------ interface (peças em ti-ui.js)
 
-  const css = `
-    #ti-rmt-btn{background:#1d1a2bdd;color:#e6e6ea;border:1px solid #4a3f7a;
-      border-radius:14px;font:600 12px Segoe UI,sans-serif;padding:4px 10px;cursor:pointer;opacity:.8}
-    #ti-rmt-btn:hover{opacity:1} #ti-rmt-btn .n{background:#8b6cff;border-radius:8px;padding:0 5px;margin-left:5px}
-    #ti-rmt{position:fixed;left:8px;bottom:40px;z-index:2147483000;width:320px;max-height:70vh;overflow:auto;background:#17151ff5;
-      color:#ddd;border:1px solid #4a3f7a;border-radius:10px;font:12px Segoe UI,sans-serif;padding:10px 12px;box-shadow:0 6px 20px #0009}
-    #ti-rmt h4{margin:10px 0 4px;font-size:12px;color:#b9a7ff}
-    #ti-rmt .t{font-size:13px;font-weight:600}
-    #ti-rmt button{background:#2a2540;color:#ddd;border:1px solid #4a3f7a;border-radius:5px;font:11px Segoe UI,sans-serif;padding:3px 8px;cursor:pointer}
-    #ti-rmt input{background:#0f0e16;color:#ddd;border:1px solid #4a3f7a;border-radius:4px;font:11px Segoe UI,sans-serif;padding:2px 4px}
-    #ti-rmt .regra{display:flex;gap:5px;align-items:center;margin:4px 0;flex-wrap:wrap;background:#201c30;border-radius:6px;padding:5px}
-    #ti-rmt .muted{color:#8f8aa6}
-    .ti-rmt-toast{position:fixed;right:10px;z-index:2147483001;background:#2b2150f2;color:#fff;border:1px solid #8b6cff;border-radius:8px;
-      font:12px Segoe UI,sans-serif;padding:7px 11px;max-width:320px;box-shadow:0 4px 14px #0009}`;
-
+  const UI = () => window.__tiUI;
+  const PAINEL = 'ti-rmt';
   let painelAberto = false;
-  let painel = null;
   let naoVistos = 0;
 
-  function dock() {
-    let d = document.getElementById('ti-dock');
-    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483000;display:flex;gap:6px'; document.body.appendChild(d); }
-    return d;
-  }
-
   function montar() {
-    if (document.getElementById('ti-rmt-btn') || !document.body) return;
-    const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
-    const btn = document.createElement('button');
-    btn.id = 'ti-rmt-btn';
-    btn.title = 'ThoseIdles: alerta de anúncios em Gemas (RMT). Só avisa; não compra.';
-    btn.onclick = () => { painelAberto = !painelAberto; naoVistos = 0; atualizarBotao(); desenhar(); };
-    dock().appendChild(btn);
+    if (!UI() || !document.body) return;
+    UI().pill('ti-rmt-btn', 'Alerta de RMT: avisa anúncios em Gemas que batem com as suas regras. Nunca compra.', () => {
+      painelAberto = !painelAberto;
+      naoVistos = 0;
+      desenhar();
+    });
     atualizarBotao();
   }
 
   function atualizarBotao() {
     const btn = document.getElementById('ti-rmt-btn');
     if (!btn) return;
-    btn.innerHTML = `🔔 RMT${naoVistos ? `<span class="n">${naoVistos}</span>` : ''}`;
+    btn.innerHTML = `🔔 RMT${naoVistos ? ` <span class="ti-badge">${naoVistos}</span>` : ''}`;
+    btn.classList.toggle('ativo', painelAberto);
   }
 
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function cartaoRegra(r, i) {
+    const { esc, opcoes } = UI();
+    return `
+      <div class="ti-card regra ${r.ativa ? '' : 'off'}" data-i="${i}">
+        <div class="ti-row">
+          <label class="ti-switch" title="Regra ligada"><input type="checkbox" data-k="ativa" ${r.ativa ? 'checked' : ''}></label>
+          <input class="ti-in ti-grow" data-k="texto" value="${esc(r.texto || '')}" placeholder="Nome contém… (vazio = qualquer Pokémon)">
+          <button class="ti-btn danger sm" data-rm="${i}" title="Remover regra">✕</button>
+        </div>
+        <div class="ti-grid">
+          <label class="ti-field">Potência mínima<select class="ti-in" data-k="potMin">${opcoes(r.potMin || 0, [[0, 'Qualquer'], [2, 'P2+'], [3, 'P3+'], [4, 'P4+'], [5, 'P5']])}</select></label>
+          <label class="ti-field">Até (Gemas)<input class="ti-in" data-k="precoMax" type="number" min="0" value="${r.precoMax || ''}" placeholder="qualquer"></label>
+          <label class="ti-field">&nbsp;<span class="ti-switch" style="height:32px"><input type="checkbox" data-k="soShiny" ${r.soShiny ? 'checked' : ''}>Só shiny</span></label>
+        </div>
+      </div>`;
+  }
 
   function desenhar() {
-    if (!painelAberto) { painel?.remove(); painel = null; return; }
-    if (!painel) { painel = document.createElement('div'); painel.id = 'ti-rmt'; document.body.appendChild(painel); }
-    painel.innerHTML = `
-      <div class="t">Alerta de RMT</div>
-      <div class="muted">Avisa quando, numa lista do mercado que você abrir, aparecer um anúncio <b>em Gemas</b> que bate com uma regra. Não compra nem consulta nada sozinho.</div>
-      <h4>Regras</h4>
-      ${regras.length ? '' : '<div class="muted">Nenhuma regra ainda.</div>'}
-      ${regras.map((r, i) => `
-        <div class="regra" data-i="${i}">
-          <input type="checkbox" data-k="ativa" ${r.ativa ? 'checked' : ''} title="Ligada">
-          <input data-k="texto" value="${esc(r.texto || '')}" placeholder="nome contém (vazio = qualquer)" style="width:150px">
-          <label><input type="checkbox" data-k="soShiny" ${r.soShiny ? 'checked' : ''}> só shiny</label>
-          <label>P mín. <input data-k="potMin" type="number" min="0" max="5" value="${r.potMin || 0}" style="width:34px"></label>
-          <label>até <input data-k="precoMax" type="number" min="0" value="${r.precoMax || 0}" style="width:64px" title="0 = qualquer preço"> Gemas</label>
-          <button data-rm="${i}" title="Remover regra">Remover</button>
-        </div>`).join('')}
-      <button id="ti-rmt-add">+ Nova regra</button>
-      <h4>Últimos alertas</h4>
-      ${alertas.length ? alertas.map(a => `<div>${new Date(a.em).toLocaleTimeString('pt-BR')} — ${esc(a.desc)}</div>`).join('') : '<div class="muted">Nenhum ainda.</div>'}`;
+    atualizarBotao();
+    if (!UI()) return;
+    if (!painelAberto) { UI().fecharPainel(PAINEL); return; }
+    const { esc, hora } = UI();
+    const p = UI().painel(PAINEL, { icone: '🔔', titulo: 'Alerta de RMT', sub: 'Avisa anúncios em Gemas. Nunca compra.' },
+      () => { painelAberto = false; desenhar(); });
+    p.body.innerHTML = `
+      <div class="ti-muted" style="margin-top:12px">Quando você abrir uma lista no mercado e aparecer um anúncio <b>em Gemas</b> que bate com uma regra, aparece um aviso com um bipe.</div>
+      <div class="ti-sec"><span>Regras</span><button class="ti-btn primary sm" id="ti-rmt-add">+ Nova regra</button></div>
+      ${regras.length ? regras.map(cartaoRegra).join('') : '<div class="ti-empty">Nenhuma regra. Clique em <b>+ Nova regra</b> para escolher o que avisar.</div>'}
+      <div class="ti-sec"><span>Últimos alertas</span></div>
+      ${alertas.length
+        ? alertas.map(a => `<div class="ti-log"><time>${hora(a.em)}</time><span>${esc(a.desc)}</span></div>`).join('')
+        : '<div class="ti-muted">Nenhum ainda.</div>'}`;
 
-    painel.querySelector('#ti-rmt-add').onclick = () => { regras.push({ ativa: true, texto: '', soShiny: true, potMin: 0, precoMax: 0 }); save(KEY_RULES, regras); desenhar(); };
-    painel.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { regras.splice(+b.dataset.rm, 1); save(KEY_RULES, regras); desenhar(); });
-    painel.querySelectorAll('.regra [data-k]').forEach(inp => inp.onchange = () => {
+    p.body.querySelector('#ti-rmt-add').onclick = () => { regras.push({ ativa: true, texto: '', soShiny: true, potMin: 0, precoMax: 0 }); save(KEY_RULES, regras); desenhar(); };
+    p.body.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { regras.splice(+b.dataset.rm, 1); save(KEY_RULES, regras); desenhar(); });
+    p.body.querySelectorAll('.regra [data-k]').forEach(inp => inp.onchange = () => {
       const r = regras[+inp.closest('.regra').dataset.i];
       const k = inp.dataset.k;
-      r[k] = inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? num(inp.value) : inp.value.trim();
+      r[k] = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' || k === 'potMin') ? num(inp.value) : inp.value.trim();
       save(KEY_RULES, regras);
+      if (k === 'ativa') desenhar();
     });
   }
 
-  let toasts = 0;
   function aviso(texto) {
     if (!painelAberto) naoVistos++;
-    try {
-      const t = document.createElement('div');
-      t.className = 'ti-rmt-toast';
-      t.style.top = `${10 + (toasts++ % 4) * 46}px`;
-      t.textContent = `🔔 RMT: ${texto}`;
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 12000);
-      const ctx = new AudioContext(); const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.frequency.value = 880; g.gain.value = 0.05; o.connect(g); g.connect(ctx.destination);
-      o.start(); o.stop(ctx.currentTime + 0.15); o.onended = () => ctx.close();
-    } catch { }
+    UI()?.toast('🔔 Anúncio no RMT', texto);
+    UI()?.bipe();
   }
 
   setInterval(montar, 5000);

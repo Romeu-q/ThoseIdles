@@ -451,6 +451,10 @@ public sealed partial class BrowserSession : ObservableObject
         if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
 
+        // Peças de interface dos painéis do jogo (RMT, Sniper, Preço): carregadas antes deles.
+        if ((_settings.EnableRmtAlert || _settings.EnableSniper || _settings.EnablePriceCalc) && TiUiScript.Value is { Length: > 0 } ui)
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(ui);
+
         // Alerta de RMT (só lê o que o jogo manda; nunca envia nada).
         if (_settings.EnableRmtAlert && RmtAlertScript.Value is { Length: > 0 } rmt)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(rmt);
@@ -468,6 +472,7 @@ public sealed partial class BrowserSession : ObservableObject
     private static readonly Lazy<string> ShinyExportScript = new(() => ReadResource("ShinyExport.js"));
     private static readonly Lazy<string> RmtAlertScript = new(() => ReadResource("RmtAlert.js"));
     private static readonly Lazy<string> SniperScript = new(() => ReadResource("Sniper.js"));
+    private static readonly Lazy<string> TiUiScript = new(() => ReadResource("TiUi.js"));
     private static readonly Lazy<string> PriceCalcScript = new(() => ReadResource("PriceCalc.js"));
 
     private static string ReadResource(string name)

@@ -430,13 +430,16 @@ mesmo jeito que a de shinies (Modo do desenvolvedor → Carregar sem compactaç�
 
 ### Calculadora de preço
 
-Botão **💰 Preço** no canto do jogo. Para cada Pokémon seu (e para um que você digitar), mostra
-quanto ele vale no **RMT (Gemas)** e em **ouro**, com faixa de preço, menor anúncio e confiança.
+Na **ficha de qualquer Pokémon** do jogo aparece o botão **💰 Calcular preço**, junto de
+"Calcular" e "Comparar". Ele lê a ficha (Potência, Qualidade, IV de cada stat, nota, shiny), busca
+os anúncios daquela espécie e mostra, logo abaixo do topo da ficha, quanto ele vale no
+**RMT (Gemas)** e em **ouro**: preço, faixa, menor anúncio e confiança. O botão **💰 Preço** no
+canto do jogo faz o mesmo para os seus Pokémon e para um que você digitar.
 
 - **Valor (0–10):** 60% IVs úteis + 40% Qualidade. "IVs úteis" pesa o que a espécie usa: físico →
   Ataque, especial → Ataque Especial; Velocidade e HP contam para todos.
-- **Perfil da espécie:** automático pelos status base (consulta a PokeAPI uma vez por espécie e
-  guarda) ou escolhido à mão no painel.
+- **Perfil da espécie:** automático pelos status base do **catálogo do próprio jogo** (as Megas,
+  que não estão nele, pela PokeAPI) ou escolhido à mão no cartão.
 - **Potência:** comparada à parte; anúncio de outra Potência pesa bem menos.
 - **Comparação:** mediana dos anúncios mais parecidos (mesma espécie e shiny). São preços pedidos,
   não vendas fechadas. A base vem das listas do mercado que você abre; **Buscar no mercado** faz uma
@@ -460,6 +463,10 @@ Use por sua conta e risco: compra automática gasta seu ouro e suas Gemas sem pe
 regras antes de ligar.
 
 **Sem o app (Chrome/Edge):** extensão em `extensions/sniper`, carregada como as outras.
+
+Os três (🔔 RMT, 🎯 Sniper, 💰 Preço) usam as mesmas peças de interface, de
+`extensions/shared/ti-ui.js`. Cada extensão do Chrome leva uma cópia: depois de mexer nesse
+arquivo, rode `tools\sync-extensions.ps1`.
 
 ### Atualização pelo próprio app
 

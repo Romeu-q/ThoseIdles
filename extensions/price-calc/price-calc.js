@@ -112,13 +112,37 @@
     .replace(/^mega (.+?)( ([xy]))?$/, (_, n, _2, xy) => `${n}-mega${xy ? '-' + xy : ''}`)
     .replace(/[.'’:]/g, '').replace(/\s+/g, '-');
 
+  const perfilPorStatus = (atk, spa) => atk >= spa * 1.15 ? 'fisico' : spa >= atk * 1.15 ? 'especial' : 'misto';
+
+  // Status base do CATÁLOGO DO JOGO (os mesmos arquivos públicos que a página já baixa). É a fonte
+  // preferida: são os números do PokéIdle. As Megas não estão nele como espécie: para elas vale a
+  // PokeAPI (charizard-mega-y etc.) e, por último, a forma base do catálogo.
+  const catalogo = new Map(); // nome normalizado → { atk, spa }
+  let catalogoPedido = false;
+  function carregarCatalogo() {
+    if (catalogoPedido) return;
+    catalogoPedido = true;
+    const arquivos = ['/assets/creatures.json', '/assets/creatures-novos.json', '/assets/creatures-outland-novos.json'];
+    Promise.all(arquivos.map(u => fetch(u).then(r => (r.ok ? r.json() : null)).catch(() => null))).then(lista => {
+      for (const j of lista) for (const c of j?.creatures ?? []) {
+        if (c?.name && c.baseAtk != null && c.baseSpAtk != null) catalogo.set(norm(c.name), { atk: num(c.baseAtk), spa: num(c.baseSpAtk) });
+      }
+      if (catalogo.size) redesenharTudo();
+    });
+  }
+
   function perfilDe(nome) {
     const s = slug(nome);
     const p = perfis[s];
     if (p?.manual) return p.manual;
-    if (p?.atk && p?.spa) return p.atk >= p.spa * 1.15 ? 'fisico' : p.spa >= p.atk * 1.15 ? 'especial' : 'misto';
+    carregarCatalogo();
+    const c = catalogo.get(norm(nome));
+    if (c) return perfilPorStatus(c.atk, c.spa);
+    if (p?.atk && p?.spa) return perfilPorStatus(p.atk, p.spa);
     if (!p && s && !buscando.has(s)) buscarStatusBase(s);
-    return 'misto';
+    // Sem nada: a forma base no catálogo ("Mega Charizard Y" → "Charizard").
+    const base = catalogo.get(norm(nome).replace(/^(mega|brave|shadow|alolan|galarian)\s+/, '').replace(/\s+[xy]$/, ''));
+    return base ? perfilPorStatus(base.atk, base.spa) : 'misto';
   }
 
   let filaPokeApi = Promise.resolve();
@@ -133,7 +157,7 @@
         perfis[s] = { atk: st('attack'), spa: st('special-attack') };
       } catch { perfis[s] = { erro: 'rede' }; }
       save(KEY_PERFIS, perfis);
-      if (painelAberto) desenhar();
+      redesenharTudo();
       await new Promise(ok => setTimeout(ok, 400)); // devagar com a PokeAPI
     });
   }
@@ -189,7 +213,7 @@
       : Array.isArray(m.depot) ? m.depot : null;
     if (lista && lista.length) {
       meus = lista.filter(p => p && (p.nome || p.especie)).map(pokemonDe);
-      if (painelAberto) desenhar();
+      redesenharTudo();
     }
   }
 
@@ -219,7 +243,7 @@
       const lista = [].concat(m.anuncios || [], m.linhas || [], m.anuncio ? [m.anuncio] : []);
       let n = 0;
       for (const a of lista) if (a) { aprender(a); n++; }
-      if (n) { salvar(); if (painelAberto) desenhar(); }
+      if (n) { salvar(); redesenharTudo(); }
     }
   }
 
@@ -297,121 +321,227 @@
     };
   }
 
-  // ------------------------------------------------------------------ interface
+  // ------------------------------------------------------------------ interface (peças em ti-ui.js)
 
-  const css = `
-    #ti-prc-btn{background:#1a2420dd;color:#eee;border:1px solid #3f7a5a;border-radius:14px;font:600 12px Segoe UI,sans-serif;
-      padding:4px 10px;cursor:pointer;opacity:.85} #ti-prc-btn:hover{opacity:1}
-    #ti-prc{position:fixed;left:8px;bottom:40px;z-index:2147483000;width:450px;max-height:75vh;overflow:auto;background:#141b18f5;
-      color:#ddd;border:1px solid #3f7a5a;border-radius:10px;font:12px Segoe UI,sans-serif;padding:10px 12px;box-shadow:0 6px 20px #0009}
-    #ti-prc .t{font-size:13px;font-weight:600} #ti-prc h4{margin:10px 0 4px;font-size:12px;color:#8fe0b0}
-    #ti-prc button{background:#203a2c;color:#ddd;border:1px solid #3f7a5a;border-radius:5px;font:11px Segoe UI,sans-serif;padding:3px 8px;cursor:pointer}
-    #ti-prc input,#ti-prc select{background:#0d1210;color:#ddd;border:1px solid #3f7a5a;border-radius:4px;font:11px Segoe UI,sans-serif;padding:2px 4px}
-    #ti-prc .muted{color:#8aa597} #ti-prc .no{color:#ff9c9c}
-    #ti-prc .card{background:#1b2621;border-radius:6px;padding:6px 8px;margin:4px 0}
-    #ti-prc .preco{font-size:14px;font-weight:700;color:#fff}`;
-
+  const UI = () => window.__tiUI;
+  const PAINEL = 'ti-prc';
   let painelAberto = false;
-  let painel = null;
-  let manual = { nome: '', shiny: false, pot: 1, qual: 1.3, nota: 4, ivs: { hp: 16, atk: 16, def: 16, spatk: 16, spdef: 16, spd: 16 } };
+  let manual = { nome: '', shiny: false, pot: 1, qual: 1.3, nota: 4, ivs: { hp: 16, atk: 16, def: 16, spAtk: 16, spDef: 16, speed: 16 } };
+  let calculouManual = false;
+  const porChave = new Map(); // chave do cartão → Pokémon (para os botões dos cartões)
 
-  function dock() {
-    let d = document.getElementById('ti-dock');
-    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483000;display:flex;gap:6px'; document.body.appendChild(d); }
-    return d;
+  const dec = (n, casas = 2) => n == null ? '?' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: casas });
+  const fmtPreco = (v, gemas) => gemas ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : Math.round(v).toLocaleString('pt-BR');
+
+  function caixaPreco(e, gemas, bloqueio) {
+    const classe = gemas ? 'gem' : 'gold';
+    const rotulo = gemas ? '💎 RMT · Gemas' : 'Ouro';
+    if (bloqueio) return `<div class="${classe}"><small>${rotulo}</small><span class="v" style="font-size:14px;color:#ff8a95">Não pode</span><em>${bloqueio}</em></div>`;
+    if (!e || e.semDados) return `<div class="${classe}"><small>${rotulo}</small><span class="v" style="font-size:14px;color:#9e99b3">Sem dados</span><em>Clique em "Buscar no mercado".</em></div>`;
+    return `<div class="${classe}"><small>${rotulo}</small><span class="v">${fmtPreco(e.preco, gemas)}</span>
+      <em>${fmtPreco(e.de, gemas)} – ${fmtPreco(e.ate, gemas)} · menor ${fmtPreco(e.menor, gemas)}<br>${e.n} anúncio(s) · confiança ${e.confianca}</em></div>`;
+  }
+
+  /** O cartão de resultado (usado no painel e na ficha do jogo). */
+  function cartaoResultado(p, chave) {
+    const { esc, opcoes } = UI();
+    porChave.set(String(chave), p);
+    const r = avaliar(p);
+    const manualPerfil = perfis[slug(p.nome)]?.manual || '';
+    return `
+      <div class="ti-card prc-res" data-chave="${esc(chave)}">
+        <div class="ti-row">
+          <b class="ti-grow" style="font-size:14px">${esc(p.nome || '—')}${p.shiny ? ' ✨' : ''}</b>
+          <span class="ti-chip roxo">P${p.pot}</span>
+          <span class="ti-chip">nota ${dec(p.nota, 3)}</span>
+          ${r.podeRmt ? '<span class="ti-chip ok">✓ pode RMT</span>' : '<span class="ti-chip no">sem RMT</span>'}
+        </div>
+        <div class="ti-row ti-muted" style="margin-top:6px">
+          <span>Valor <b style="color:#fff">${dec(r.valor, 1)}</b>/10</span>·
+          <span>IVs úteis ${r.ivUtil == null ? '?' : r.ivUtil + '%'}</span>·
+          <span>Qualidade ${p.qual == null ? '?' : dec(p.qual, 3)}</span>
+          <span class="ti-grow"></span>
+          <select class="ti-in" data-perfil style="width:auto;height:26px;font-size:11.5px" title="O que esta espécie mais usa. Automático pelos status base do jogo.">
+            ${opcoes(manualPerfil, [['', `Auto: ${NOME_PERFIL[r.perfil]}`], ['fisico', 'Físico (ATK)'], ['especial', 'Especial (SP.ATK)'], ['misto', 'Misto']])}
+          </select>
+        </div>
+        <div class="ti-bar"><i style="width:${Math.max(0, Math.min(100, (r.valor ?? 0) * 10))}%"></i></div>
+        <div class="ti-price">
+          ${caixaPreco(r.gemas, true, r.podeRmt ? '' : `Nota ${dec(p.nota, 3)}; o RMT pede ${dec(NOTA_MIN_RMT, 1)} ou mais.`)}
+          ${caixaPreco(r.ouro, false)}
+        </div>
+        <div class="ti-row" style="margin-top:10px">
+          <button class="ti-btn sm" data-busca>🔎 Buscar no mercado</button>
+          <span class="ti-muted ti-grow" style="text-align:right">Preços pedidos em anúncios parecidos</span>
+        </div>
+      </div>`;
+  }
+
+  /** Liga os botões dos cartões de resultado dentro de um container. */
+  function ligarCartoes(container) {
+    container.querySelectorAll('.prc-res').forEach(card => {
+      const p = porChave.get(card.dataset.chave);
+      if (!p) return;
+      card.querySelector('[data-perfil]').onchange = e => { definirPerfil(p.nome, e.target.value); redesenharTudo(true); };
+      card.querySelector('[data-busca]').onclick = e => {
+        e.target.textContent = buscarNoMercado(p.nome) ? 'Buscando…' : 'Aguarde uns segundos…';
+        setTimeout(() => redesenharTudo(true), 2500);
+      };
+    });
   }
 
   function montar() {
-    if (document.getElementById('ti-prc-btn') || !document.body) return;
-    const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
-    const btn = document.createElement('button');
-    btn.id = 'ti-prc-btn';
-    btn.textContent = '💰 Preço';
-    btn.title = 'ThoseIdles: quanto vale o seu Pokémon no mercado e no RMT';
-    btn.onclick = () => { painelAberto = !painelAberto; desenhar(); };
-    dock().appendChild(btn);
-  }
-
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const fmt = (v, gemas) => gemas ? `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Gemas` : `${Math.round(v).toLocaleString('pt-BR')} ouro`;
-  const dec = n => n == null ? '?' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
-
-  function blocoPreco(e, gemas) {
-    if (!e) return '';
-    if (e.semDados) return `<div class="muted">${gemas ? 'RMT' : 'Ouro'}: sem anúncios parecidos ainda — clique em "Buscar no mercado".</div>`;
-    return `<div>${gemas ? 'RMT' : 'Ouro'}: <span class="preco">${fmt(e.preco, gemas)}</span>
-      <span class="muted"> (faixa ${fmt(e.de, gemas)} – ${fmt(e.ate, gemas)} · menor ${fmt(e.menor, gemas)} · ${e.n} anúncio(s) de ${e.base} · confiança ${e.confianca})</span></div>`;
-  }
-
-  function cartao(p, i) {
-    const r = avaliar(p);
-    const perfilSel = `<select data-perfil="${i}" title="O que esta espécie mais usa (automático pelos status base)">
-      ${['', 'fisico', 'especial', 'misto'].map(v => `<option value="${v}" ${(perfis[slug(p.nome)]?.manual || '') === v ? 'selected' : ''}>${v ? NOME_PERFIL[v] : `auto (${NOME_PERFIL[r.perfil]})`}</option>`).join('')}
-    </select>`;
-    return `<div class="card">
-      <div><b>${esc(p.nome)}</b>${p.shiny ? ' ✨' : ''} · P${p.pot} <button data-busca="${i}" style="float:right">Buscar no mercado</button></div>
-      <div class="muted">Valor <b style="color:#fff">${dec(r.valor)}/10</b> ·
-        IVs úteis ${r.ivUtil == null ? '?' : r.ivUtil + '%'} · Qualidade ${p.qual ?? '?'} · nota ${dec(p.nota)} · perfil ${perfilSel}</div>
-      ${r.podeRmt ? blocoPreco(r.gemas, true) : `<div class="no">Não pode ir para o RMT: nota ${dec(p.nota)} (mínimo ${dec(NOTA_MIN_RMT)}).</div>`}
-      ${blocoPreco(r.ouro, false)}
-    </div>`;
+    if (!UI() || !document.body) return;
+    UI().pill('ti-prc-btn', 'Calculadora de preço: quanto vale o seu Pokémon no RMT e em ouro', () => {
+      painelAberto = !painelAberto;
+      desenhar();
+    }).innerHTML = '💰 Preço';
+    document.getElementById('ti-prc-btn')?.classList.toggle('ativo', painelAberto);
   }
 
   function desenhar() {
-    if (!painelAberto) { painel?.remove(); painel = null; return; }
-    if (!painel) { painel = document.createElement('div'); painel.id = 'ti-prc'; document.body.appendChild(painel); }
+    if (!UI()) return;
+    document.getElementById('ti-prc-btn')?.classList.toggle('ativo', painelAberto);
+    if (!painelAberto) { UI().fecharPainel(PAINEL); return; }
+    const { esc } = UI();
+    const p = UI().painel(PAINEL, { icone: '💰', titulo: 'Calculadora de preço', sub: 'Quanto vale no RMT e em ouro' },
+      () => { painelAberto = false; desenhar(); });
     const lista = [...meus].sort((a, b) => (avaliar(b).valor ?? 0) - (avaliar(a).valor ?? 0)).slice(0, 30);
-    const iv = ([k, rot]) => `<label>${rot} <input data-iv="${k}" type="number" min="1" max="32" value="${manual.ivs[k] ?? 0}" style="width:38px"></label>`;
-    painel.innerHTML = `
-      <div class="t">Calculadora de preço</div>
-      <div class="muted">O valor junta <b>IVs</b> (os que a espécie usa: físico → Ataque, especial → Atq. Especial; Velocidade e HP contam para todos),
-        <b>Qualidade</b> e <b>Potência</b>, e compara com anúncios parecidos. São preços <b>pedidos</b>, não vendas fechadas.
-        RMT só a partir de nota ${dec(NOTA_MIN_RMT)}.</div>
+    const iv = ([k, rot]) => `<label class="ti-field">${rot}<input class="ti-in" data-iv="${k}" type="number" min="1" max="32" value="${manual.ivs[k] ?? 16}"></label>`;
+    p.body.innerHTML = `
+      <div class="ti-muted" style="margin-top:12px">O valor junta <b>IVs</b> (os que a espécie usa), <b>Qualidade</b> e <b>Potência</b>,
+        e o preço vem de anúncios parecidos. 💡 Também dá para calcular direto na ficha de qualquer Pokémon: botão <b>💰 Calcular preço</b>.</div>
 
-      <h4>Calcular um Pokémon</h4>
-      <div class="card" id="ti-prc-form">
-        <input id="ti-prc-nome" placeholder="espécie (ex.: Charizard)" value="${esc(manual.nome)}" style="width:130px">
-        <label><input type="checkbox" id="ti-prc-shiny" ${manual.shiny ? 'checked' : ''}> shiny</label>
-        P <input id="ti-prc-pot" type="number" min="1" max="5" value="${manual.pot}" style="width:34px">
-        Qualidade <input id="ti-prc-qual" type="number" min="0.8" max="1.8" step="0.001" value="${manual.qual}" style="width:56px" title="De 0,8 a 1,8, como na ficha">
-        nota <input id="ti-prc-nota" type="number" step="0.1" min="0" max="10" value="${manual.nota}" style="width:46px">
-        <div style="margin-top:4px">IVs (1–32): ${[['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'], ['spatk', 'SP.ATK'], ['spdef', 'SP.DEF'], ['spd', 'SPD']].map(iv).join(' ')}</div>
-        <button id="ti-prc-calc" style="margin-top:4px">Calcular</button>
-        <div style="margin-top:4px">${manual.nome ? cartao(manual, 'm') : ''}</div>
+      <div class="ti-sec"><span>Calcular um Pokémon</span></div>
+      <div class="ti-card" id="ti-prc-form">
+        <label class="ti-field">Espécie<input class="ti-in" id="ti-prc-nome" placeholder="Ex.: Mega Charizard Y" value="${esc(manual.nome)}"></label>
+        <div class="ti-grid">
+          <label class="ti-field">Potência<select class="ti-in" id="ti-prc-pot">${UI().opcoes(manual.pot, [[1, 'P1'], [2, 'P2'], [3, 'P3'], [4, 'P4'], [5, 'P5']])}</select></label>
+          <label class="ti-field">Qualidade (0,8–1,8)<input class="ti-in" id="ti-prc-qual" type="number" min="0.8" max="1.8" step="0.001" value="${manual.qual}"></label>
+          <label class="ti-field">Nota (0–10)<input class="ti-in" id="ti-prc-nota" type="number" min="0" max="10" step="0.001" value="${manual.nota}"></label>
+        </div>
+        <div class="ti-grid g6">${[['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'], ['spAtk', 'SP.ATK'], ['spDef', 'SP.DEF'], ['speed', 'SPD']].map(iv).join('')}</div>
+        <div class="ti-row" style="margin-top:10px">
+          <label class="ti-switch"><input type="checkbox" id="ti-prc-shiny" ${manual.shiny ? 'checked' : ''}>Shiny</label>
+          <span class="ti-grow"></span>
+          <button class="ti-btn primary" id="ti-prc-calc">Calcular</button>
+        </div>
       </div>
+      ${calculouManual && manual.nome ? cartaoResultado(manual, 'm') : ''}
 
-      <h4>Meus Pokémon (melhores primeiro)</h4>
-      ${lista.length ? lista.map(cartao).join('') : '<div class="muted">Ainda não recebi a lista dos seus Pokémon. Abra a tela de Pokémon/depósito no jogo.</div>'}
+      <div class="ti-sec"><span>Meus Pokémon</span><span>${lista.length ? 'melhores primeiro' : ''}</span></div>
+      ${lista.length ? lista.map((pk, i) => cartaoResultado(pk, `l${i}`)).join('')
+        : '<div class="ti-empty">Ainda não recebi a lista dos seus Pokémon.<br>Abra a tela de Pokémon / depósito no jogo.</div>'}
 
-      <div class="muted" style="margin-top:8px">Base: ${base.length} anúncio(s) vistos nos últimos 14 dias. Quanto mais você navega no mercado, melhor a estimativa.</div>`;
+      <div class="ti-muted" style="margin-top:12px">Base: ${base.length} anúncio(s) vistos nos últimos 14 dias. Quanto mais você navega no mercado, melhor a estimativa.</div>`;
 
-    painel.querySelector('#ti-prc-calc').onclick = () => {
-      const q = sel => painel.querySelector(sel);
+    const q = s => p.body.querySelector(s);
+    q('#ti-prc-calc').onclick = () => {
       const ivs = {};
-      painel.querySelectorAll('[data-iv]').forEach(inp => { ivs[inp.dataset.iv] = Math.min(IV_MAX, Math.max(1, num(inp.value))); });
+      p.body.querySelectorAll('[data-iv]').forEach(inp => { ivs[inp.dataset.iv] = Math.min(IV_MAX, Math.max(1, num(inp.value))); });
       manual = {
         nome: q('#ti-prc-nome').value.trim(), shiny: q('#ti-prc-shiny').checked,
         pot: Math.min(5, Math.max(1, num(q('#ti-prc-pot').value) || 1)),
         qual: Math.min(1.8, Math.max(0.8, num(String(q('#ti-prc-qual').value).replace(',', '.')))),
         nota: num(String(q('#ti-prc-nota').value).replace(',', '.')), ivs,
       };
+      calculouManual = true;
       desenhar();
     };
-    painel.querySelectorAll('[data-perfil]').forEach(s => s.onchange = () => {
-      const p = s.dataset.perfil === 'm' ? manual : lista[+s.dataset.perfil];
-      definirPerfil(p.nome, s.value);
-      desenhar();
-    });
-    painel.querySelectorAll('[data-busca]').forEach(b => b.onclick = () => {
-      const p = b.dataset.busca === 'm' ? manual : lista[+b.dataset.busca];
-      b.textContent = buscarNoMercado(p.nome) ? 'Buscando…' : 'Aguarde…';
-      setTimeout(() => painelAberto && desenhar(), 2500);
-    });
+    ligarCartoes(p.body);
+  }
+
+  // ------------------------------------------------------------------ dentro da ficha do Pokémon (jogo)
+
+  // A ficha do jogo (#ficha-corpo) mostra Potência, Qualidade, IV de cada stat e a nota. O botão
+  // "💰 Calcular preço" entra junto das ações dela (Calcular, Comparar…) e abre um cartão logo
+  // abaixo do topo da ficha, com o mesmo resultado do painel.
+  const IV_DA_FICHA = { HP: 'hp', ATK: 'atk', DEF: 'def', 'SP.ATK': 'spAtk', 'SP.DEF': 'spDef', SPD: 'speed' };
+  let fichaPk = null;
+
+  function lerFicha(corpo) {
+    const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
+    let nome = '';
+    for (const b of corpo.querySelectorAll('.fi-placa b')) {
+      const m = txt(b).match(/^#[\d.,]+\s+(.+)$/);
+      if (m) { nome = m[1]; break; }
+    }
+    if (!nome) nome = txt(corpo.querySelector('.fi-nome')).replace(/^[^\p{L}]+/u, '');
+    const pot = num((txt(corpo.querySelector('.pk-selo-pot b')).match(/P(\d)/) || [])[1]) || 1;
+    const qTxt = txt(corpo.querySelector('.pk-selo-q b')).replace(/\./g, '').replace(',', '.');
+    const qual = qTxt ? Number(qTxt) : null;
+    const notaEl = corpo.querySelector('.fi-nota-num[data-nota]');
+    const nota = notaEl ? Number(notaEl.dataset.nota) : null;
+    const ivs = {};
+    for (const linha of corpo.querySelectorAll('.fi-stat')) {
+      const em = linha.querySelector('.fi-iv');
+      const k = IV_DA_FICHA[txt(linha.querySelector('.fi-stat-nome')).toUpperCase()];
+      if (em && k) ivs[k] = num((txt(em).match(/(\d+)/) || [])[1]);
+    }
+    const shiny = !!corpo.querySelector('.hf-shiny');
+    if (!nome || (!Object.keys(ivs).length && qual == null)) return null;
+    return { nome, shiny, pot, qual: Number.isFinite(qual) ? qual : null, nota: Number.isFinite(nota) ? nota : null, ivs: Object.keys(ivs).length ? ivs : null };
+  }
+
+  function desenharNaFicha() {
+    const corpo = document.getElementById('ficha-corpo');
+    const card = document.getElementById('ti-fi-card');
+    if (!corpo || !card || !fichaPk || !UI()) return;
+    card.innerHTML = `<h3 class="fi-cartao-tit"><span>💰 Preço no mercado</span><em>ThoseIdles</em></h3>${cartaoResultado(fichaPk, 'f')}`;
+    ligarCartoes(card);
+  }
+
+  function abrirNaFicha() {
+    const corpo = document.getElementById('ficha-corpo');
+    if (!corpo) return;
+    const pk = lerFicha(corpo);
+    if (!pk) { UI()?.toast('Calcular preço', 'Esta ficha não mostra IVs nem Qualidade, então não dá para calcular.', 'erro'); return; }
+    fichaPk = pk;
+    let card = document.getElementById('ti-fi-card');
+    if (!card) {
+      card = document.createElement('section');
+      card.id = 'ti-fi-card';
+      card.className = 'fi-cartao ti-fi-card';
+      (corpo.querySelector('.fi-heroi') || corpo.firstElementChild)?.after(card);
+    }
+    desenharNaFicha();
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Você pediu: já busca os anúncios desta espécie e atualiza o cartão.
+    if (buscarNoMercado(pk.nome)) setTimeout(desenharNaFicha, 2500);
+  }
+
+  function prepararFicha() {
+    const acoes = document.querySelector('#ficha-corpo .fi-acoes');
+    if (!acoes || acoes.querySelector('#ti-fi-preco')) return;
+    UI()?.injetarCss();
+    fichaPk = null;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'ti-fi-preco';
+    b.className = 'fi-calc fi-acao';
+    b.title = 'ThoseIdles: quanto este Pokémon vale no RMT e em ouro';
+    b.innerHTML = '<span>💰 Calcular preço</span>';
+    b.onclick = abrirNaFicha;
+    acoes.prepend(b);
+  }
+
+  let fichaAgendada = false;
+  new MutationObserver(() => {
+    if (fichaAgendada) return;
+    fichaAgendada = true;
+    requestAnimationFrame(() => { fichaAgendada = false; prepararFicha(); });
+  // `document` e não `documentElement`: o script entra antes de a página ter o <html>.
+  }).observe(document, { childList: true, subtree: true });
+
+  /** Redesenha o que estiver aberto (painel e cartão da ficha). force = mesmo com foco num campo. */
+  function redesenharTudo(force) {
+    if (painelAberto && (force || !document.getElementById(PAINEL)?.contains(document.activeElement))) desenhar();
+    desenharNaFicha();
   }
 
   setInterval(montar, 5000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar); else montar();
 
   // Para o autoteste: avaliar sem abrir o painel.
-  window.__tiPreco = { avaliar, meus: () => meus.slice(), base: () => base.length, definirPerfil, buscar: buscarNoMercado };
+  window.__tiPreco = { avaliar, meus: () => meus.slice(), base: () => base.length, definirPerfil, buscar: buscarNoMercado, lerFicha };
 })();

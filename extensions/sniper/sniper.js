@@ -205,127 +205,131 @@
     // Deu certo: cancela as tentativas repetidas que ainda estavam agendadas para esse anúncio.
     if (u && st.agendados.has(u.id)) { st.agendados.get(u.id).forEach(clearTimeout); st.agendados.delete(u.id); }
     registrar('COMPRADA', descricao || u?.desc || 'compra confirmada');
-    toast(`🎯 Comprado: ${descricao || u?.desc || ''}`);
+    toast(descricao || u?.desc || '');
   }
 
   function registrar(status, desc) {
     st.log.unshift({ em: Date.now(), status, desc });
     st.log.length = Math.min(st.log.length, MAX_LOG);
-    if (painelAberto) desenhar();
+    // Não redesenha enquanto você digita numa regra (perderia o que está sendo digitado).
+    if (painelAberto && !document.getElementById('ti-snp')?.contains(document.activeElement)) desenhar();
+    else atualizarBotao();
   }
 
-  // ------------------------------------------------------------------ interface
+  // ------------------------------------------------------------------ interface (peças em ti-ui.js)
 
-  const css = `
-    #ti-snp-btn{background:#2a1a1add;color:#eee;border:1px solid #7a3f3f;
-      border-radius:14px;font:600 12px Segoe UI,sans-serif;padding:4px 10px;cursor:pointer;opacity:.8}
-    #ti-snp-btn:hover{opacity:1} #ti-snp-btn.on{background:#5a1d22;border-color:#e5484d;opacity:1}
-    #ti-snp{position:fixed;left:8px;bottom:40px;z-index:2147483000;width:380px;max-height:75vh;overflow:auto;background:#1b1517f5;
-      color:#ddd;border:1px solid #7a3f3f;border-radius:10px;font:12px Segoe UI,sans-serif;padding:10px 12px;box-shadow:0 6px 20px #0009}
-    #ti-snp h4{margin:10px 0 4px;font-size:12px;color:#ffaaa8}
-    #ti-snp button{background:#3a2326;color:#ddd;border:1px solid #7a3f3f;border-radius:5px;font:11px Segoe UI,sans-serif;padding:3px 8px;cursor:pointer}
-    #ti-snp input,#ti-snp select{background:#120e0f;color:#ddd;border:1px solid #7a3f3f;border-radius:4px;font:11px Segoe UI,sans-serif;padding:2px 4px}
-    #ti-snp .regra{display:flex;gap:5px;align-items:center;margin:4px 0;flex-wrap:wrap;background:#271c1e;border-radius:6px;padding:6px}
-    #ti-snp .muted{color:#a89194} #ti-snp .mestre{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
-    .ti-snp-toast{position:fixed;right:10px;z-index:2147483001;background:#5a1d22f2;color:#fff;border:1px solid #e5484d;border-radius:8px;
-      font:12px Segoe UI,sans-serif;padding:7px 11px;max-width:320px;box-shadow:0 4px 14px #0009}`;
-
+  const UI = () => window.__tiUI;
+  const PAINEL = 'ti-snp';
   let painelAberto = false;
-  let painel = null;
-
-  function dock() {
-    let d = document.getElementById('ti-dock');
-    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483000;display:flex;gap:6px'; document.body.appendChild(d); }
-    return d;
-  }
 
   function montar() {
-    if (document.getElementById('ti-snp-btn') || !document.body) return;
-    const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
-    const btn = document.createElement('button');
-    btn.id = 'ti-snp-btn';
-    btn.title = 'ThoseIdles: sniper do mercado (compra automática por regras)';
-    btn.onclick = () => { painelAberto = !painelAberto; desenhar(); };
-    dock().appendChild(btn);
+    if (!UI() || !document.body) return;
+    UI().pill('ti-snp-btn', 'Sniper do mercado: compra sozinho o que bater com as suas regras', () => {
+      painelAberto = !painelAberto;
+      desenhar();
+    });
     atualizarBotao();
   }
 
   function atualizarBotao() {
     const btn = document.getElementById('ti-snp-btn');
     if (!btn) return;
-    btn.textContent = ligado ? '🎯 Sniper: LIGADO' : '🎯 Sniper';
-    btn.classList.toggle('on', ligado);
+    btn.innerHTML = ligado ? '🎯 Sniper <span class="ti-badge">LIGADO</span>' : '🎯 Sniper';
+    btn.classList.toggle('alerta', ligado);
+    btn.classList.toggle('ativo', painelAberto && !ligado);
   }
 
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const sel = (v, opts) => opts.map(([val, txt]) => `<option value="${val}" ${v === val ? 'selected' : ''}>${txt}</option>`).join('');
+  const STATUS = {
+    COMPRADA: 'ok', ENVIADA: 'roxo', AGENDADA: 'warn', RECUSADA: 'no', 'SEM SALDO': 'no', LIGADO: 'no', DESLIGADO: '',
+  };
+
+  function cartaoRegra(r, i) {
+    const { esc, opcoes } = UI();
+    const item = r.tipo === 'item';
+    const feitas = `${num(r.compradas)}${num(r.maxCompras) > 0 ? ` / ${num(r.maxCompras)}` : ''} compra(s)`;
+    return `
+      <div class="ti-card regra ${r.ativa ? '' : 'off'}" data-i="${i}">
+        <div class="ti-row">
+          <label class="ti-switch" title="Regra ligada"><input type="checkbox" data-k="ativa" ${r.ativa ? 'checked' : ''}></label>
+          <select class="ti-in" data-k="tipo" style="width:110px">${opcoes(r.tipo, [['pokemon', 'Pokémon'], ['item', 'Item']])}</select>
+          <input class="ti-in ti-grow" data-k="texto" value="${esc(r.texto || '')}" placeholder="Nome contém… (vazio = qualquer)">
+          <button class="ti-btn danger sm" data-rm="${i}" title="Remover regra">✕</button>
+        </div>
+        <div class="ti-grid">
+          ${item
+            ? `<label class="ti-field">Qtd. por compra<input class="ti-in" data-k="qtdPorCompra" type="number" min="1" value="${r.qtdPorCompra || 1}"></label>`
+            : `<label class="ti-field">Potência mínima<select class="ti-in" data-k="potMin">${opcoes(r.potMin || 0, [[0, 'Qualquer'], [2, 'P2+'], [3, 'P3+'], [4, 'P4+'], [5, 'P5']])}</select></label>`}
+          <label class="ti-field">Pagar no máximo<input class="ti-in" data-k="precoMax" type="number" min="0" value="${r.precoMax || ''}" placeholder="obrigatório"></label>
+          <label class="ti-field">Moeda<select class="ti-in" data-k="moeda">${opcoes(r.moeda, [['gold', 'Ouro'], ['orb', 'Gemas']])}</select></label>
+        </div>
+        <div class="ti-row" style="margin-top:10px">
+          ${item ? '' : `<label class="ti-switch"><input type="checkbox" data-k="soShiny" ${r.soShiny ? 'checked' : ''}>Só shiny</label>`}
+          <span class="ti-grow"></span>
+          <label class="ti-field" style="flex-direction:row;align-items:center;gap:6px">Parar após
+            <input class="ti-in" data-k="maxCompras" type="number" min="0" value="${r.maxCompras || 0}" style="width:56px" title="0 = sem limite"></label>
+          <span class="ti-chip ${num(r.maxCompras) > 0 && num(r.compradas) >= num(r.maxCompras) ? 'ok' : ''}">${feitas}</span>
+          <button class="ti-btn ghost sm" data-zera="${i}" title="Zerar o contador">↺</button>
+        </div>
+        ${num(r.precoMax) > 0 ? '' : '<div class="ti-muted" style="margin-top:8px">⚠ Sem "pagar no máximo" esta regra não compra nada.</div>'}
+      </div>`;
+  }
 
   function desenhar() {
     atualizarBotao();
-    if (!painelAberto) { painel?.remove(); painel = null; return; }
-    if (!painel) { painel = document.createElement('div'); painel.id = 'ti-snp'; document.body.appendChild(painel); }
-    const saldo = `${st.ouro >= 0 ? st.ouro.toLocaleString('pt-BR') : '?'} ouro · ${st.gemas >= 0 ? st.gemas.toLocaleString('pt-BR') : '?'} Gemas`;
-    painel.innerHTML = `
-      <label class="mestre"><input type="checkbox" id="ti-snp-on" ${ligado ? 'checked' : ''}> Sniper ligado</label>
-      <div class="muted">Quando ligado, consulta o mercado a cada
-        <input id="ti-snp-int" type="number" min="${MIN_INTERVALO}" value="${cfg.intervalo}" style="width:40px"> s
-        e <b>compra sozinho</b> o que bater com uma regra. Desliga ao recarregar a página. Saldo: ${saldo}.</div>
-      <h4>Regras</h4>
-      ${cfg.regras.length ? '' : '<div class="muted">Nenhuma regra ainda.</div>'}
-      ${cfg.regras.map((r, i) => `
-        <div class="regra" data-i="${i}">
-          <input type="checkbox" data-k="ativa" ${r.ativa ? 'checked' : ''} title="Regra ativa">
-          <select data-k="tipo">${sel(r.tipo, [['pokemon', 'Pokémon'], ['item', 'Item']])}</select>
-          <input data-k="texto" value="${esc(r.texto || '')}" placeholder="nome contém" style="width:110px">
-          ${r.tipo === 'item'
-            ? `<label>qtd/compra <input data-k="qtdPorCompra" type="number" min="1" value="${r.qtdPorCompra || 1}" style="width:40px"></label>`
-            : `<label><input type="checkbox" data-k="soShiny" ${r.soShiny ? 'checked' : ''}> shiny</label>
-               <label>P≥ <input data-k="potMin" type="number" min="0" max="5" value="${r.potMin || 0}" style="width:34px"></label>`}
-          <label>até <input data-k="precoMax" type="number" min="0" value="${r.precoMax || 0}" style="width:70px"></label>
-          <select data-k="moeda">${sel(r.moeda, [['gold', 'ouro'], ['orb', 'Gemas']])}</select>
-          <label>máx. <input data-k="maxCompras" type="number" min="0" value="${r.maxCompras || 0}" style="width:40px" title="Para de comprar depois de N compras (0 = sem limite)"> compras</label>
-          <span class="muted">(${num(r.compradas)} feitas)</span>
-          <button data-zera="${i}" title="Zerar contador">↺</button>
-          <button data-rm="${i}" title="Remover regra">Remover</button>
-        </div>`).join('')}
-      <button id="ti-snp-add">+ Nova regra</button>
-      <div class="muted" style="margin-top:4px">Regra sem preço máximo não compra nada.</div>
-      <h4>Registro</h4>
-      ${st.log.length ? st.log.map(l => `<div>${new Date(l.em).toLocaleTimeString('pt-BR')} <b>${l.status}</b> — ${esc(l.desc)}</div>`).join('') : '<div class="muted">Nada ainda.</div>'}`;
+    if (!UI()) return;
+    if (!painelAberto) { UI().fecharPainel(PAINEL); return; }
+    const { esc, opcoes, hora } = UI();
+    const p = UI().painel(PAINEL, { icone: '🎯', titulo: 'Sniper do mercado', sub: 'Compra sozinho o que bater com as suas regras' },
+      () => { painelAberto = false; desenhar(); });
+    const saldo = v => (v >= 0 ? v.toLocaleString('pt-BR') : '?');
+    p.body.innerHTML = `
+      <div class="ti-hero ${ligado ? 'on' : ''}">
+        <label class="ti-switch red"><input type="checkbox" id="ti-snp-on" ${ligado ? 'checked' : ''}></label>
+        <div class="ti-grow">
+          <b>${ligado ? 'Sniper LIGADO — comprando sozinho' : 'Sniper desligado'}</b>
+          <div class="ti-muted">Desliga sozinho quando a página recarrega.</div>
+        </div>
+        <label class="ti-field">Consultar a cada
+          <select class="ti-in" id="ti-snp-int" style="width:90px">${opcoes(cfg.intervalo, [[3, '3 s'], [5, '5 s'], [10, '10 s'], [15, '15 s'], [30, '30 s']])}</select></label>
+      </div>
+      <div class="ti-row" style="margin-top:8px">
+        <span class="ti-chip warn">${saldo(st.ouro)} ouro</span>
+        <span class="ti-chip roxo">💎 ${saldo(st.gemas)} Gemas</span>
+      </div>
 
-    painel.querySelector('#ti-snp-on').onchange = e => {
+      <div class="ti-sec"><span>Regras</span><button class="ti-btn primary sm" id="ti-snp-add">+ Nova regra</button></div>
+      ${cfg.regras.length ? cfg.regras.map(cartaoRegra).join('') : '<div class="ti-empty">Nenhuma regra. Clique em <b>+ Nova regra</b> para dizer o que comprar.</div>'}
+
+      <div class="ti-sec"><span>Registro</span></div>
+      ${st.log.length
+        ? st.log.map(l => `<div class="ti-log"><time>${hora(l.em)}</time><span class="ti-chip ${STATUS[l.status] ?? ''}">${esc(l.status)}</span><span>${esc(l.desc)}</span></div>`).join('')
+        : '<div class="ti-muted">Nada ainda.</div>'}`;
+
+    p.body.querySelector('#ti-snp-on').onchange = e => {
       ligado = e.target.checked;
       if (!ligado) { for (const ts of st.agendados.values()) ts.forEach(clearTimeout); st.agendados.clear(); }
       registrar(ligado ? 'LIGADO' : 'DESLIGADO', ligado ? 'sniper ligado' : 'sniper desligado');
       desenhar();
       if (ligado) varrer();
     };
-    painel.querySelector('#ti-snp-int').onchange = e => { cfg.intervalo = Math.max(MIN_INTERVALO, num(e.target.value)); save(); reagendar(); desenhar(); };
-    painel.querySelector('#ti-snp-add').onclick = () => {
+    p.body.querySelector('#ti-snp-int').onchange = e => { cfg.intervalo = Math.max(MIN_INTERVALO, num(e.target.value)); save(); reagendar(); };
+    p.body.querySelector('#ti-snp-add').onclick = () => {
       cfg.regras.push({ ativa: true, tipo: 'pokemon', texto: '', soShiny: true, potMin: 0, precoMax: 0, moeda: 'gold', maxCompras: 1, compradas: 0 });
       save(); desenhar();
     };
-    painel.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { cfg.regras.splice(+b.dataset.rm, 1); save(); desenhar(); });
-    painel.querySelectorAll('[data-zera]').forEach(b => b.onclick = () => { cfg.regras[+b.dataset.zera].compradas = 0; save(); desenhar(); });
-    painel.querySelectorAll('.regra [data-k]').forEach(inp => inp.onchange = () => {
+    p.body.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { cfg.regras.splice(+b.dataset.rm, 1); save(); desenhar(); });
+    p.body.querySelectorAll('[data-zera]').forEach(b => b.onclick = () => { cfg.regras[+b.dataset.zera].compradas = 0; save(); desenhar(); });
+    p.body.querySelectorAll('.regra [data-k]').forEach(inp => inp.onchange = () => {
       const r = cfg.regras[+inp.closest('.regra').dataset.i];
       const k = inp.dataset.k;
-      r[k] = inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? num(inp.value) : inp.value.trim();
+      r[k] = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' || k === 'potMin') ? num(inp.value) : inp.value.trim();
       save();
-      if (k === 'tipo') desenhar();
+      if (k === 'tipo' || k === 'ativa' || k === 'precoMax' || k === 'maxCompras') desenhar();
     });
   }
 
-  let toasts = 0;
   function toast(texto) {
-    try {
-      const t = document.createElement('div');
-      t.className = 'ti-snp-toast';
-      t.style.top = `${10 + (toasts++ % 4) * 46}px`;
-      t.textContent = texto;
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 12000);
-    } catch { }
+    UI()?.toast('Sniper: compra feita', texto, 'ok');
   }
 
   reagendar();
