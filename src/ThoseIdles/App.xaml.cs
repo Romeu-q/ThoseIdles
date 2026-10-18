@@ -115,6 +115,7 @@ public partial class App : Application
             BrowserSession.LiveUrlForChannel = c => server.LiveUrl(c);
             BrowserSession.LiveQualityHosts = new[] { "twitch.tv", "127.0.0.1" };
             EconomyClient.PingEvery = TimeSpan.FromSeconds(2); // o oficial usa 25 s; o teste encurta
+            BrowserSession.ExportFolder = Path.Combine(AppPaths.Root, "exportados"); // não toca na sua pasta Downloads
             settings.StartAllOnLaunch = false;
             settings.MonitorGameConnection = true;
             settings.FocusMode = false;

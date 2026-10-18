@@ -436,6 +436,7 @@ public sealed class SelfTestRunner
         _vm.SaveSettings();
         await RunLiveTestsAsync();
         await RunExtensionTestsAsync();
+        await RunShinyExportTestsAsync();
         await RunEconomyTestsAsync();
 
         await Test("memória: renderers atribuídos por conta", async () =>
@@ -841,6 +842,74 @@ public sealed class SelfTestRunner
     }
 
     // ------------------------------------------------------------------ fase 2
+
+    // ------------------------------------------------------------------ exportar shinies
+
+    private async Task RunShinyExportTestsAsync()
+    {
+        var server = SelfTestServer.Current!;
+        var folder = BrowserSession.ExportFolder;
+
+        await Test("exportar shinies: todas as páginas num .txt, com os filtros da tela", async () =>
+        {
+            var s1 = _manager[1];
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            var hasButton = await s1.Core!.ExecuteScriptAsync("!!document.getElementById('ti-shl-exportar')") == "true";
+            // A "página" do jogo pede a lista com um filtro (o script guarda esses filtros).
+            await s1.Core.ExecuteScriptAsync("window.__ws.send(JSON.stringify({ t: 'shiny.listar', busca: '', tipo: 'fogo', soAVenda: false, ordem: 'recentes', pagina: 1 }))");
+            await Task.Delay(500);
+            var before = server.ShinyRequests.Count;
+            await s1.Core.ExecuteScriptAsync("document.getElementById('ti-shl-exportar').click()");
+            string? file = null;
+            await WaitUntil(() => (file = Directory.Exists(folder) ? Directory.GetFiles(folder, "shinies-pokeidle-*.txt").FirstOrDefault() : null) is not null, TimeSpan.FromSeconds(20));
+            if (file is null) return Fail($"nenhum arquivo salvo (botão presente={hasButton})");
+            await Task.Delay(300);
+            var lines = (await File.ReadAllLinesAsync(file)).Select(l => l.TrimStart('﻿')).ToList();
+            var rows = lines.Where(l => !l.StartsWith('#') && l.Length > 0).ToList();
+            var requests = server.ShinyRequests.Skip(before).ToList();
+            var pages = requests.Select(r => JsonDocument.Parse(r).RootElement.GetProperty("pagina").GetInt32()).ToList();
+            var allFogo = requests.All(r => r.Contains("\"tipo\":\"fogo\""));
+            var expected = new[]
+            {
+                "ESPECIE, POTENCIA, QUALIDADE, IVS, VALOR NO RMT",
+                "Charizard, P3, 87, 61 (hp 20 / atk 31 / def 10), 1500 Gemas",
+                "Gengar, P1, -, 42, - (à venda por 90000 ouro, não é RMT)",
+                "Pikachu  o raro, P5, 100, 186, -",
+                "Eevee, P2, -, -, -",
+                "Mewtwo, P4, 55, 62 (hp 31 / atk 31), 250.5 Gemas",
+            };
+            var missing = expected.Where(e => !rows.Contains(e)).ToList();
+            var ok = hasButton && missing.Count == 0 && rows.Count == 6
+                     && pages.SequenceEqual(new[] { 0, 1, 2, 1 }) && allFogo
+                     && lines.Any(l => l.StartsWith("# Filtros: tipo fogo"));
+            return ok
+                ? Pass($"{Path.GetFileName(file)}: 5 shinies de 3 páginas (pedidos 0, 1, 2 e a volta para a página 1), filtro \"fogo\" mantido, colunas e RMT corretos")
+                : Fail($"botão={hasButton}; páginas pedidas={string.Join(",", pages)}; filtro mantido={allFogo}; faltando: {string.Join(" | ", missing)}; linhas: {string.Join(" | ", rows)}");
+        });
+
+        await Test("exportar shinies: qualquer outro download continua bloqueado", async () =>
+        {
+            var s1 = _manager[1];
+            var countBefore = Directory.Exists(folder) ? Directory.GetFiles(folder).Length : 0;
+            await s1.Core!.ExecuteScriptAsync("""
+                (() => {
+                  for (const nome of ['malicioso.exe', 'shinies-pokeidle-x.txt.exe', 'outra-coisa.txt']) {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(new Blob(['x']));
+                    a.download = nome;
+                    document.body.appendChild(a); a.click(); a.remove();
+                  }
+                })();
+                """);
+            await Task.Delay(2500);
+            var countAfter = Directory.Exists(folder) ? Directory.GetFiles(folder).Length : 0;
+            var downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            var leaked = Directory.Exists(downloads) && Directory.GetFiles(downloads, "malicioso*").Any(f => File.GetCreationTimeUtc(f) > DateTime.UtcNow.AddMinutes(-1));
+            return countAfter == countBefore && !leaked
+                ? Pass("3 downloads com outros nomes (incluindo .exe disfarçado) foram bloqueados; nada foi salvo")
+                : Fail($"arquivos antes={countBefore}, depois={countAfter}, vazou para Downloads={leaked}");
+        });
+    }
 
     // ------------------------------------------------------------------ modo econômico
 

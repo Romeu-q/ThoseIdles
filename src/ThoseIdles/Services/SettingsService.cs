@@ -147,6 +147,9 @@ public sealed class AppSettings
     /// </summary>
     public int LiveReloadMinutes { get; set; } = 60;
 
+    /// <summary>Botão "Exportar TXT" na página Shinies do jogo (espécie, potência, qualidade, IVs, valor no RMT).</summary>
+    public bool EnableShinyExport { get; set; } = true;
+
     /// <summary>Grava amostras de memória em CSV na pasta benchmark.</summary>
     public bool RecordBenchmarkCsv { get; set; }
 

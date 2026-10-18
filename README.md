@@ -394,6 +394,26 @@ por live, mas **não está verificado**: o player incorporado não chegou a deco
 eu não consegui confirmar se o chat incorporado reconhece o seu login. Sem login reconhecido, o jogo
 não detecta você. Se for testar, confira no chat se aparece o seu nome.
 
+### Exportar shinies para TXT
+
+Na página **Shinies** do jogo aparece o botão **Exportar TXT**, ao lado do contador. Ele percorre
+todas as páginas da lista, uma por vez, respeitando os filtros que estão na tela, e salva
+`shinies-pokeidle-AAAAMMDD-HHmm.txt` na pasta **Downloads** no formato:
+
+```
+ESPECIE, POTENCIA, QUALIDADE, IVS, VALOR NO RMT
+Charizard, P3, 87, 61 (hp 20 / atk 31 / def 10), 1500 Gemas
+Gengar, P1, -, 42, - (à venda por 90000 ouro, não é RMT)
+```
+
+"Valor no RMT" é o preço do anúncio em **Gemas**; anúncios em ouro são indicados mas não contam
+como RMT. O app só deixa a página baixar esse arquivo: qualquer outro download continua bloqueado.
+Pode ser desligado em Configurações.
+
+**Sem o app (Chrome/Edge):** o mesmo script existe como extensão em `extensions/shiny-export`.
+Abra `chrome://extensions`, ative o **Modo do desenvolvedor**, clique em **Carregar sem compactação**
+e escolha essa pasta.
+
 ## 9. Testes
 
 ### Autoteste automático (WebView2 real, sem tocar nas suas contas)

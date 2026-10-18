@@ -17,6 +17,7 @@ public sealed class SelfTestServer : IDisposable
         <body style="background:#1b1b22;color:#ccc;font:13px Segoe UI,sans-serif;margin:8px">
         <b>ThoseIdles — página de autoteste</b>
         <a id="twlink" href="https://www.twitch.tv/canalteste" target="_blank" rel="noopener">canal da Twitch</a>
+        <div><span id="shl-conta">5 shinies</span></div>
         <div id="t"></div>
         <script>
           window.bootId = Math.random().toString(36).slice(2);
@@ -28,6 +29,7 @@ public sealed class SelfTestServer : IDisposable
           window.wsMsgs = 0;
           function connect() {
             const ws = new WebSocket('ws://' + location.host + '/ws');
+            window.__ws = ws;
             ws.onopen = () => { window.wsOpen = true; };
             ws.onmessage = () => { window.wsMsgs++; };
             ws.onclose = () => { window.wsOpen = false; setTimeout(connect, 1000); };
@@ -104,6 +106,9 @@ public sealed class SelfTestServer : IDisposable
     /// <summary>"hello" recebidos (JSON bruto), na ordem — o autoteste confere o que o cliente leve mandou.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> Hellos { get; } = new();
 
+    /// <summary>Pedidos "shiny.listar" recebidos (JSON bruto), na ordem.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<string> ShinyRequests { get; } = new();
+
     private int _pings;
     public int Pings => _pings;
 
@@ -125,6 +130,26 @@ public sealed class SelfTestServer : IDisposable
 
         async Task Send(string json) => await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, _cts.Token);
 
+        if (type == "shiny.listar")
+        {
+            ShinyRequests.Enqueue(text);
+            int pagina = 0;
+            try
+            {
+                using var d = System.Text.Json.JsonDocument.Parse(text);
+                pagina = d.RootElement.TryGetProperty("pagina", out var p) ? p.GetInt32() : 0;
+            }
+            catch { }
+            var linhas = pagina switch
+            {
+                0 => """[{"nome":"Charizard","potencia":3,"quality":87,"ivs":{"hp":20,"atk":31,"def":10},"anuncio":{"preco":1500,"moeda":"orb"}},{"nome":"Gengar","potencia":1,"iv":42,"anuncio":{"preco":90000,"moeda":"gold"}}]""",
+                1 => """[{"nome":"Pikachu, o raro","potencia":5,"qualidade":100,"ivTotal":186},{"nome":"Eevee","potencia":2}]""",
+                2 => """[{"nome":"Mewtwo","potencia":4,"quality":55,"ivs":{"hp":31,"atk":31},"anuncio":{"preco":250.5,"moeda":"orb"}}]""",
+                _ => "[]",
+            };
+            await Send($"{{\"t\":\"shiny.lista\",\"pagina\":{pagina},\"total\":5,\"linhas\":{linhas}}}");
+            return false;
+        }
         if (type == "ping")
         {
             Interlocked.Increment(ref _pings);

@@ -446,7 +446,29 @@ public sealed partial class BrowserSession : ObservableObject
 
         if (_settings.MonitorGameConnection)
             await EnableConnectionMonitorAsync(core);
+
+        // Botão "Exportar TXT" na página Shinies (o mesmo script da extensão do Chrome).
+        if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
     }
+
+    private static readonly Lazy<string> ShinyExportScript = new(() =>
+    {
+        using var s = typeof(BrowserSession).Assembly.GetManifestResourceStream("ShinyExport.js");
+        if (s is null) return "";
+        using var r = new StreamReader(s);
+        return r.ReadToEnd();
+    });
+
+    /// <summary>Pasta onde o .txt exportado é salvo (Downloads do usuário; o autoteste troca).</summary>
+    public static string ExportFolder { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+
+    /// <summary>Um arquivo exportado pela página foi salvo (caminho completo).</summary>
+    public event EventHandler<string>? FileExported;
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^shinies-pokeidle-\d{8}-\d{4}\.txt$")]
+    private static partial System.Text.RegularExpressions.Regex ShinyExportName();
 
     /// <summary>
     /// Observa (somente leitura) a abertura/fechamento do WebSocket do jogo pelo DevTools Protocol.
@@ -634,9 +656,33 @@ public sealed partial class BrowserSession : ObservableObject
 
     private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e)
     {
+        e.Handled = true; // nunca mostra a barra de downloads do navegador
+
+        // Única exceção: o .txt do "Exportar shinies", gerado pela própria página do jogo (blob da
+        // origem do jogo) e com o nome que o script usa. Vai para a pasta Downloads.
+        var uri = e.DownloadOperation.Uri ?? "";
+        var name = Path.GetFileName(e.ResultFilePath ?? "");
+        var gameOrigin = new Uri(_settings.StartUrl).GetLeftPart(UriPartial.Authority);
+        if (_settings.EnableShinyExport && uri.StartsWith("blob:" + gameOrigin + "/", StringComparison.OrdinalIgnoreCase)
+            && ShinyExportName().IsMatch(name))
+        {
+            Directory.CreateDirectory(ExportFolder);
+            var target = Path.Combine(ExportFolder, name);
+            e.ResultFilePath = target;
+            var op = e.DownloadOperation;
+            op.StateChanged += (_, _) =>
+            {
+                if (op.State == CoreWebView2DownloadState.Completed)
+                {
+                    LoggingService.Log.Info($"[conta{Slot}] Shinies exportados para {target}.");
+                    FileExported?.Invoke(this, op.ResultFilePath);
+                }
+            };
+            return;
+        }
+
         e.Cancel = true;
-        e.Handled = true;
-        LoggingService.Log.Info($"[conta{Slot}] Download bloqueado: {LoggingService.SafeUrl(e.DownloadOperation.Uri)}");
+        LoggingService.Log.Info($"[conta{Slot}] Download bloqueado: {LoggingService.SafeUrl(uri)}");
     }
 
     private void OnLaunchingExternalUriScheme(object? sender, CoreWebView2LaunchingExternalUriSchemeEventArgs e)

@@ -65,6 +65,9 @@ public sealed class AccountViewModel : ObservableObject
             var problem = await Session.EnterEconomyAsync();
             if (problem is not null) _main.Notice = $"{DisplayName}: {problem}";
         }, () => Session.IsRunning);
+        session.FileExported += (_, path) =>
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                _main.Notice = $"{DisplayName}: shinies exportados para {path}");
         session.LiveLimitReached += (_, ch) =>
             _main.Notice = $"{DisplayName}: limite de {BrowserSession.MaxLivesPerAccount} lives por conta — {ch} não foi aberta.";
         ZoomInCommand = new RelayCommand(() => SetZoom(Math.Round((Session.Account.Zoom + 0.1) * 10) / 10));

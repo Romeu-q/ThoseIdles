@@ -52,6 +52,8 @@
                     <CheckBox Content="Interface por software" IsChecked="{Binding SoftwareRenderingForUi}"
                               ToolTip="A interface WPF não carrega Direct3D (economiza memória do processo do app). Os jogos continuam com GPU. Vale na próxima abertura." />
                     <CheckBox Content="Gravar CSV de memória" IsChecked="{Binding RecordBenchmarkCsv}" />
+                    <CheckBox Content="Botão &quot;Exportar TXT&quot; na página Shinies" IsChecked="{Binding EnableShinyExport}"
+                              ToolTip="Na página Shinies do jogo, baixa todos os shinies da lista (com os filtros da tela) num .txt: espécie, potência, qualidade, IVs e valor no RMT. Só lê; vai para a pasta Downloads." />
                     <CheckBox Content="Modo desenvolvedor (DevTools)" IsChecked="{Binding DeveloperMode}" />
                 </WrapPanel>
                 <WrapPanel Margin="0,6,0,0" VerticalAlignment="Center">

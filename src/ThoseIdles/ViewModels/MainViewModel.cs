@@ -307,6 +307,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool EnableShinyExport
+    {
+        get => _settings.EnableShinyExport;
+        set
+        {
+            _settings.EnableShinyExport = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = "O botão \"Exportar TXT\" da página Shinies muda nas contas abertas a partir de agora (reinicie a conta ↻ para aplicar já).";
+        }
+    }
+
     public bool RecordBenchmarkCsv
     {
         get => _settings.RecordBenchmarkCsv;

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "ThoseIdles — Exportar shinies (PokeIdle)",
+  "version": "1.0.0",
+  "description": "Botão \"Exportar TXT\" na página Shinies do pokeidle.io: espécie, potência, qualidade, IVs e valor no RMT de todos os shinies da lista.",
+  "content_scripts": [
+    {
+      "matches": ["https://pokeidle.io/*"],
+      "js": ["shiny-export.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

@@ -37,6 +37,8 @@
   <ItemGroup>
     <!-- Ícone também como recurso WPF (janela e barra superior). -->
     <Resource Include="Assets\pokeball.ico" />
+    <!-- Exportar shinies: o MESMO script da extensão do Chrome (extensions/shiny-export). -->
+    <EmbeddedResource Include="..\..\extensions\shiny-export\shiny-export.js" LogicalName="ShinyExport.js" />
     <None Remove="Assets\pokeball.preview.png" />
   </ItemGroup>
 
