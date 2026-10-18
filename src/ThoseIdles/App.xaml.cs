@@ -31,6 +31,23 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        try
+        {
+            StartApp(e);
+        }
+        catch (Exception ex)
+        {
+            // Falha antes da janela existir: sem isto o processo ficaria aberto e invisível.
+            try { LoggingService.Log.Error("Falha ao iniciar", ex); } catch { }
+            MessageBox.Show($"O ThoseIdles não conseguiu abrir:\n\n{ex.Message}\n\nDetalhes no log: {AppPaths.LogsFolder}",
+                "ThoseIdles", MessageBoxButton.OK, MessageBoxImage.Error);
+            _exitCode = 4;
+            Shutdown(4);
+        }
+    }
+
+    private void StartApp(StartupEventArgs e)
+    {
         var args = ParseArgs(e.Args);
         var selfTestFile = args.GetValueOrDefault("selftest") ?? args.GetValueOrDefault("selftest-verify")
                            ?? args.GetValueOrDefault("selftest-hunt") ?? args.GetValueOrDefault("selftest-twitch");

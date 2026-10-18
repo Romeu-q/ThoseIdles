@@ -23,6 +23,8 @@
     <!-- Single-file SEM compressão: comprimido, o .NET descompacta os assemblies em memória privada
          (medido: ~98 MB no processo do app contra ~35 MB). Sem compressão eles são mapeados do disco. -->
     <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <!-- WebView2Loader.dll vai DENTRO do exe: quem baixa só o .exe da Release consegue abrir. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
