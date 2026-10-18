@@ -50,6 +50,17 @@ public sealed class SessionLayoutPanel : Panel
         nameof(FocusedIndex), typeof(int), typeof(SessionLayoutPanel),
         new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
+    /// <summary>Quantas contas aparecem (as primeiras N); as demais ficam com tamanho zero.</summary>
+    public static readonly DependencyProperty VisibleCountProperty = DependencyProperty.Register(
+        nameof(VisibleCount), typeof(int), typeof(SessionLayoutPanel),
+        new FrameworkPropertyMetadata(4, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public int VisibleCount
+    {
+        get => (int)GetValue(VisibleCountProperty);
+        set => SetValue(VisibleCountProperty, value);
+    }
+
     public static readonly DependencyProperty RowSplitProperty = SplitProperty(nameof(RowSplit), 0.5);
     public static readonly DependencyProperty TopSplitProperty = SplitProperty(nameof(TopSplit), 0.5);
     public static readonly DependencyProperty BottomSplitProperty = SplitProperty(nameof(BottomSplit), 0.5);
@@ -115,12 +126,29 @@ public sealed class SessionLayoutPanel : Panel
 
     private (Rect[] Panels, Dictionary<SplitKind, Rect> Splitters) Compute(Size s)
     {
-        var n = Accounts.Count();
-        var panels = new Rect[n];
+        // Painéis além de VisibleCount ficam com retângulo vazio (a conta deles está fechada).
+        var panels = new Rect[Accounts.Count()];
+        var n = Math.Clamp(VisibleCount, 0, panels.Length);
         var splitters = new Dictionary<SplitKind, Rect>();
         if (n == 0) return (panels, splitters);
         var w = Math.Max(0, s.Width);
         var h = Math.Max(0, s.Height);
+
+        if (n == 1)
+        {
+            panels[0] = new Rect(0, 0, w, h);
+            return (panels, splitters);
+        }
+
+        if (!IsFocusMode && n == 2)
+        {
+            // Lado a lado, com a divisória da linha de cima.
+            var leftW = Fraction(TopSplit, w - Gap);
+            panels[0] = new Rect(0, 0, leftW, h);
+            panels[1] = new Rect(leftW + Gap, 0, Math.Max(0, w - leftW - Gap), h);
+            splitters[SplitKind.Top] = new Rect(leftW, 0, Gap, h);
+            return (panels, splitters);
+        }
 
         if (!IsFocusMode)
         {
@@ -135,9 +163,15 @@ public sealed class SessionLayoutPanel : Panel
             var botW = Fraction(BottomSplit, w - Gap);
             Place(0, new Rect(0, 0, topW, topH));
             Place(1, new Rect(topW + Gap, 0, Math.Max(0, w - topW - Gap), topH));
+            splitters[SplitKind.Top] = new Rect(topW, 0, Gap, topH);
+            if (n == 3)
+            {
+                // Terceira conta ocupa a linha de baixo inteira.
+                Place(2, new Rect(0, bottomY, w, bottomH));
+                return (panels, splitters);
+            }
             Place(2, new Rect(0, bottomY, botW, bottomH));
             Place(3, new Rect(botW + Gap, bottomY, Math.Max(0, w - botW - Gap), bottomH));
-            splitters[SplitKind.Top] = new Rect(topW, 0, Gap, topH);
             splitters[SplitKind.Bottom] = new Rect(botW, bottomY, Gap, bottomH);
             return (panels, splitters);
         }
@@ -164,6 +198,9 @@ public sealed class SessionLayoutPanel : Panel
             if (index < panels.Length) panels[index] = r;
         }
     }
+
+    /// <summary>Retângulos calculados para um tamanho (o autoteste confere a disposição).</summary>
+    public Rect[] PanelRects(Size s) => Compute(s).Panels;
 
     /// <summary>Fração do espaço útil, respeitando o tamanho mínimo dos dois lados.</summary>
     private static double Fraction(double f, double total)

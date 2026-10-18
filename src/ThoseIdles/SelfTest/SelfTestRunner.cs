@@ -915,8 +915,39 @@ public sealed class SelfTestRunner
 
     // ------------------------------------------------------------------ painel de farm + alerta de mercado
 
+    private async Task RunAccountCountLayoutTestAsync()
+    {
+        await Test("quantidade de contas: grade para 1, 2, 3 e 4 contas", () =>
+        {
+            var panel = new Views.SessionLayoutPanel();
+            for (var i = 0; i < 4; i++) panel.Children.Add(new System.Windows.Controls.Border());
+            var size = new Size(1000, 600);
+            string Show(int n, bool focus)
+            {
+                panel.VisibleCount = n;
+                panel.IsFocusMode = focus;
+                return string.Join(" ", panel.PanelRects(size).Select(r => r.Width * r.Height > 0 ? $"{r.X:0},{r.Y:0},{r.Width:0}x{r.Height:0}" : "-"));
+            }
+            var got = new[] { Show(1, false), Show(2, false), Show(3, false), Show(4, false), Show(2, true), Show(1, true) };
+            var expected = new[]
+            {
+                "0,0,1000x600 - - -",
+                "0,0,497x600 503,0,497x600 - -",
+                "0,0,497x297 503,0,497x297 0,303,1000x297 -",
+                "0,0,497x297 503,0,497x297 0,303,497x297 503,303,497x297",
+                "0,0,775x600 781,0,219x600 - -",
+                "0,0,1000x600 - - -",
+            };
+            var ok = got.SequenceEqual(expected);
+            return Task.FromResult(ok
+                ? Pass("1: tela cheia · 2: lado a lado · 3: duas em cima e uma larga embaixo · 4: 2x2 · destaque com 2: grande + 1 miniatura; contas a mais ficam sem espaço")
+                : Fail(string.Join(" || ", got)));
+        });
+    }
+
     private async Task RunFarmAssistTestsAsync()
     {
+        await RunAccountCountLayoutTestAsync();
         await Test("painel de farm: conta abates, XP, ouro e drops; alerta só o anúncio que bate; não envia nada", async () =>
         {
             var core = _manager[1].Core!;

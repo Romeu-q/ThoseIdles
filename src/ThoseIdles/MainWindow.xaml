@@ -26,8 +26,13 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Contas:" Foreground="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox ItemsSource="{Binding AccountCountOptions}" SelectedItem="{Binding VisibleAccounts}" Width="48" FontSize="12.5"
+                              VerticalAlignment="Center" Margin="0,0,10,0"
+                              ToolTip="Quantas contas usar. As que saem são fechadas, mas o login fica salvo: ao voltar, a conta abre logada." />
                     <Button Style="{StaticResource BarButton}" Content="{Binding LayoutButtonText}" Command="{Binding ToggleLayoutCommand}"
-                            ToolTip="Alterna entre a grade 2x2 e uma conta em destaque. As outras continuam rodando como miniaturas." />
+                            IsEnabled="{Binding CanToggleLayout}"
+                            ToolTip="Alterna entre a grade e uma conta em destaque. As outras continuam rodando como miniaturas." />
                     <Button Style="{StaticResource BarButton}" Content="Abrir todas" Command="{Binding StartAllCommand}" />
                     <Button Style="{StaticResource BarButton}" Content="Fechar todas" Command="{Binding CloseAllCommand}" />
                     <Button Style="{StaticResource BarButton}" Content="Reiniciar todas" Command="{Binding RestartAllCommand}" />
@@ -43,7 +48,7 @@
                 Padding="14,8" Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}">
             <StackPanel>
                 <WrapPanel>
-                    <CheckBox Content="Abrir as 4 contas ao iniciar" IsChecked="{Binding StartAllOnLaunch}" />
+                    <CheckBox Content="Abrir as contas ao iniciar" IsChecked="{Binding StartAllOnLaunch}" />
                     <CheckBox Content="Monitorar conexão do jogo (WebSocket)" IsChecked="{Binding MonitorGameConnection}"
                               ToolTip="Só observa abertura/fechamento do WebSocket do jogo via DevTools Protocol, para o indicador 'Conectada'. Não lê nem altera mensagens." />
                     <CheckBox Content="Miniaturas com zoom reduzido" IsChecked="{Binding ScaleThumbnails}" />
@@ -127,7 +132,7 @@
         </Border>
 
         <!-- As quatro contas: sempre presentes e visíveis; o modo só muda a disposição -->
-        <v:SessionLayoutPanel Margin="4" IsFocusMode="{Binding IsFocusMode}" FocusedIndex="{Binding FocusedIndex}"
+        <v:SessionLayoutPanel Margin="4" IsFocusMode="{Binding IsFocusMode}" FocusedIndex="{Binding FocusedIndex}" VisibleCount="{Binding VisibleAccounts}"
                               RowSplit="{Binding RowSplit}" TopSplit="{Binding TopSplit}" BottomSplit="{Binding BottomSplit}"
                               FocusSplit="{Binding FocusSplit}" SplitCommitted="OnSplitCommitted">
             <v:AccountPanel DataContext="{Binding Account1}" />

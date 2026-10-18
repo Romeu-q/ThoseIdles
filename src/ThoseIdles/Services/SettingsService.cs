@@ -89,6 +89,9 @@ public sealed class AppSettings
 
     public bool StartAllOnLaunch { get; set; } = true;
 
+    /// <summary>Quantas contas o jogador usa (1–4): só as primeiras N aparecem e abrem.</summary>
+    public int VisibleAccounts { get; set; } = AccountCount;
+
     /// <summary>Habilita DevTools (F12 / botão). Desligado por padrão.</summary>
     public bool DeveloperMode { get; set; }
 
@@ -203,7 +206,8 @@ public sealed class AppSettings
         MemoryPollSeconds = Math.Clamp(MemoryPollSeconds, 2, 60);
         LiveReloadMinutes = LiveReloadMinutes <= 0 ? 0 : Math.Clamp(LiveReloadMinutes, 10, 24 * 60);
         GridZoom = Math.Clamp(GridZoom, 0.25, 2.0);
-        FocusedSlot = Math.Clamp(FocusedSlot, 1, AccountCount);
+        VisibleAccounts = Math.Clamp(VisibleAccounts, 1, AccountCount);
+        FocusedSlot = Math.Clamp(FocusedSlot, 1, VisibleAccounts);
         AllowedHosts = (AllowedHosts is { Count: > 0 } ? AllowedHosts : DefaultAllowedHosts.ToList())
             .Select(h => h.Trim().ToLowerInvariant()).Where(h => h.Length > 0).Distinct().ToList();
         Window ??= new WindowPlacement();

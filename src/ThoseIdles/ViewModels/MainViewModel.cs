@@ -90,7 +90,41 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Índice 0-based da conta em foco (usado pelo painel de layout).</summary>
     public int FocusedIndex => _focusedSlot - 1;
 
-    public string LayoutButtonText => _isFocusMode ? "Grade 2x2" : "Uma conta";
+    public string LayoutButtonText => _isFocusMode ? "Grade" : "Destacar uma";
+
+    public int[] AccountCountOptions { get; } = Enumerable.Range(1, AppSettings.AccountCount).ToArray();
+
+    /// <summary>
+    /// Quantas contas usar. As que saem são fechadas (o login fica salvo no perfil: voltar a
+    /// mostrar a conta e abri-la não pede login de novo).
+    /// </summary>
+    public int VisibleAccounts
+    {
+        get => _settings.VisibleAccounts;
+        set
+        {
+            value = Math.Clamp(value, 1, AppSettings.AccountCount);
+            if (value == _settings.VisibleAccounts) return;
+            var grew = value > _settings.VisibleAccounts;
+            _settings.VisibleAccounts = value;
+            foreach (var a in Accounts.Where(a => a.Slot > value)) a.Session.Close();
+            if (_focusedSlot > value)
+            {
+                _focusedSlot = 1;
+                _settings.FocusedSlot = 1;
+                OnPropertyChanged(nameof(FocusedIndex));
+                ApplyRoles();
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanToggleLayout));
+            OnSessionStatusChanged();
+            SaveSettings();
+            if (grew) _ = _manager.StartAllAsync();
+        }
+    }
+
+    /// <summary>Com uma conta só não há o que destacar.</summary>
+    public bool CanToggleLayout => _settings.VisibleAccounts > 1;
 
     /// <summary>Foca a conta; se ela já está em foco, volta para a grade.</summary>
     public void ToggleFocus(int slot)
@@ -145,12 +179,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void OnSessionStatusChanged()
     {
-        var c = Accounts.Count(a => a.Session.Status == SessionStatus.Connected);
-        var running = Accounts.Count(a => a.Session.IsRunning);
-        var errors = Accounts.Count(a => a.Session.Status == SessionStatus.Error);
+        var n = _settings.VisibleAccounts;
+        var used = Accounts.Where(a => a.Slot <= n).ToList();
+        var c = used.Count(a => a.Session.Status == SessionStatus.Connected);
+        var running = used.Count(a => a.Session.IsRunning);
+        var errors = used.Count(a => a.Session.Status == SessionStatus.Error);
         var sb = new StringBuilder();
-        sb.Append(c).Append("/4 conectadas");
-        if (running < 4) sb.Append(" · ").Append(4 - running).Append(" fechada(s)");
+        sb.Append(c).Append('/').Append(n).Append(n == 1 ? " conectada" : " conectadas");
+        if (running < n) sb.Append(" · ").Append(n - running).Append(" fechada(s)");
         if (errors > 0) sb.Append(" · ").Append(errors).Append(" com erro");
         SummaryText = sb.ToString();
         _benchmark.SetConnectedCount(c);

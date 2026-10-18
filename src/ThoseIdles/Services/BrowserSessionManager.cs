@@ -74,7 +74,7 @@ public sealed class BrowserSessionManager : IDisposable
     /// paralelo sobre o mesmo processo de navegador.
     /// </summary>
     public Task StartAllAsync() =>
-        Task.WhenAll(Sessions.Where(s => s.Account.Enabled && !s.IsRunning).Select(s => s.StartAsync()));
+        Task.WhenAll(Sessions.Where(s => s.Account.Enabled && !s.IsRunning && s.Account.Slot <= _settings.VisibleAccounts).Select(s => s.StartAsync()));
 
     public void CloseAll()
     {
