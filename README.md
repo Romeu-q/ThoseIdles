@@ -7,6 +7,63 @@ rodando ao mesmo tempo, inclusive quando só uma está em destaque ou quando a j
 > É um gerenciador de sessões de navegador. Não automatiza jogadas, não altera requisições e não
 > contorna proteções do servidor.
 
+**Baixar:** pegue o `ThoseIdles.exe` na página [Releases](../../releases). Ele não precisa de instalação
+nem do .NET instalado; precisa só do Microsoft Edge WebView2 Runtime, que já vem no Windows 11 e na
+maioria dos Windows 10 (veja a seção 6).
+
+---
+
+## É seguro usar?
+
+O código inteiro está neste repositório, e qualquer pessoa pode ler, compilar e conferir. Em resumo:
+
+**O app nunca pede a sua senha.** O login é feito na **própria página do PokeIdle** (ou do Google,
+Discord ou Twitch, se você usar esses logins), dentro de um navegador embutido, do mesmo jeito que no
+Chrome. O app não lê o que você digita.
+
+**Com quem o app se comunica:**
+
+| Destino | Quando | Para quê |
+|---|---|---|
+| `pokeidle.io` | sempre | o jogo (a página ou, no modo econômico, a conexão leve) |
+| Twitch (`twitch.tv`) | só se você abrir lives | as lives do bônus de XP |
+| Google, Discord, Twitch, Cloudflare | só no login | as páginas de login e o captcha do próprio jogo |
+| `clients2.google.com` | só se você ativar a extensão /hunt | baixar e atualizar a extensão |
+
+**Não existe servidor do ThoseIdles.** O app não tem telemetria nem estatísticas de uso, não tem
+anúncios e não envia seus dados para lugar nenhum além dessa tabela. As páginas do jogo e da Twitch
+carregam o que esses sites carregariam no Chrome; o app não acrescenta nada.
+
+**Seus dados ficam no seu computador**, em `%LOCALAPPDATA%\ThoseIdles`:
+- as sessões de cada conta (cookies e dados de navegação), cada uma num perfil separado;
+- o token do modo econômico (o mesmo que o jogo guarda no navegador), **criptografado com o DPAPI do
+  Windows**, que só o seu usuário do Windows consegue ler;
+- logs, que **removem tokens e parâmetros de URLs** e nunca registram cookies nem mensagens do jogo.
+
+Para desinstalar, apague o `ThoseIdles.exe` e a pasta `%LOCALAPPDATA%\ThoseIdles`.
+
+**O que o app não faz:** não joga por você, não clica, não manda ações de jogo, não altera mensagens
+do jogo e não burla limites. O modo econômico só mantém a conta conectada, mandando ao servidor as
+mesmas mensagens de conexão que a página oficial manda (`hello` e `ping`). Os termos do PokeIdle
+(seção 5) permitem automação e até 4 contas por pessoa. A página da conta não consegue pedir ao app
+para executar nada (sem ponte entre página e app), e o app só abre links `http`/`https` no seu
+navegador.
+
+**Como conferir por conta própria:**
+1. **Ler o código.** Os pontos que tocam em rede e credenciais são
+   [EconomyClient.cs](src/ThoseIdles/Services/EconomyClient.cs) (modo econômico),
+   [BrowserSession.Economy.cs](src/ThoseIdles/Services/BrowserSession.Economy.cs) (credenciais com DPAPI),
+   [NavigationPolicy.cs](src/ThoseIdles/Services/NavigationPolicy.cs) (para onde as páginas podem navegar),
+   [HuntExtensionService.cs](src/ThoseIdles/Services/HuntExtensionService.cs) (download da extensão) e
+   [LoggingService.cs](src/ThoseIdles/Services/LoggingService.cs) (o que vai para o log).
+2. **Conferir o `.exe`.** Cada Release traz o **SHA-256** do arquivo. No PowerShell:
+   `Get-FileHash .\ThoseIdles.exe -Algorithm SHA256`. O resultado tem que ser igual ao da página.
+3. **Compilar você mesmo** a partir deste código (seção 7) e usar o seu próprio `.exe`.
+
+**Aviso do Windows:** o `.exe` não tem assinatura digital paga, então na primeira vez o Windows pode
+mostrar "O Windows protegeu o computador". Clique em **Mais informações → Executar assim mesmo**.
+Alguns antivírus desconfiam de qualquer `.exe` sem assinatura; o código aqui mostra o que ele faz.
+
 ---
 
 ## 1. Arquitetura e por que ela economiza memória
