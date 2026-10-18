@@ -268,7 +268,7 @@ public sealed class AccountViewModel : ObservableObject
     /// <summary>"3 lives" ao lado do 📺 (vazio sem lives).</summary>
     public string LiveCountText => Session.LiveCount > 0 ? Session.LiveCount.ToString() : "";
 
-    private string ChannelList => string.Join(", ", Session.Lives.Select(l => l.Channel));
+    private string ChannelList => string.Join(", ", Session.Lives.Select(l => l.DisplayName));
 
     public string LiveToggleTooltip => Session.IsLiveOpen
         ? Session.IsLiveVisible

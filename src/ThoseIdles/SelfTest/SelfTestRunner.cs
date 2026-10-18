@@ -435,6 +435,7 @@ public sealed class SelfTestRunner
         await RunLayoutTestsAsync();
         _vm.SaveSettings();
         await RunLiveTestsAsync();
+        await RunKickLiveTestAsync();
         await RunExtensionTestsAsync();
         await RunShinyExportTestsAsync();
         await RunAppUpdateTestsAsync();
@@ -564,6 +565,37 @@ public sealed class SelfTestRunner
             await Task.Delay(200);
         }
         return false;
+    }
+
+    private async Task RunKickLiveTestAsync()
+    {
+        await Test("live da Kick: link do jogo abre escondida na conta, muda e 160p", async () =>
+        {
+            // Quais links viram live (e quais não): canal sim; páginas da Kick e o login (id.kick.com) não.
+            var parse = new[]
+            {
+                ("https://kick.com/XQC", "kick:xqc"), ("https://www.kick.com/canal_1", "kick:canal_1"),
+                ("https://kick.com/categories", ""), ("https://kick.com/xqc/videos", ""), ("https://id.kick.com/oauth/authorize", ""),
+                ("http://kick.com/xqc", ""), ("https://www.twitch.tv/canal", "canal"),
+            };
+            var parseOk = parse.All(p => (BrowserSession.TryParseLiveLink(p.Item1, out var id) ? id : "") == p.Item2);
+
+            var s4 = _manager[4];
+            if (!s4.IsRunning) await s4.StartAsync();
+            for (var i = 0; i < 50 && s4.Core is null; i++) await Task.Delay(200);
+            await s4.Core!.ExecuteScriptAsync("document.getElementById('kicklink').click()");
+            var loaded = await WaitLivePage(s4, "kick:canalkick", TimeSpan.FromSeconds(15));
+            var tab = s4.FindLive("kick:canalkick");
+            var quality = tab?.Core is { } c ? Unquote(await c.ExecuteScriptAsync("sessionStorage.getItem('stream_quality')")) : null;
+            var ok = parseOk && loaded && tab is not null && tab.Core!.IsMuted && quality == "160" && !s4.IsLiveVisible
+                     && tab.DisplayName == "canalkick (Kick)" && s4.Account.LiveChannels.SequenceEqual(new[] { "kick:canalkick" })
+                     && BrowserSession.IsValidLiveId("kick:canalkick") && !BrowserSession.IsValidLiveId("kick:a b");
+            s4.CloseLive(forget: true);
+            _vm.SaveSettings();
+            return ok
+                ? Pass("kick.com/canalkick virou a live \"canalkick (Kick)\" da conta 4: escondida, muda, stream_quality=160, canal guardado como kick:canalkick; páginas da Kick e o login dela não viram live")
+                : Fail($"links ok={parseOk} carregou={loaded} aba={tab?.DisplayName} mudo={tab?.Core?.IsMuted} qualidade={quality} visível={s4.IsLiveVisible} canais={string.Join(",", s4.Account.LiveChannels)}");
+        });
     }
 
     private async Task RunLiveTestsAsync()

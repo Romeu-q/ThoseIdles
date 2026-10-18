@@ -27,8 +27,11 @@ Chrome. O app não lê o que você digita.
 |---|---|---|
 | `pokeidle.io` | sempre | o jogo (a página ou, no modo econômico, a conexão leve) |
 | Twitch (`twitch.tv`) | só se você abrir lives | as lives do bônus de XP |
-| Google, Discord, Twitch, Cloudflare | só no login | as páginas de login e o captcha do próprio jogo |
+| Kick (`kick.com`) | só se você abrir lives da Kick | as lives que rendem os pontos dos resgates do jogo |
+| Google, Discord, Twitch, Kick, Cloudflare | só no login | as páginas de login e o captcha do próprio jogo |
 | `clients2.google.com` | só se você ativar a extensão /hunt | baixar e atualizar a extensão |
+| `api.github.com`, `github.com` | ao abrir e a cada 6 h (desligável) | ver se há versão nova e, se você clicar, baixá-la |
+| `pokeapi.co` | só na calculadora, para Megas | status base da espécie (física ou especial) |
 
 **Não existe servidor do ThoseIdles.** O app não tem telemetria nem estatísticas de uso, não tem
 anúncios e não envia seus dados para lugar nenhum além dessa tabela. As páginas do jogo e da Twitch
@@ -355,6 +358,18 @@ memória baixa.
 
 > O app **não** usa truques como abrir só o chat sem a live, nem bloqueia anúncios ou partes da página
 > da Twitch: é a mesma página que você teria numa aba do Chrome.
+
+**Kick.** Funciona do mesmo jeito. No jogo, o bônus da Kick vem de **resgates** (XP, captura,
+shiny) pagos com os **pontos do canal**, e os pontos só vêm assistindo a live logado na Kick.
+
+1. Faça o "Vincular Kick" do jogo em cada conta.
+2. Na tela "Kick" do jogo, clique no canal. Ele abre como mais uma live da conta, escrita
+   "canal (Kick)" na lista, com a mesma página real da Kick, no mesmo perfil, sem som e em 160p
+   (`stream_quality=160` da própria Kick).
+
+A live da Kick reabre com a conta e entra na recarga periódica, como as da Twitch. Não foi
+verificado se a Kick conta pontos com a aba **escondida**. Se os pontos não subirem, deixe o painel
+de lives aberto nessa conta (📺) e confira.
 
 **Custo medido** (live real da Twitch, canal lofigirl, 4 contas abertas numa página neutra no lugar
 do jogo, 45 s após abrir):

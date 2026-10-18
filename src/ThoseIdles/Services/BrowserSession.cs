@@ -581,8 +581,8 @@ public sealed partial class BrowserSession : ObservableObject
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        // Clique num canal da Twitch dentro do jogo: abre no painel de live da conta, sem tirar o jogo da tela.
-        if (e.IsUserInitiated && !e.IsRedirected && TryParseTwitchChannel(e.Uri, out var channel))
+        // Clique num canal da Twitch ou da Kick dentro do jogo: abre no painel de live da conta, sem tirar o jogo da tela.
+        if (e.IsUserInitiated && !e.IsRedirected && TryParseLiveLink(e.Uri, out var channel))
         {
             e.Cancel = true;
             _blockedNavigationId = e.NavigationId;
@@ -658,7 +658,7 @@ public sealed partial class BrowserSession : ObservableObject
         e.Handled = true;
         // Os links dos canais oficiais na tela "Twitch" do jogo (target=_blank) abrem no painel de live
         // desta conta, que tem o login da Twitch dela — no navegador padrão o login seria outro.
-        if (TryParseTwitchChannel(e.Uri, out var channel))
+        if (TryParseLiveLink(e.Uri, out var channel))
         {
             _ = OpenLiveAsync(channel);
             return;

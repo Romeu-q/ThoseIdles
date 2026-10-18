@@ -26,7 +26,10 @@ public sealed class AccountSettings
     /// <summary>Nick/token/aparelho do jogo para o modo econômico, criptografados com DPAPI (só este usuário do Windows lê).</summary>
     public string? EconomySessionProtected { get; set; }
 
-    /// <summary>Canais da Twitch abertos nesta conta (reabrem com ela). O bônus do jogo soma por live.</summary>
+    /// <summary>
+    /// Lives abertas nesta conta (reabrem com ela): canal da Twitch ("canal") ou da Kick ("kick:canal").
+    /// O bônus da Twitch soma por live; na Kick, assistir rende os pontos do canal para os resgates.
+    /// </summary>
     public List<string> LiveChannels { get; set; } = new();
 
     /// <summary>Formato antigo (uma live só). Lido apenas para migrar para <see cref="LiveChannels"/>.</summary>
@@ -191,6 +194,8 @@ public sealed class AppSettings
         "accounts.google.com", "*.google.com", "accounts.youtube.com",
         "discord.com", "*.discord.com",
         "id.twitch.tv", "*.twitch.tv",
+        // "Vincular Kick" do jogo (o mesmo caminho: /auth/kick → login da Kick → volta).
+        "kick.com", "*.kick.com",
         "challenges.cloudflare.com",
     };
 
@@ -217,7 +222,8 @@ public sealed class AppSettings
         GridZoom = Math.Clamp(GridZoom, 0.25, 2.0);
         VisibleAccounts = Math.Clamp(VisibleAccounts, 1, AccountCount);
         FocusedSlot = Math.Clamp(FocusedSlot, 1, VisibleAccounts);
-        AllowedHosts = (AllowedHosts is { Count: > 0 } ? AllowedHosts : DefaultAllowedHosts.ToList())
+        // Os padrões entram sempre (quem tem um settings.json antigo ganha os hosts novos, como a Kick).
+        AllowedHosts = (AllowedHosts ?? new()).Concat(DefaultAllowedHosts)
             .Select(h => h.Trim().ToLowerInvariant()).Where(h => h.Length > 0).Distinct().ToList();
         Window ??= new WindowPlacement();
         Splits ??= new LayoutSplits();
@@ -230,7 +236,7 @@ public sealed class AppSettings
             if (a.LegacyLiveChannel is { } old && !a.LiveChannels.Contains(old)) a.LiveChannels.Insert(0, old);
             a.LegacyLiveChannel = null;
             a.LiveChannels = a.LiveChannels
-                .Where(c => System.Text.RegularExpressions.Regex.IsMatch(c ?? "", "^[A-Za-z0-9_]{2,25}$"))
+                .Where(BrowserSession.IsValidLiveId)
                 .Select(c => c.ToLowerInvariant()).Distinct().Take(BrowserSession.MaxLivesPerAccount).ToList();
         }
     }

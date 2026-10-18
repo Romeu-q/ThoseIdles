@@ -17,6 +17,7 @@ public sealed class SelfTestServer : IDisposable
         <body style="background:#1b1b22;color:#ccc;font:13px Segoe UI,sans-serif;margin:8px">
         <b>ThoseIdles — página de autoteste</b>
         <a id="twlink" href="https://www.twitch.tv/canalteste" target="_blank" rel="noopener">canal da Twitch</a>
+        <a id="kicklink" href="https://kick.com/canalkick" target="_blank" rel="noopener">canal da Kick</a>
         <div><span id="shl-conta">5 shinies</span></div>
         <div id="t"></div>
         <script>

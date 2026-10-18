@@ -6,7 +6,7 @@ using ThoseIdles.Mvvm;
 
 namespace ThoseIdles.Services;
 
-/// <summary>Uma live da Twitch aberta numa conta (uma "aba"). Todas usam o perfil da conta.</summary>
+/// <summary>Uma live (Twitch ou Kick) aberta numa conta (uma "aba"). Todas usam o perfil da conta.</summary>
 public sealed class LiveTab : ObservableObject
 {
     private WebView2? _view;
@@ -15,7 +15,13 @@ public sealed class LiveTab : ObservableObject
 
     public LiveTab(string channel) => Channel = channel;
 
+    /// <summary>Identificador: "canal" (Twitch) ou "kick:canal" (Kick).</summary>
     public string Channel { get; }
+
+    public bool IsKick => BrowserSession.IsKickId(Channel);
+
+    /// <summary>Nome para a tela: "canal" ou "canal (Kick)".</summary>
+    public string DisplayName => IsKick ? $"{Channel[BrowserSession.KickPrefix.Length..]} (Kick)" : Channel;
 
     public WebView2? View
     {
@@ -76,14 +82,23 @@ public sealed class LiveTab : ObservableObject
 /// exige a ABA da live aberta e logada: o servidor procura o login no chat de cada live. Por isso cada
 /// live é a página real do canal, aberta em segundo plano (escondida, como aba do Chrome), muda e com
 /// padrão de 160p. Abrir só o chat, sem a live, enganaria a regra — o app não faz isso.
+///
+/// A KICK entra do mesmo jeito: o jogo dá bônus (XP, captura, shiny) por resgates com os pontos do
+/// canal, e os pontos só vêm assistindo a live logado. Cada live da Kick é a página real do canal,
+/// no perfil da conta, muda e em 160p — o "kick:canal" na lista de lives.
 /// </summary>
 public sealed partial class BrowserSession
 {
     /// <summary>Limite de lives por conta (cada uma custa ~0,5 GB de RAM).</summary>
     public const int MaxLivesPerAccount = 10;
 
+    public const string KickPrefix = "kick:";
+    public static bool IsKickId(string? id) => id is not null && id.StartsWith(KickPrefix, StringComparison.Ordinal);
+
     /// <summary>Endereço da live de um canal. Substituível no autoteste (página local).</summary>
-    public static Func<string, string> LiveUrlForChannel { get; set; } = c => $"https://www.twitch.tv/{c}";
+    public static Func<string, string> LiveUrlForChannel { get; set; } = c => IsKickId(c)
+        ? $"https://kick.com/{c[KickPrefix.Length..]}"
+        : $"https://www.twitch.tv/{c}";
 
     /// <summary>Host virtual (só existe dentro do app) da página do modo leve.</summary>
     public const string LightHost = "live.thoseidles.example";
@@ -132,7 +147,38 @@ public sealed partial class BrowserSession
     }
 
     /// <summary>Hosts onde o script de qualidade padrão pode rodar. O autoteste acrescenta 127.0.0.1.</summary>
-    public static string[] LiveQualityHosts { get; set; } = { "twitch.tv" };
+    public static string[] LiveQualityHosts { get; set; } = { "twitch.tv", "kick.com" };
+
+    private static readonly HashSet<string> ReservedKickPaths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "browse", "categories", "category", "following", "search", "dashboard", "settings", "auth", "login", "signup",
+        "video", "videos", "clips", "clip", "terms-of-service", "privacy-policy", "community-guidelines", "dmca-policy",
+        "about", "careers", "brand", "help", "faq", "contact", "subscriptions", "messages", "notifications", "wallet",
+        "kick-originals", "stream", "streams", "popout", "embed", "api", "oauth", "creator-dashboard", "verify",
+    };
+
+    [GeneratedRegex("^[A-Za-z0-9_-]{2,30}$")]
+    private static partial Regex KickSlugPattern();
+
+    /// <summary>Um item válido da lista de lives: canal da Twitch ou "kick:canal".</summary>
+    public static bool IsValidLiveId(string? id) =>
+        id is not null && (IsKickId(id) ? KickSlugPattern().IsMatch(id[KickPrefix.Length..]) : TwitchLoginPattern().IsMatch(id));
+
+    /// <summary>"https://kick.com/canal" → "kick:canal". Ignora páginas que não são de canal.</summary>
+    public static bool TryParseKickChannel(string? url, out string id)
+    {
+        id = "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return false;
+        if (u.Host.ToLowerInvariant() is not ("kick.com" or "www.kick.com")) return false;
+        var parts = u.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 1 || ReservedKickPaths.Contains(parts[0]) || !KickSlugPattern().IsMatch(parts[0])) return false;
+        id = KickPrefix + parts[0].ToLowerInvariant();
+        return true;
+    }
+
+    /// <summary>Link de live de qualquer plataforma (Twitch ou Kick) → identificador da lista.</summary>
+    public static bool TryParseLiveLink(string? url, out string id) =>
+        TryParseTwitchChannel(url, out id) || TryParseKickChannel(url, out id);
 
     private static readonly HashSet<string> ReservedTwitchPaths = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -249,7 +295,7 @@ public sealed partial class BrowserSession
     /// </summary>
     public async Task OpenLiveAsync(string channel)
     {
-        if ((_core is null && _eco is null) || !TwitchLoginPattern().IsMatch(channel)) return; // conta aberta (página ou modo econômico)
+        if ((_core is null && _eco is null) || !IsValidLiveId(channel)) return; // conta aberta (página ou modo econômico)
         channel = channel.ToLowerInvariant();
 
         if (FindLive(channel) is { } existing)
@@ -423,7 +469,11 @@ public sealed partial class BrowserSession
     /// <summary>A conta tentou abrir mais lives que o limite.</summary>
     public event EventHandler<string>? LiveLimitReached;
 
-    /// <summary>Padrão de qualidade 160p, gravado UMA vez: se o jogador trocar no player, a escolha dele vale.</summary>
+    /// <summary>
+    /// Padrão de qualidade 160p, gravado UMA vez: se o jogador trocar no player, a escolha dele vale.
+    /// Twitch: localStorage "video-quality". Kick: sessionStorage "stream_quality" (a altura, 160), que
+    /// vale por aba — por isso é gravado no início de cada aba, a não ser que o jogador já tenha escolhido.
+    /// </summary>
     private static string LowestQualityScript()
     {
         var hosts = string.Join(",", LiveQualityHosts.Select(h => $"'{h}'"));
@@ -432,6 +482,11 @@ public sealed partial class BrowserSession
               try {
                 const h = location.hostname;
                 if (![{{hosts}}].some(x => h === x || h.endsWith('.' + x))) return;
+                const kick = h === 'kick.com' || h.endsWith('.kick.com') || /^\/?kick:/.test(new URLSearchParams(location.search).get('c') || '');
+                if (kick) {
+                  if (!sessionStorage.getItem('stream_quality')) sessionStorage.setItem('stream_quality', '160');
+                  return;
+                }
                 if (localStorage.getItem('__thoseidles_qualidade')) return;
                 localStorage.setItem('video-quality', JSON.stringify({ default: '160p30' }));
                 localStorage.setItem('__thoseidles_qualidade', '1');
@@ -486,15 +541,16 @@ public sealed partial class BrowserSession
 
     private void OnLiveNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        // Dentro das lives só a Twitch (e o login dela) ou a página do modo leve. O resto vai para o navegador padrão.
+        // Dentro das lives só a Twitch e a Kick (e o login delas) ou a página do modo leve. O resto vai para o navegador padrão.
         var isLight = Uri.TryCreate(e.Uri, UriKind.Absolute, out var lu) && lu.Scheme == Uri.UriSchemeHttps &&
                       lu.Host.Equals(LightHost, StringComparison.OrdinalIgnoreCase) && _settings.LiveLightMode;
         if (isLight) return;
         var decision = _policy.Evaluate(e.Uri, e.IsRedirected, e.IsUserInitiated);
-        var isTwitch = Uri.TryCreate(e.Uri, UriKind.Absolute, out var u) &&
-                       (u.Host.Equals("twitch.tv", StringComparison.OrdinalIgnoreCase) || u.Host.EndsWith(".twitch.tv", StringComparison.OrdinalIgnoreCase));
+        var ok = Uri.TryCreate(e.Uri, UriKind.Absolute, out var u);
+        bool HostIs(string d) => ok && (u!.Host.Equals(d, StringComparison.OrdinalIgnoreCase) || u.Host.EndsWith("." + d, StringComparison.OrdinalIgnoreCase));
+        var isLiveSite = HostIs("twitch.tv") || HostIs("kick.com");
         var isLocalTest = _policy.AllowLocalhostHttp && u is not null && u.IsLoopback;
-        if (decision == NavigationDecision.Allow && (isTwitch || isLocalTest || e.IsRedirected || e.Uri == "about:blank")) return;
+        if (decision == NavigationDecision.Allow && (isLiveSite || isLocalTest || e.IsRedirected || e.Uri == "about:blank")) return;
 
         e.Cancel = true;
         if (e.IsUserInitiated && NavigationPolicy.IsSafeExternalUrl(e.Uri)) OpenExternal(e.Uri);
@@ -504,7 +560,7 @@ public sealed partial class BrowserSession
     {
         e.Handled = true;
         // Link para outro canal dentro de uma live: abre como mais uma live da conta.
-        if (TryParseTwitchChannel(e.Uri, out var channel))
+        if (TryParseLiveLink(e.Uri, out var channel))
         {
             _ = OpenLiveAsync(channel);
             return;
