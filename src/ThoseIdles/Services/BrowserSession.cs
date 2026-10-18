@@ -206,6 +206,7 @@ public sealed partial class BrowserSession : ObservableObject
     {
         _generation++;
         CancelTimers();
+        CloseLoginPopups();
         DetachAndDispose();
         _ = StopEconomyClientAsync(); // o modo fica salvo: a conta reabre em modo econômico
         _wasConnected = false;
@@ -270,6 +271,7 @@ public sealed partial class BrowserSession : ObservableObject
 
         CancelTimers();
         CloseLive(forget: true); // a live usa o mesmo perfil (login da Twitch), que vai ser apagado
+        CloseLoginPopups();
         SetStatus(SessionStatus.Loading, "Limpando dados…");
         await NavigateAndWaitAsync(core, "about:blank", TimeSpan.FromSeconds(10));
         await core.Profile.ClearBrowsingDataAsync();
@@ -661,6 +663,12 @@ public sealed partial class BrowserSession : ObservableObject
         if (TryParseLiveLink(e.Uri, out var channel))
         {
             _ = OpenLiveAsync(channel);
+            return;
+        }
+        // Login em pop-up (Google, Kick…): janela do app no perfil desta conta.
+        if (IsLoginPopupUrl(e.Uri))
+        {
+            OpenLoginPopup(e);
             return;
         }
         if (!NavigationPolicy.IsSafeExternalUrl(e.Uri)) return;

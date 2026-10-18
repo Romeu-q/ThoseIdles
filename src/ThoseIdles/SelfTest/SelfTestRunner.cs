@@ -590,11 +590,31 @@ public sealed class SelfTestRunner
             var ok = parseOk && loaded && tab is not null && tab.Core!.IsMuted && quality == "160" && !s4.IsLiveVisible
                      && tab.DisplayName == "canalkick (Kick)" && s4.Account.LiveChannels.SequenceEqual(new[] { "kick:canalkick" })
                      && BrowserSession.IsValidLiveId("kick:canalkick") && !BrowserSession.IsValidLiveId("kick:a b");
+
+            // "Entrar com Google" da Kick: o pop-up de login abre numa janela do app, no perfil da conta,
+            // avisa a live (opener) e se fecha sozinho.
+            var popupOk = false; string popupInfo = "";
+            if (tab?.Core is { } live)
+            {
+                var port = SelfTestServer.Current!.Port;
+                await live.ExecuteScriptAsync($"window.open('http://127.0.0.1:{port}/popup', 'login', 'width=500,height=600'); 1");
+                var abriu = false;
+                for (var i = 0; i < 25 && !(abriu = s4.LoginPopups.Count > 0); i++) await Task.Delay(100);
+                var recebeu = false;
+                for (var i = 0; i < 60 && !(recebeu = await live.ExecuteScriptAsync("window.__loginRecebido === true") == "true"); i++) await Task.Delay(100);
+                for (var i = 0; i < 30 && s4.LoginPopups.Count > 0; i++) await Task.Delay(100);
+                var fechou = s4.LoginPopups.Count == 0;
+                var mesmoPerfil = Unquote(await live.ExecuteScriptAsync("localStorage.getItem('loginDoPopup')")) == "ok";
+                var classifica = s4.IsLoginPopupUrl("https://accounts.google.com/o/oauth2/auth?x=1") && s4.IsLoginPopupUrl("https://kick.com/redirect/google")
+                                 && !s4.IsLoginPopupUrl("https://exemplo.invalid/") && !s4.IsLoginPopupUrl("http://accounts.google.com/");
+                popupOk = abriu && recebeu && fechou && mesmoPerfil && classifica;
+                popupInfo = $"abriu={abriu} avisou={recebeu} fechou={fechou} mesmo perfil={mesmoPerfil} classifica={classifica}";
+            }
             s4.CloseLive(forget: true);
             _vm.SaveSettings();
-            return ok
-                ? Pass("kick.com/canalkick virou a live \"canalkick (Kick)\" da conta 4: escondida, muda, stream_quality=160, canal guardado como kick:canalkick; páginas da Kick e o login dela não viram live")
-                : Fail($"links ok={parseOk} carregou={loaded} aba={tab?.DisplayName} mudo={tab?.Core?.IsMuted} qualidade={quality} visível={s4.IsLiveVisible} canais={string.Join(",", s4.Account.LiveChannels)}");
+            return ok && popupOk
+                ? Pass("kick.com/canalkick virou a live \"canalkick (Kick)\" da conta 4: escondida, muda, stream_quality=160; o pop-up de login abriu no perfil da conta, avisou a live e se fechou sozinho")
+                : Fail($"links ok={parseOk} carregou={loaded} aba={tab?.DisplayName} mudo={tab?.Core?.IsMuted} qualidade={quality} visível={s4.IsLiveVisible} canais={string.Join(",", s4.Account.LiveChannels)}; pop-up: {popupInfo}");
         });
     }
 

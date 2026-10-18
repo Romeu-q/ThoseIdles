@@ -57,6 +57,19 @@ public sealed class SelfTestServer : IDisposable
           document.getElementById('c').textContent = window.__livePage;
           window.liveTicks = 0;
           setInterval(() => { window.liveTicks++; }, 100);
+          window.addEventListener('message', (e) => { if (e.data === 'logado') window.__loginRecebido = true; });
+        </script>
+        </body></html>
+        """;
+
+    /// <summary>"Login" em pop-up: grava no perfil, avisa quem abriu (opener) e se fecha — como o do Google.</summary>
+    private const string PopupPage = """
+        <!doctype html>
+        <html><head><meta charset="utf-8"><title>login de teste</title></head>
+        <body>entrando…
+        <script>
+          localStorage.setItem('loginDoPopup', 'ok');
+          setTimeout(() => { try { window.opener && window.opener.postMessage('logado', '*'); } catch {} window.close(); }, 500);
         </script>
         </body></html>
         """;
@@ -261,7 +274,12 @@ public sealed class SelfTestServer : IDisposable
                 ctx.Response.Close();
                 return;
             }
-            var bytes = Encoding.UTF8.GetBytes(ctx.Request.Url?.AbsolutePath == "/live" ? LivePage : Page);
+            var bytes = Encoding.UTF8.GetBytes(ctx.Request.Url?.AbsolutePath switch
+            {
+                "/live" => LivePage,
+                "/popup" => PopupPage,
+                _ => Page,
+            });
             ctx.Response.ContentType = "text/html; charset=utf-8";
             ctx.Response.ContentLength64 = bytes.Length;
             await ctx.Response.OutputStream.WriteAsync(bytes);

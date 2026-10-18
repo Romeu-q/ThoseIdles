@@ -565,6 +565,12 @@ public sealed partial class BrowserSession
             _ = OpenLiveAsync(channel);
             return;
         }
+        // "Entrar com Google" da Kick (e afins): janela de login no perfil da conta.
+        if (IsLoginPopupUrl(e.Uri))
+        {
+            OpenLoginPopup(e);
+            return;
+        }
         if (NavigationPolicy.IsSafeExternalUrl(e.Uri) && DateTime.UtcNow - _lastExternalOpenUtc > TimeSpan.FromSeconds(2))
             OpenExternal(e.Uri);
     }
