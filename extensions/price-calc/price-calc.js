@@ -197,11 +197,12 @@
 
   // ------------------------------------------------------------------ nível, refino e TM
 
-  // Quanto cada coisa multiplica o preço (estimativa; ajuste aqui se o mercado mostrar outra coisa):
-  //  · nível: o dobro do nível ≈ +25% de preço (subir nível alto custa muito tempo de farm);
-  //  · refino: cada +1 ≈ +6% (as pedras custam 500 × N³ por stat);
-  //  · TM AoE ≈ +35%; TM elemental ≈ +10%.
-  const AJUSTE = { nivelPorDobro: 0.25, porRefino: 0.06, aoe: 0.35, tmEl: 0.10 };
+  // Quanto cada coisa multiplica o preço. Calibrado com um caso real (Mega Charizard Y P4): o de
+  // Nv 2.208, +7 e AoE anunciado a 6.300 Gemas, e um Nv 523 sem refino nem TM que sai a 1.100–1.300.
+  //  · nível: o dobro do nível ≈ +40% de preço (subir nível alto custa muito tempo de farm);
+  //  · refino: cada +1 ≈ +8% (as pedras custam 500 × N³ por stat);
+  //  · TM AoE ≈ dobra o preço; TM elemental ≈ +15%.
+  const AJUSTE = { nivelPorDobro: 0.40, porRefino: 0.08, aoe: 1.00, tmEl: 0.15 };
 
   /** Fator de preço de um Pokémon pelas extras dele (1 = sem nada). */
   function fatorExtras(p) {

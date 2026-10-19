@@ -21,8 +21,13 @@ public enum EconomyState { Stopped, Connecting, Connected, Reconnecting, Failed 
 ///  - em 4001 (sessão aberta em outro lugar), 4003 (IP bloqueado) ou "erro" antes de entrar
 ///    (token inválido, rede cheia, banimento) PARA e avisa, sem insistir;
 ///  - outras quedas: reconecta com espera crescente (2 s → 60 s).
-/// Não envia nenhuma ação de jogo. As mensagens recebidas são lidas e descartadas (só o tipo é
-/// olhado), então o custo é de poucos MB, sem página, sem JavaScript e sem processo extra.
+/// Não envia nenhuma ação de jogo. Depois de entrar, manda só o aviso "cliente.economia" — o mesmo
+/// do Modo Economia do próprio jogo — para o servidor parar de mandar o mapa, que ninguém desenha.
+/// As mensagens recebidas são lidas só para o tipo, a bola automática do "welcome" e as capturas.
+///
+/// CAPTURA: a caça roda no servidor, mas a bola só é lançada sozinha com a automação do jogo
+/// ("bola até capturar" / "sem parar", do VIP). Sem ela, capturar é clicar nos Pokémon caídos na
+/// página — e o cliente leve não faz isso por você.
 /// </summary>
 public sealed class EconomyClient : IAsyncDisposable
 {
@@ -52,6 +57,19 @@ public sealed class EconomyClient : IAsyncDisposable
     public string Detail { get; private set; } = "";
     public DateTime? ConnectedSinceUtc { get; private set; }
     public long MessagesReceived { get; private set; }
+
+    /// <summary>Bola automática ligada no jogo (null = o "welcome" não disse).</summary>
+    public bool? AutoBall { get; private set; }
+    public bool? IsVip { get; private set; }
+
+    /// <summary>Capturas anunciadas pelo servidor desde que o modo econômico entrou.</summary>
+    public int Captures { get; private set; }
+
+    private string ConnectedText()
+    {
+        var bola = AutoBall switch { true => "bola automática ligada", false => "bola automática DESLIGADA (não captura)", _ => "bola automática: ?" };
+        return $"Conectada como {_session.Nick} (modo econômico) · {bola} · capturas nesta sessão: {Captures}";
+    }
 
     /// <summary>Mudou o estado (disparado na thread do loop; quem ouve deve voltar à UI).</summary>
     public event EventHandler? StateChanged;
@@ -156,9 +174,22 @@ public sealed class EconomyClient : IAsyncDisposable
                     if (type == "welcome" && !welcomed)
                     {
                         welcomed = true;
+                        ReadAutomation(message);
                         ConnectedSinceUtc = DateTime.UtcNow;
-                        SetState(EconomyState.Connected, $"Conectada como {_session.Nick} (modo econômico)");
-                        LoggingService.Log.Info($"[conta{_slot}] Modo econômico conectado.");
+                        SetState(EconomyState.Connected, ConnectedText());
+                        LoggingService.Log.Info($"[conta{_slot}] Modo econômico conectado (bola automática: {AutoBall?.ToString() ?? "?"}, VIP: {IsVip?.ToString() ?? "?"}).");
+                        // O mesmo aviso do Modo Economia do jogo: sem tela, o servidor não precisa mandar o mapa.
+                        await SendAsync(ws, new { t = "cliente.economia", ativo = true }, stop);
+                    }
+                    else if (type == "batalha" && Contains(message, "captur"))
+                    {
+                        var n = CountCaptures(message);
+                        if (n > 0)
+                        {
+                            Captures += n;
+                            LoggingService.Log.Info($"[conta{_slot}] Modo econômico: captura ({Captures} na sessão).");
+                            SetState(EconomyState.Connected, ConnectedText());
+                        }
                     }
                     else if (type == "sessao.renovada")
                     {
@@ -229,6 +260,63 @@ public sealed class EconomyClient : IAsyncDisposable
             return doc.RootElement.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
         }
         catch { return null; }
+    }
+
+    private static bool Contains(MemoryStream message, string text) =>
+        Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length).Contains(text, StringComparison.Ordinal);
+
+    /// <summary>Do "welcome": a automação da bola (autoBallAteCapturar / autoBallSemParar) e o VIP.</summary>
+    private void ReadAutomation(MemoryStream message)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(message.GetBuffer().AsMemory(0, (int)message.Length));
+            if (Find(doc.RootElement, "automation", 0) is { ValueKind: JsonValueKind.Object } auto)
+            {
+                bool On(string k) => auto.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.True;
+                AutoBall = On("autoBallAteCapturar") || On("autoBallSemParar");
+            }
+            if (Find(doc.RootElement, "loja", 0) is { ValueKind: JsonValueKind.Object } loja && loja.TryGetProperty("vip", out var vip))
+                IsVip = vip.ValueKind is not (JsonValueKind.False or JsonValueKind.Null or JsonValueKind.Undefined);
+        }
+        catch { }
+    }
+
+    /// <summary>Primeira propriedade com esse nome, em qualquer nível (até 6 de profundidade).</summary>
+    private static JsonElement? Find(JsonElement e, string name, int depth)
+    {
+        if (depth > 6) return null;
+        if (e.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var p in e.EnumerateObject())
+            {
+                if (p.NameEquals(name)) return p.Value;
+                if (p.Value.ValueKind is JsonValueKind.Object && Find(p.Value, name, depth + 1) is { } f) return f;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Capturas num "batalha": eventos capturado / captura / catch, ou bola com sucesso.</summary>
+    private static int CountCaptures(MemoryStream message)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(message.GetBuffer().AsMemory(0, (int)message.Length));
+            if (!doc.RootElement.TryGetProperty("ev", out var ev) || ev.ValueKind != JsonValueKind.Array) return 0;
+            int capturados = 0, bolasCertas = 0;
+            foreach (var e in ev.EnumerateArray())
+            {
+                if (e.ValueKind != JsonValueKind.Object) continue;
+                var k = e.TryGetProperty("k", out var kk) ? kk.GetString() : e.TryGetProperty("t", out var tt) ? tt.GetString() : null;
+                var sucesso = e.TryGetProperty("sucesso", out var s) && (s.ValueKind == JsonValueKind.True || (s.ValueKind == JsonValueKind.Number && s.GetInt32() == 1));
+                if (k is "capturado" or "captura" or "catch") capturados++;
+                else if (k == "bola" && sucesso) bolasCertas++;
+            }
+            // A mesma captura pode vir como "bola com sucesso" E "capturado": conta uma vez.
+            return capturados > 0 ? capturados : bolasCertas;
+        }
+        catch { return 0; }
     }
 
     private static async Task SendAsync(ClientWebSocket ws, object payload, CancellationToken stop)
