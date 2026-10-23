@@ -66,12 +66,21 @@ public sealed class LiveTab : ObservableObject
         internal set => Set(ref _status, value);
     }
 
+    private bool? _healthy;
+    /// <summary>Resultado da última conferência (Twitch: logado e com chat). null = ainda não conferiu.</summary>
+    public bool? Healthy
+    {
+        get => _healthy;
+        internal set => Set(ref _healthy, value);
+    }
+
     public uint MainFrameId { get; internal set; }
 
     /// <summary>iframes da live (usado só pelas verificações do autoteste).</summary>
     public List<CoreWebView2Frame> Frames { get; } = new();
 
     internal int Generation;
+    internal string LastHealthLogged = "";
 }
 
 /// <summary>
@@ -378,6 +387,8 @@ public sealed partial class BrowserSession
             ApplyLiveMemoryTargets();
             LoggingService.Log.Info($"[conta{Slot}] Live aberta: {channel} ({Lives.Count} na conta; mudo={core.IsMuted}, {(Account.LiveVisible ? "painel visível" : "em segundo plano")}).");
             core.Navigate(LiveAddress(channel));
+            EnsureLiveHealthTimer();
+            _ = CheckLivesSoonAsync();
         }
         catch (Exception ex) when (gen == tab.Generation)
         {
@@ -468,6 +479,79 @@ public sealed partial class BrowserSession
 
     /// <summary>A conta tentou abrir mais lives que o limite.</summary>
     public event EventHandler<string>? LiveLimitReached;
+
+    // ------------------------------------------------------------------ conferência das lives da Twitch
+
+    /// <summary>
+    /// O bônus da Twitch só vale se o servidor achar o seu login NO CHAT da live. A cada 2 minutos o
+    /// app olha cada live da Twitch: está logada (e com qual conta)? O chat carregou? O canal está no
+    /// ar? O resultado vai para a bolinha da aba (verde/vermelha, com o motivo) e para o log quando muda.
+    /// </summary>
+    private const string TwitchHealthScript = """
+        (() => {
+          try {
+            const ck = (document.cookie.match(/(?:^|;\s*)login=([^;]+)/) || [])[1];
+            let login = ck ? decodeURIComponent(ck) : null;
+            if (!login) { try { login = JSON.parse(localStorage.getItem('twilight-user') || 'null')?.login || null; } catch {} }
+            const chat = !!document.querySelector('[data-test-selector="chat-scrollable-area__message-container"], .chat-scrollable-area__message-container, [data-a-target="chat-scroller"]');
+            const entrar = !!document.querySelector('[data-a-target="login-button"]');
+            const offline = !!document.querySelector('[data-a-target="player-overlay-offline"], .channel-status-info--offline');
+            return JSON.stringify({ login, chat, entrar, offline });
+          } catch (e) { return JSON.stringify({ erro: String(e) }); }
+        })()
+        """;
+
+    private System.Windows.Threading.DispatcherTimer? _liveHealthTimer;
+
+    private void EnsureLiveHealthTimer()
+    {
+        if (_liveHealthTimer is not null) return;
+        _liveHealthTimer = new System.Windows.Threading.DispatcherTimer(TimeSpan.FromMinutes(2),
+            System.Windows.Threading.DispatcherPriority.Background, async (_, _) => await CheckLivesAsync(),
+            System.Windows.Threading.Dispatcher.CurrentDispatcher);
+        _liveHealthTimer.Start();
+    }
+
+    /// <summary>Primeira conferência ~40 s depois de abrir (o tempo de a página e o chat carregarem).</summary>
+    private async Task CheckLivesSoonAsync()
+    {
+        try { await Task.Delay(TimeSpan.FromSeconds(40)); await CheckLivesAsync(); } catch { }
+    }
+
+    /// <summary>Confere as lives da Twitch desta conta agora (também usada pelo autoteste).</summary>
+    public async Task CheckLivesAsync()
+    {
+        foreach (var tab in Lives.ToList())
+        {
+            if (tab.IsKick || tab.Core is not { } core) continue;
+            string? json;
+            try { json = System.Text.Json.JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync(TwitchHealthScript)); }
+            catch { continue; }
+            if (json is null) continue;
+            string? login = null; bool chat = false, entrar = false, offline = false;
+            try
+            {
+                using var d = System.Text.Json.JsonDocument.Parse(json);
+                var r = d.RootElement;
+                if (r.TryGetProperty("login", out var l) && l.ValueKind == System.Text.Json.JsonValueKind.String) login = l.GetString();
+                chat = r.TryGetProperty("chat", out var c) && c.GetBoolean();
+                entrar = r.TryGetProperty("entrar", out var en) && en.GetBoolean();
+                offline = r.TryGetProperty("offline", out var o) && o.GetBoolean();
+            }
+            catch { continue; }
+
+            var (ok, status) = login is null || entrar
+                ? (false, "⚠ NÃO está logada na Twitch nesta conta — o bônus não conta. Mostre a live (📺) e clique em Entrar.")
+                : offline ? (true, $"logada como {login} · canal offline agora (o bônus só vale com a live no ar)")
+                : !chat ? (false, $"logada como {login}, mas o chat não carregou — o bônus não conta. Recarregue a live.")
+                : (true, $"logada como {login} · chat conectado");
+            if (tab.LastHealthLogged != status)
+                LoggingService.Log.Info($"[conta{Slot}] Live {tab.Channel}: {status}");
+            tab.LastHealthLogged = status;
+            tab.Status = status;
+            tab.Healthy = ok;
+        }
+    }
 
     /// <summary>
     /// Padrão de qualidade 160p, gravado UMA vez: se o jogador trocar no player, a escolha dele vale.

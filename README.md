@@ -193,10 +193,14 @@ confirmação de conexão.
 
 - Windows 10 (1809+) ou 11, x64.
 - **Microsoft Edge WebView2 Runtime (Evergreen).** Já vem no Windows 11 e na maioria dos Windows 10
-  com Edge atualizado. Se faltar, o app avisa ao abrir. Instalação:
-  <https://developer.microsoft.com/microsoft-edge/webview2/> → "Evergreen Bootstrapper".
-  O executável **não é autossuficiente** quanto a isso: o WebView2 Runtime é um componente externo,
-  compartilhado e atualizado pelo Windows.
+  com Edge atualizado. **Se faltar, o app oferece instalar sozinho:**
+  1. baixa o instalador oficial da Microsoft (~2 MB, `go.microsoft.com`);
+  2. confere a assinatura digital (Authenticode, assinante Microsoft Corporation);
+  3. instala em silêncio (sem administrador, só para o usuário) e reabre.
+
+  Para instalar à mão: <https://developer.microsoft.com/microsoft-edge/webview2/> → "Evergreen
+  Bootstrapper". É um componente da Microsoft, compartilhado e atualizado pelo Windows; o exe do app
+  continua pequeno por isso.
 - Para compilar: .NET SDK 10 (LTS). Testado com SDK 10.0.302, WebView2 SDK 1.0.4258.31 e Runtime 155.0.4283.45.
 
 ## 7. Compilar e gerar o `.exe`

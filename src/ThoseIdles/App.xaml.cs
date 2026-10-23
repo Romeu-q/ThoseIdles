@@ -109,11 +109,18 @@ public partial class App : Application
         if (runtime is null)
         {
             LoggingService.Log.Error("WebView2 Runtime não encontrado.");
-            MessageBox.Show(
-                "O Microsoft Edge WebView2 Runtime não está instalado.\n\n" +
-                "Instale o \"Evergreen Bootstrapper\" em https://developer.microsoft.com/microsoft-edge/webview2/ e abra o app novamente.",
-                "ThoseIdles", MessageBoxButton.OK, MessageBoxImage.Error);
-            Shutdown(2);
+            var resposta = MessageBox.Show(
+                "Este PC não tem o \"WebView2\", a peça grátis da Microsoft que o ThoseIdles usa para mostrar o jogo.\n\n" +
+                "Posso instalar agora? O instalador oficial é baixado da Microsoft, conferido e roda sozinho. " +
+                "Depois o ThoseIdles abre de novo.",
+                "ThoseIdles — falta o WebView2", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (resposta == MessageBoxResult.Yes) _ = InstallWebView2AndRestartAsync(restartArgs);
+            else
+            {
+                MessageBox.Show($"Para instalar à mão: {WebView2Installer.ManualPage} (\"Evergreen Bootstrapper\"). Depois abra o ThoseIdles de novo.",
+                    "ThoseIdles", MessageBoxButton.OK, MessageBoxImage.Information);
+                Shutdown(2);
+            }
             return;
         }
         LoggingService.Log.Info($"WebView2 Runtime {runtime}");
@@ -205,6 +212,36 @@ public partial class App : Application
             }
         };
         window.Show();
+    }
+
+    /// <summary>Janelinha de progresso, instala o WebView2 e reabre o app (ou mostra o link se falhar).</summary>
+    private async Task InstallWebView2AndRestartAsync(IReadOnlyList<string> restartArgs)
+    {
+        var texto = new System.Windows.Controls.TextBlock { Text = "Preparando…", Margin = new Thickness(20), TextWrapping = TextWrapping.Wrap, FontSize = 14 };
+        var janela = new Window
+        {
+            Title = "ThoseIdles — instalando o WebView2",
+            Width = 440, Height = 150, ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen, Content = texto,
+        };
+        janela.Show();
+        var (ok, msg) = await WebView2Installer.InstallAsync(new Progress<string>(s => texto.Text = s), CancellationToken.None);
+        if (ok)
+        {
+            LoggingService.Log.Info($"{msg}; reabrindo o app.");
+            texto.Text = "Pronto! Abrindo o ThoseIdles…";
+            var args = new List<string> { "--wait-pid", Environment.ProcessId.ToString() };
+            args.AddRange(restartArgs);
+            if (Environment.ProcessPath is { } exe) ProcessJob.StartOutsideJob(exe, args, Path.GetDirectoryName(exe)!);
+        }
+        else
+        {
+            MessageBox.Show($"Não deu para instalar o WebView2 automaticamente: {msg}.\n\n" +
+                            $"Instale à mão em {WebView2Installer.ManualPage} (\"Evergreen Bootstrapper\") e abra o ThoseIdles de novo.",
+                "ThoseIdles", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        janela.Close();
+        Shutdown(ok ? 0 : 2);
     }
 
     private async Task ShutdownServicesAsync()

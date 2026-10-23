@@ -261,6 +261,9 @@
                                     <DataTemplate>
                                         <Border x:Name="tab" CornerRadius="3" Margin="0,0,3,0" Padding="6,0,2,0" Background="#24202E">
                                             <StackPanel Orientation="Horizontal">
+                                                <!-- Conferência da live (Twitch): verde = logada e com chat; vermelha = o bônus não está contando -->
+                                                <Ellipse x:Name="saude" Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="Transparent"
+                                                         ToolTip="{Binding Status}" />
                                                 <Button Content="{Binding DisplayName}" FontSize="11" Cursor="Hand" Focusable="False" Background="Transparent"
                                                         BorderThickness="0" Foreground="{StaticResource Text}" Padding="0" ToolTip="{Binding Status}"
                                                         Command="{Binding DataContext.SelectLiveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -274,6 +277,12 @@
                                         <DataTemplate.Triggers>
                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                 <Setter TargetName="tab" Property="Background" Value="#4A3570" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Healthy}" Value="True">
+                                                <Setter TargetName="saude" Property="Fill" Value="#3FC46E" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Healthy}" Value="False">
+                                                <Setter TargetName="saude" Property="Fill" Value="#E5484D" />
                                             </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>
