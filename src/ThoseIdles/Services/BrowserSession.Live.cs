@@ -81,6 +81,8 @@ public sealed class LiveTab : ObservableObject
 
     internal int Generation;
     internal string LastHealthLogged = "";
+    internal DateTime? LastReloadUtc;
+    internal string LastReloadText => LastReloadUtc is { } t ? $"{(DateTime.UtcNow - t).TotalMinutes:0} min atrás" : "nenhuma desde que abriu";
 }
 
 /// <summary>
@@ -465,6 +467,7 @@ public sealed partial class BrowserSession
             try
             {
                 core.Reload();
+                tab.LastReloadUtc = DateTime.UtcNow;
                 count++;
                 LoggingService.Log.Info($"[conta{Slot}] Live {tab.Channel} recarregada para liberar memória.");
             }
@@ -494,7 +497,11 @@ public sealed partial class BrowserSession
             let login = ck ? decodeURIComponent(ck) : null;
             if (!login) { try { login = JSON.parse(localStorage.getItem('twilight-user') || 'null')?.login || null; } catch {} }
             const chat = !!document.querySelector('[data-test-selector="chat-scrollable-area__message-container"], .chat-scrollable-area__message-container, [data-a-target="chat-scroller"]');
+            // O botão "Entrar" só existe deslogado. Logado, o menu do topo mostra a FOTO de perfil (o menu
+            // em si existe também para quem não entrou — é o de configurações).
             const entrar = !!document.querySelector('[data-a-target="login-button"]');
+            const foto = !!document.querySelector('[data-a-target="user-menu-toggle"] img');
+            if (!entrar && foto && !login) login = '(sua conta)';
             const offline = !!document.querySelector('[data-a-target="player-overlay-offline"], .channel-status-info--offline');
             return JSON.stringify({ login, chat, entrar, offline });
           } catch (e) { return JSON.stringify({ erro: String(e) }); }
@@ -546,7 +553,12 @@ public sealed partial class BrowserSession
                 : !chat ? (false, $"logada como {login}, mas o chat não carregou — o bônus não conta. Recarregue a live.")
                 : (true, $"logada como {login} · chat conectado");
             if (tab.LastHealthLogged != status)
+            {
+                // Estava logada e perdeu o login: anota o que aconteceu logo antes (para achar a causa).
+                if (tab.Healthy == true && (login is null || entrar))
+                    LoggingService.Log.Warn($"[conta{Slot}] Live {tab.Channel}: a Twitch DESLOGOU (antes: {tab.LastHealthLogged}). Última recarga da aba: {tab.LastReloadText}.");
                 LoggingService.Log.Info($"[conta{Slot}] Live {tab.Channel}: {status}");
+            }
             tab.LastHealthLogged = status;
             tab.Status = status;
             tab.Healthy = ok;
@@ -650,6 +662,16 @@ public sealed partial class BrowserSession
         if (TryParseLiveLink(e.Uri, out var channel))
         {
             _ = OpenLiveAsync(channel);
+            return;
+        }
+        // A Twitch pedindo outra página dela mesma (login, "entrar no chat"…): abre NA PRÓPRIA aba da
+        // live, como um navegador faria — o login feito numa janela à parte não voltava para a live.
+        if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var tu) && tu.Scheme == Uri.UriSchemeHttps &&
+            (tu.Host.Equals("twitch.tv", StringComparison.OrdinalIgnoreCase) || tu.Host.EndsWith(".twitch.tv", StringComparison.OrdinalIgnoreCase)) &&
+            !tu.Host.Equals("id.twitch.tv", StringComparison.OrdinalIgnoreCase) && sender is CoreWebView2 origem)
+        {
+            LoggingService.Log.Info($"[conta{Slot}] Live: a Twitch pediu {tu.AbsolutePath}; aberto na própria aba.");
+            try { origem.Navigate(e.Uri); } catch { }
             return;
         }
         // "Entrar com Google" da Kick (e afins): janela de login no perfil da conta.

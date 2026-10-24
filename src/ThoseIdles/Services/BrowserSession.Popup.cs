@@ -19,7 +19,7 @@ public sealed partial class BrowserSession
         "accounts.google.com", "google.com",
         "appleid.apple.com",
         "kick.com",
-        "id.twitch.tv", "twitch.tv",
+        "id.twitch.tv",
         "discord.com",
     };
 
