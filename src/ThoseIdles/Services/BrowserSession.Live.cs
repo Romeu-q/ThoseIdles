@@ -493,15 +493,22 @@ public sealed partial class BrowserSession
     private const string TwitchHealthScript = """
         (() => {
           try {
+            const h = location.hostname;
+            if (!(h === 'twitch.tv' || h.endsWith('.twitch.tv'))) return JSON.stringify({ naoTwitch: true });
             const ck = (document.cookie.match(/(?:^|;\s*)login=([^;]+)/) || [])[1];
             let login = ck ? decodeURIComponent(ck) : null;
             if (!login) { try { login = JSON.parse(localStorage.getItem('twilight-user') || 'null')?.login || null; } catch {} }
             const chat = !!document.querySelector('[data-test-selector="chat-scrollable-area__message-container"], .chat-scrollable-area__message-container, [data-a-target="chat-scroller"]');
             // O botão "Entrar" só existe deslogado. Logado, o menu do topo mostra a FOTO de perfil (o menu
             // em si existe também para quem não entrou — é o de configurações).
-            const entrar = !!document.querySelector('[data-a-target="login-button"]');
+            // No chat (embutido/popout) não há esse botão: deslogado, aparece um botão escrito "Entrar".
+            const soChat = /\/(embed|popout)\/[^/]+\/chat/.test(location.pathname);
+            const botaoEntrar = [...document.querySelectorAll('button')].some(b => /^(entrar|log in|iniciar sessão|sign in)$/i.test((b.innerText || '').trim()));
+            const entrar = !!document.querySelector('[data-a-target="login-button"]') || (soChat && botaoEntrar);
             const foto = !!document.querySelector('[data-a-target="user-menu-toggle"] img');
             if (!entrar && foto && !login) login = '(sua conta)';
+            // No chat embutido o cookie pode não ser legível (cookie de terceiros); sem "Entrar" e com o chat, está logado.
+            if (soChat && !entrar && !login && chat) login = '(conta do chat)';
             const offline = !!document.querySelector('[data-a-target="player-overlay-offline"], .channel-status-info--offline');
             return JSON.stringify({ login, chat, entrar, offline });
           } catch (e) { return JSON.stringify({ erro: String(e) }); }
@@ -535,6 +542,20 @@ public sealed partial class BrowserSession
             try { json = System.Text.Json.JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync(TwitchHealthScript)); }
             catch { continue; }
             if (json is null) continue;
+            // Modo leve: a página é do app; o login está no CHAT embutido (um quadro da Twitch dentro dela).
+            if (json.Contains("\"naoTwitch\"", StringComparison.Ordinal))
+            {
+                json = null;
+                foreach (var frame in tab.Frames.ToList())
+                {
+                    string? r;
+                    try { r = System.Text.Json.JsonSerializer.Deserialize<string>(await frame.ExecuteScriptAsync(TwitchHealthScript)); }
+                    catch { continue; }
+                    // O quadro do chat é o que tem a área de mensagens; o do player não tem.
+                    if (r is not null && !r.Contains("\"naoTwitch\"", StringComparison.Ordinal) && r.Contains("\"chat\":true", StringComparison.Ordinal)) { json = r; break; }
+                }
+                if (json is null) continue; // o chat embutido ainda não carregou
+            }
             string? login = null; bool chat = false, entrar = false, offline = false;
             try
             {
