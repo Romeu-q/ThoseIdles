@@ -111,6 +111,7 @@ public sealed partial class BrowserSession
         var eco = new EconomyClient(Slot, endpoint, $"{start.Scheme}://{start.Authority}", userAgent, session);
         eco.StateChanged += OnEconomyStateChanged;
         eco.TokenRenewed += OnEconomyTokenRenewed;
+        eco.TwitchInfoReceived += OnEconomyTwitchInfo;
         _eco = eco;
         OnPropertyChanged(nameof(IsEconomy));
         OnPropertyChanged(nameof(IsRunning));
@@ -125,6 +126,7 @@ public sealed partial class BrowserSession
         _eco = null;
         eco.StateChanged -= OnEconomyStateChanged;
         eco.TokenRenewed -= OnEconomyTokenRenewed;
+        eco.TwitchInfoReceived -= OnEconomyTwitchInfo;
         await eco.StopAsync();
         OnPropertyChanged(nameof(IsEconomy));
         OnPropertyChanged(nameof(IsRunning));

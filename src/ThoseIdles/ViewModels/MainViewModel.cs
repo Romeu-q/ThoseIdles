@@ -359,6 +359,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { _settings.LiveLowestQuality = value; OnPropertyChanged(); SaveSettings(); }
     }
 
+    public bool AutoTwitchLives
+    {
+        get => _settings.AutoTwitchLives;
+        set
+        {
+            _settings.AutoTwitchLives = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = value
+                ? "Lives automáticas ligadas: vale nas contas a partir da próxima abertura (Mais → Reiniciar esta conta para aplicar já)."
+                : "Lives automáticas desligadas: as lives abertas ficam como estão.";
+        }
+    }
+
     public bool ReopenLives
     {
         get => _settings.ReopenLives;

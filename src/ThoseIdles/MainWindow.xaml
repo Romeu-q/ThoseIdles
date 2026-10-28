@@ -149,6 +149,8 @@
                             <TextBlock Style="{StaticResource CardTitle}" Text="Lives da Twitch e da Kick (bônus)" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6"
                                        Text="Abra a tela &quot;Twitch&quot; ou &quot;Kick&quot; dentro do jogo e clique num canal: a live abre escondida, embaixo da conta, e continua assistindo (na Kick, rendendo os pontos do canal)." />
+                            <CheckBox Content="Abrir e fechar as lives sozinho" IsChecked="{Binding AutoTwitchLives}"
+                                      Tag="Abre as lives oficiais que estão no ar e valem bônus, e fecha as que saem do ar (pela lista do próprio jogo)." />
                             <CheckBox Content="Abrir sem som" IsChecked="{Binding LiveMutedByDefault}" />
                             <CheckBox Content="Qualidade mais baixa" IsChecked="{Binding LiveLowestQuality}"
                                       Tag="Gasta menos internet e computador." />

@@ -42,12 +42,22 @@ public sealed class EconomySessionStats
     public long Ouro { get; private set; }
     public List<string> UltimosShinies { get; } = new();
 
+    public long? NivelTreinador { get; private set; }
+    public string? AtivoNome { get; private set; }
+    public long? AtivoNivel { get; private set; }
+    private long? _ativoId;
+
+    /// <summary>Uma captura guardada para achar a de maior nota (a nota precisa do catálogo de espécies).</summary>
+    private sealed record Captura(int SpeciesId, string Nome, long Nivel, bool Shiny, int Potencia, double Qualidade,
+        IReadOnlyDictionary<string, int>? Ivs, int? IvSoma, DateTime Em);
+    private readonly List<Captura> _capturas = new();
+
     private readonly Dictionary<string, int> _raros = new();
     private readonly Dictionary<int, int> _bolasGastas = new();
     private readonly Dictionary<int, long> _bolasTem = new();
     private readonly Dictionary<int, string> _nomeBola = new();
 
-    /// <summary>Lê o "welcome": nomes das bolas e quantas a conta tem.</summary>
+    /// <summary>Lê o "welcome": nomes das bolas, quantas a conta tem e o estado (níveis).</summary>
     public void LerWelcome(JsonElement root)
     {
         lock (_lock)
@@ -58,6 +68,32 @@ public sealed class EconomySessionStats
                         _nomeBola[i] = nome;
             LerBolas(root);
         }
+        LerEstado(root);
+    }
+
+    /// <summary>
+    /// O estado da conta ("welcome" e as atualizações "estado", que trazem só o que mudou): nível do
+    /// treinador e o Pokémon ativo (activeId + a lista de Pokémon).
+    /// </summary>
+    public bool LerEstado(JsonElement root)
+    {
+        var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
+        var mudou = false;
+        lock (_lock)
+        {
+            if (Num(est, "level") is { } lv) { NivelTreinador = lv; mudou = true; }
+            if (Num(est, "activeId") is { } aid) { _ativoId = aid; mudou = true; }
+            if (est.TryGetProperty("pokemons", out var pks) && pks.ValueKind == JsonValueKind.Array && _ativoId is { } ativo)
+                foreach (var p in pks.EnumerateArray())
+                    if (p.ValueKind == JsonValueKind.Object && Num(p, "id") == ativo)
+                    {
+                        AtivoNome = Str(p, "apelido") ?? Str(p, "nome") ?? AtivoNome;
+                        AtivoNivel = Num(p, "level") ?? AtivoNivel;
+                        mudou = true;
+                        break;
+                    }
+        }
+        return mudou;
     }
 
     /// <summary>Qualquer mensagem do servidor que traga `balls` atualiza o que a conta tem.</summary>
@@ -108,8 +144,17 @@ public sealed class EconomySessionStats
                         }
                         mudou = true;
                         break;
+                    case "levelup":
+                        if (Num(e, "level") is { } nv2)
+                        {
+                            if (Str(e, "quem") == "treinador") NivelTreinador = nv2; else AtivoNivel = nv2;
+                            mudou = true;
+                        }
+                        break;
                     case "capturado":
                         Capturas++;
+                        if (e.TryGetProperty("pokemon", out var cap) && cap.ValueKind == JsonValueKind.Object)
+                            GuardarCaptura(cap);
                         if (e.TryGetProperty("pokemon", out var pk) && pk.ValueKind == JsonValueKind.Object
                             && pk.TryGetProperty("shiny", out var s) && s.ValueKind == JsonValueKind.True)
                         {
@@ -125,6 +170,45 @@ public sealed class EconomySessionStats
             }
         }
         return mudou;
+    }
+
+    private void GuardarCaptura(JsonElement pk)
+    {
+        Dictionary<string, int>? ivs = null;
+        if (pk.TryGetProperty("ivs", out var iv) && iv.ValueKind == JsonValueKind.Object)
+        {
+            ivs = new();
+            foreach (var p in iv.EnumerateObject())
+                if (p.Value.ValueKind == JsonValueKind.Number) ivs[p.Name] = (int)p.Value.GetDouble();
+        }
+        var soma = Num(pk, "iv") ?? Num(pk, "ivTotal");
+        double q = pk.TryGetProperty("quality", out var qv) && qv.ValueKind == JsonValueKind.Number ? qv.GetDouble()
+                 : pk.TryGetProperty("qualidade", out qv) && qv.ValueKind == JsonValueKind.Number ? qv.GetDouble() : 1;
+        _capturas.Add(new Captura(
+            (int)(Num(pk, "speciesId") ?? 0), Str(pk, "nome") ?? "?", Num(pk, "level") ?? 0,
+            pk.TryGetProperty("shiny", out var sh) && sh.ValueKind == JsonValueKind.True,
+            (int)(Num(pk, "potencia") ?? 1), q, ivs, soma is { } s ? (int)s : null, DateTime.Now));
+        if (_capturas.Count > 2000) _capturas.RemoveAt(0);
+    }
+
+    /// <summary>A captura de maior nota da sessão (null se ainda não há catálogo ou captura com IVs).</summary>
+    public (string Texto, double Nota)? MelhorCaptura()
+    {
+        if (!SpeciesCatalog.Pronto) return null;
+        lock (_lock)
+        {
+            (Captura C, double Nota)? melhor = null;
+            foreach (var c in _capturas)
+            {
+                if (c.SpeciesId <= 0 || (c.Ivs is null && c.IvSoma is null)) continue;
+                var nota = PokemonNota.NotaComLinhagem(c.SpeciesId, c.Ivs, c.IvSoma, c.Qualidade, c.Potencia, c.Shiny);
+                if (melhor is null || nota > melhor.Value.Nota) melhor = (c, nota);
+            }
+            if (melhor is not { } m) return null;
+            var pt = CultureInfo.GetCultureInfo("pt-BR");
+            var c2 = m.C;
+            return ($"{c2.Nome}{(c2.Shiny ? " ✨" : "")} Nv {c2.Nivel} · P{c2.Potencia} · qualidade {c2.Qualidade.ToString("0.000", pt)} · nota {m.Nota.ToString("0.000", pt)}{(m.Nota >= 3.5 ? " (pode RMT)" : "")} ({c2.Em:HH:mm})", m.Nota);
+        }
     }
 
     private void SomarDrops(JsonElement e)
@@ -156,10 +240,17 @@ public sealed class EconomySessionStats
             var t = DateTime.UtcNow - Inicio;
             var horas = Math.Max(t.TotalHours, 1 / 60d);
             var sb = new StringBuilder();
+            if (NivelTreinador is not null || AtivoNivel is not null)
+                sb.Append($"🧑 Treinador Nv {(NivelTreinador is { } nt ? N(nt) : "?")} · 🐾 {AtivoNome ?? "Pokémon ativo"} Nv {(AtivoNivel is { } na ? N(na) : "?")}\n");
             sb.Append($"⏱ {(int)t.TotalHours}h{t.Minutes:00} · {N(Abates)} abates · {N(Capturas)} capturas");
             if (XpTreinador > 0 || Ouro > 0) sb.Append($" · XP {Curto(XpTreinador)} ({Curto((long)(XpTreinador / horas))}/h) · ouro {Curto(Ouro)}");
             sb.Append($"\n✨ Shinies: {ShiniesVistos} visto(s) · {ShiniesCapturados} capturado(s)");
             if (UltimosShinies.Count > 0) sb.Append($" — {string.Join(", ", UltimosShinies)}");
+            if (_capturas.Count > 0)
+            {
+                var melhor = MelhorCaptura(); // o lock do C# é reentrante
+                sb.Append(melhor is { } m ? $"\n🏆 Melhor captura: {m.Texto}" : SpeciesCatalog.Pronto ? "" : "\n🏆 Melhor captura: calculando (baixando o catálogo de espécies)…");
+            }
             sb.Append("\n🎁 Drops raros: ");
             sb.Append(_raros.Count == 0 ? "nenhum ainda" : string.Join(" · ", _raros.OrderByDescending(k => k.Value).Select(k => $"{k.Key} ×{k.Value}")));
             if (_bolasTem.Count > 0 || _bolasGastas.Count > 0)

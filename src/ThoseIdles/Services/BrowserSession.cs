@@ -453,6 +453,9 @@ public sealed partial class BrowserSession : ObservableObject
         if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
 
+        // Lives automáticas: a página repassa o bloco "twitch" do estado (quais lives oficiais estão no ar).
+        if (_settings.AutoTwitchLives) await EnableTwitchRelayAsync(core);
+
         // Peças de interface dos painéis do jogo (RMT, Sniper, Preço): carregadas antes deles.
         if ((_settings.EnableRmtAlert || _settings.EnableSniper || _settings.EnablePriceCalc) && TiUiScript.Value is { Length: > 0 } ui)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(ui);

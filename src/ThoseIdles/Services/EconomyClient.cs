@@ -188,7 +188,8 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         welcomed = true;
                         ReadAutomation(message);
-                        Parse(message, root => Stats.LerWelcome(root));
+                        Parse(message, root => { Stats.LerWelcome(root); LerTwitch(root); });
+                        _ = SpeciesCatalog.EnsureLoadedAsync(); // para a nota da "melhor captura"
                         ConnectedSinceUtc = DateTime.UtcNow;
                         SetState(EconomyState.Connected, ConnectedText());
                         LoggingService.Log.Info($"[conta{_slot}] Modo econômico conectado (bola automática: {AutoBall?.ToString() ?? "?"}, VIP: {IsVip?.ToString() ?? "?"}).");
@@ -204,9 +205,19 @@ public sealed class EconomyClient : IAsyncDisposable
                             LoggingService.Log.Info($"[conta{_slot}] Modo econômico: SHINY capturado — {Stats.UltimosShinies.FirstOrDefault()}.");
                         if (mudou) AtualizarResumo(Stats.ShiniesCapturados > shiniesAntes);
                     }
+                    else if (welcomed && type == "estado")
+                    {
+                        // O estado da conta mudou (nível, Pokémon ativo, pokébolas, Twitch…): só vêm os campos alterados.
+                        var leu = false;
+                        Parse(message, root =>
+                        {
+                            leu = Stats.LerEstado(root) | Stats.LerBolas(root);
+                            LerTwitch(root);
+                        });
+                        if (leu) AtualizarResumo();
+                    }
                     else if (welcomed && Contains(message, "\"balls\""))
                     {
-                        // O estado da conta mudou (compra, uso…): a bolsa de pokébolas vem com o número certo.
                         var leu = false;
                         Parse(message, root => leu = Stats.LerBolas(root));
                         if (leu) AtualizarResumo();
@@ -280,6 +291,15 @@ public sealed class EconomyClient : IAsyncDisposable
             return doc.RootElement.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
         }
         catch { return null; }
+    }
+
+    /// <summary>O bloco "twitch" do estado (lives oficiais no ar, quais valem bônus, onde o vigia te achou).</summary>
+    public event EventHandler<TwitchInfo>? TwitchInfoReceived;
+
+    private void LerTwitch(JsonElement root)
+    {
+        if (EconomySessionStats.Achar(root, "twitch", 0) is { ValueKind: JsonValueKind.Object } tw && TwitchInfo.From(tw) is { } info)
+            TwitchInfoReceived?.Invoke(this, info);
     }
 
     private static void Parse(MemoryStream message, Action<JsonElement> use)
