@@ -226,11 +226,14 @@
                         </Button>
                     </StackPanel>
                     <!-- Modo econômico: a página do jogo está fechada, mas a conta segue conectada -->
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Margin="16"
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="600" Margin="16"
                                 Visibility="{Binding ShowEconomyNotice, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" FontSize="28" Foreground="#3FC46E" HorizontalAlignment="Center" />
-                        <TextBlock Text="Modo econômico" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,6,0,2" />
-                        <TextBlock Text="{Binding StatusDetail}" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                        <TextBlock Text="Modo econômico" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,6,0,8" />
+                        <!-- A prancheta da sessão: abates, shinies, drops raros e pokébolas -->
+                        <Border Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="14,10">
+                            <TextBlock Text="{Binding StatusDetail}" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" LineHeight="21" />
+                        </Border>
                         <TextBlock Text="A conta segue conectada e caçando sem a página do jogo (poucos MB de RAM). As lives da Twitch desta conta continuam abertas."
                                    FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,10" />
                         <Button Style="{StaticResource BarButton}" Content="Abrir o jogo desta conta" HorizontalAlignment="Center" Command="{Binding ToggleEconomyCommand}" />

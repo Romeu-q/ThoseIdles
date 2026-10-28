@@ -62,13 +62,26 @@ public sealed class EconomyClient : IAsyncDisposable
     public bool? AutoBall { get; private set; }
     public bool? IsVip { get; private set; }
 
+    /// <summary>A prancheta da sessão (abates, shinies, drops raros, pokébolas) desde que o modo entrou.</summary>
+    public EconomySessionStats Stats { get; } = new();
+
     /// <summary>Capturas anunciadas pelo servidor desde que o modo econômico entrou.</summary>
-    public int Captures { get; private set; }
+    public int Captures => Stats.Capturas;
+
+    private DateTime _ultimoResumo = DateTime.MinValue;
 
     private string ConnectedText()
     {
         var bola = AutoBall switch { true => "bola automática ligada", false => "bola automática DESLIGADA (não captura)", _ => "bola automática: ?" };
-        return $"Conectada como {_session.Nick} (modo econômico) · {bola} · capturas nesta sessão: {Captures}";
+        return $"Conectada como {_session.Nick} · {bola}\n{Stats.Resumo()}";
+    }
+
+    /// <summary>Atualiza o quadro no máximo a cada 2 s (a caça manda muitos eventos por segundo).</summary>
+    private void AtualizarResumo(bool agora = false)
+    {
+        if (!agora && DateTime.UtcNow - _ultimoResumo < TimeSpan.FromSeconds(2)) return;
+        _ultimoResumo = DateTime.UtcNow;
+        SetState(EconomyState.Connected, ConnectedText());
     }
 
     /// <summary>Mudou o estado (disparado na thread do loop; quem ouve deve voltar à UI).</summary>
@@ -175,21 +188,28 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         welcomed = true;
                         ReadAutomation(message);
+                        Parse(message, root => Stats.LerWelcome(root));
                         ConnectedSinceUtc = DateTime.UtcNow;
                         SetState(EconomyState.Connected, ConnectedText());
                         LoggingService.Log.Info($"[conta{_slot}] Modo econômico conectado (bola automática: {AutoBall?.ToString() ?? "?"}, VIP: {IsVip?.ToString() ?? "?"}).");
                         // O mesmo aviso do Modo Economia do jogo: sem tela, o servidor não precisa mandar o mapa.
                         await SendAsync(ws, new { t = "cliente.economia", ativo = true }, stop);
                     }
-                    else if (type == "batalha" && Contains(message, "captur"))
+                    else if (type == "batalha")
                     {
-                        var n = CountCaptures(message);
-                        if (n > 0)
-                        {
-                            Captures += n;
-                            LoggingService.Log.Info($"[conta{_slot}] Modo econômico: captura ({Captures} na sessão).");
-                            SetState(EconomyState.Connected, ConnectedText());
-                        }
+                        var shiniesAntes = Stats.ShiniesCapturados;
+                        var mudou = false;
+                        Parse(message, root => mudou = Stats.Somar(root));
+                        if (Stats.ShiniesCapturados > shiniesAntes)
+                            LoggingService.Log.Info($"[conta{_slot}] Modo econômico: SHINY capturado — {Stats.UltimosShinies.FirstOrDefault()}.");
+                        if (mudou) AtualizarResumo(Stats.ShiniesCapturados > shiniesAntes);
+                    }
+                    else if (welcomed && Contains(message, "\"balls\""))
+                    {
+                        // O estado da conta mudou (compra, uso…): a bolsa de pokébolas vem com o número certo.
+                        var leu = false;
+                        Parse(message, root => leu = Stats.LerBolas(root));
+                        if (leu) AtualizarResumo();
                     }
                     else if (type == "sessao.renovada")
                     {
@@ -262,6 +282,16 @@ public sealed class EconomyClient : IAsyncDisposable
         catch { return null; }
     }
 
+    private static void Parse(MemoryStream message, Action<JsonElement> use)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(message.GetBuffer().AsMemory(0, (int)message.Length));
+            use(doc.RootElement);
+        }
+        catch { }
+    }
+
     private static bool Contains(MemoryStream message, string text) =>
         Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length).Contains(text, StringComparison.Ordinal);
 
@@ -295,28 +325,6 @@ public sealed class EconomyClient : IAsyncDisposable
             }
         }
         return null;
-    }
-
-    /// <summary>Capturas num "batalha": eventos capturado / captura / catch, ou bola com sucesso.</summary>
-    private static int CountCaptures(MemoryStream message)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(message.GetBuffer().AsMemory(0, (int)message.Length));
-            if (!doc.RootElement.TryGetProperty("ev", out var ev) || ev.ValueKind != JsonValueKind.Array) return 0;
-            int capturados = 0, bolasCertas = 0;
-            foreach (var e in ev.EnumerateArray())
-            {
-                if (e.ValueKind != JsonValueKind.Object) continue;
-                var k = e.TryGetProperty("k", out var kk) ? kk.GetString() : e.TryGetProperty("t", out var tt) ? tt.GetString() : null;
-                var sucesso = e.TryGetProperty("sucesso", out var s) && (s.ValueKind == JsonValueKind.True || (s.ValueKind == JsonValueKind.Number && s.GetInt32() == 1));
-                if (k is "capturado" or "captura" or "catch") capturados++;
-                else if (k == "bola" && sucesso) bolasCertas++;
-            }
-            // A mesma captura pode vir como "bola com sucesso" E "capturado": conta uma vez.
-            return capturados > 0 ? capturados : bolasCertas;
-        }
-        catch { return 0; }
     }
 
     private static async Task SendAsync(ClientWebSocket ws, object payload, CancellationToken stop)
