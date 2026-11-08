@@ -455,32 +455,22 @@ public sealed partial class BrowserSession : ObservableObject
         if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
 
-        // Peças de interface dos painéis do jogo (RMT, Sniper, Preço, Hub): carregadas antes deles.
-        if ((_settings.EnableRmtAlert || _settings.EnableSniper || _settings.EnablePriceCalc || _settings.EnablePokeIdleHub) && TiUiScript.Value is { Length: > 0 } ui)
+        // Peças de interface das ferramentas (Hub, Sniper): os botões entram no perfil do treinador.
+        if ((_settings.EnableSniper || _settings.EnablePokeIdleHub) && TiUiScript.Value is { Length: > 0 } ui)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(ui);
 
-        // PokéIdle Hub: botões na ficha do Pokémon e no canto do jogo (abrem o site numa janela do app).
+        // PokéIdle Hub: botões na ficha do Pokémon e no perfil (abrem o site numa janela do app).
         if (_settings.EnablePokeIdleHub) await EnableHubButtonsAsync(core);
-
-        // Alerta de RMT (só lê o que o jogo manda; nunca envia nada).
-        if (_settings.EnableRmtAlert && RmtAlertScript.Value is { Length: > 0 } rmt)
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(rmt);
 
         // Sniper do mercado (compra automática). Desligado por padrão nas configurações, e mesmo
         // carregado só age com o interruptor do painel ligado (que volta desligado a cada recarga).
         if (_settings.EnableSniper && SniperScript.Value is { Length: > 0 } sniper)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(sniper);
-
-        // Calculadora de preço (lê o mercado; só busca uma espécie quando o usuário clica).
-        if (_settings.EnablePriceCalc && PriceCalcScript.Value is { Length: > 0 } preco)
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(preco);
     }
 
     private static readonly Lazy<string> ShinyExportScript = new(() => ReadResource("ShinyExport.js"));
-    private static readonly Lazy<string> RmtAlertScript = new(() => ReadResource("RmtAlert.js"));
     private static readonly Lazy<string> SniperScript = new(() => ReadResource("Sniper.js"));
     private static readonly Lazy<string> TiUiScript = new(() => ReadResource("TiUi.js"));
-    private static readonly Lazy<string> PriceCalcScript = new(() => ReadResource("PriceCalc.js"));
 
     private static string ReadResource(string name)
     {

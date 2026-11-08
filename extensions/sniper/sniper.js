@@ -234,7 +234,8 @@
   function atualizarBotao() {
     const btn = document.getElementById('ti-snp-btn');
     if (!btn) return;
-    btn.innerHTML = ligado ? '🎯 Sniper <span class="ti-badge">LIGADO</span>' : '🎯 Sniper';
+    const html = ligado ? '<i>🎯</i><span>Sniper</span><b class="ti-badge">ON</b>' : '<i>🎯</i><span>Sniper</span>';
+    if (btn.innerHTML !== html) btn.innerHTML = html;
     btn.classList.toggle('alerta', ligado);
     btn.classList.toggle('ativo', painelAberto && !ligado);
   }
@@ -333,7 +334,7 @@
   }
 
   reagendar();
-  setInterval(montar, 5000);
+  setInterval(montar, 2000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar); else montar();
 
   // Para o autoteste: liga/desliga e lê o estado (nada da conta além do saldo mostrado no painel).

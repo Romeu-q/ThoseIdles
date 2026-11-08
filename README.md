@@ -433,52 +433,19 @@ Pode ser desligado em Configurações.
 Abra `chrome://extensions`, ative o **Modo do desenvolvedor**, clique em **Carregar sem compactação**
 e escolha essa pasta.
 
-### Alerta de RMT
+### Botões do ThoseIdles no perfil
 
-No canto inferior esquerdo do jogo aparece o botão **🔔 RMT**. Nele você cria regras (nome contém,
-só shiny, potência mínima, preço máximo em Gemas). Quando você abrir uma lista no mercado e aparecer
-um anúncio **em Gemas** que bate com uma regra, surge um aviso no canto da tela com um bipe, e o
-botão mostra quantos alertas novos há. Anúncios em ouro são ignorados.
+As ferramentas do app ficam **no seu perfil** (painel do treinador, à esquerda), numa linha logo
+abaixo das moedas, com o mesmo visual delas: **📘 PokéIdle Hub** e, se ligado, **🎯 Sniper**. Nada
+flutua por cima do jogo.
 
-O alerta **só lê** as mensagens que o jogo já manda para a página: não envia nada ao servidor, não
-consulta o mercado sozinho e **não compra**. A compra é sempre você que faz. Pode ser desligado em
-Configurações.
+O Alerta de RMT e a Calculadora de preço foram removidos na 1.0.21: o PokéIdle Hub (Mercado,
+Vale a pena?) faz isso melhor.
 
-**Sem o app (Chrome/Edge):** também existe como extensão em `extensions/rmt-alert`, carregada do
-mesmo jeito que a de shinies (Modo do desenvolvedor → Carregar sem compactação).
-
-### Calculadora de preço
-
-Na **ficha de qualquer Pokémon** do jogo aparece o botão **💰 Calcular preço**, junto de
-"Calcular" e "Comparar". Ele lê a ficha (Potência, Qualidade, IV de cada stat, nota, shiny), busca
-os anúncios daquela espécie e mostra, logo abaixo do topo da ficha, quanto ele vale no
-**RMT (Gemas)** e em **ouro**: preço, faixa, menor anúncio e confiança. O botão **💰 Preço** no
-canto do jogo faz o mesmo para os seus Pokémon e para um que você digitar.
-
-- **Valor (0–10):** 60% IVs úteis + 40% Qualidade. "IVs úteis" pesa o que a espécie usa: físico →
-  Ataque, especial → Ataque Especial; Velocidade e HP contam para todos.
-- **Perfil da espécie:** automático pelos status base do **catálogo do próprio jogo** (as Megas,
-  que não estão nele, pela PokeAPI) ou escolhido à mão no cartão.
-- **Potência:** comparada à parte; anúncio de outra Potência pesa bem menos.
-- **Nível, refino e TM:** o preço de cada anúncio é ajustado para o seu Pokémon antes de entrar na
-  conta. Cada dobro de nível conta cerca de +25%, cada +1 de refino +6%, TM AoE +35% e TM
-  elemental +10% (estimativas, em `AJUSTE` no `price-calc.js`). Um anúncio com AoE, Nv 2.208 e +7
-  vale bem mais que um Nv 523 sem nada, e a calculadora desconta isso. O "menor à venda" continua
-  sendo o preço real do anúncio.
-- **Comparação:** mediana dos anúncios mais parecidos (mesma espécie e shiny). São preços pedidos,
-  não vendas fechadas. A base vem das listas do mercado que você abre; **Buscar no mercado** faz uma
-  busca daquela espécie quando você clica.
-- **RMT só a partir de nota 3,5:** abaixo disso mostra só o preço em ouro.
-- **Megas:** o preço nunca fica abaixo do **custo de produção**, que é a forma base com os mesmos
-  status mais os fragmentos da pedra (10 Mega Stone Fragments, ou os shiny para a Mega shiny, pela
-  configuração do jogo), ao preço deles no mercado. O cartão mostra a conta, por exemplo
-  "Charizard 1.200 + 10 fragmentos × 45 = 1.650". Na Mega, **Buscar no mercado** também busca a
-  forma base e o preço dos fragmentos.
-
-### PokéIdle Hub (Pokédex, Calculadora de XP, Vale a pena?, Guias)
+### PokéIdle Hub (Pokédex, Calculadora de XP, Vale a pena?, Mercado, Guias)
 
 O [PokéIdle Hub](https://pokeidle-gg.pages.dev/) dentro do app (opção "PokéIdle Hub" em Ferramentas
-no jogo, ligada por padrão). Na ficha de qualquer Pokémon, junto do **💰 Calcular preço**:
+no jogo, ligada por padrão). Na ficha de qualquer Pokémon, junto de "Calcular" e "Comparar":
 
 - **📘 Pokédex:** abre a Pokédex do Hub já buscando a espécie.
 - **📈 Calcular XP:** abre a Calculadora de XP com a ficha colada (espécie, nível, Potência,
@@ -486,7 +453,7 @@ no jogo, ligada por padrão). Na ficha de qualquer Pokémon, junto do **💰 Cal
 - **⚖ Vale a pena?:** cola a ficha como "o seu Pokémon de agora"; se a ficha for de um anúncio do
   mercado (tem botão de comprar), entra como o **candidato**.
 
-No canto do jogo, **📘 Hub** abre o site para as outras páginas (Hunt, Mercado, **Guias**…). O Hub
+No perfil, **📘 PokéIdle Hub** abre o site para as outras páginas (Hunt, Mercado, **Guias**…). O Hub
 abre numa janela do app, no perfil da conta (o login do Discord dos Guias fica nela); links para fora
 do Hub vão para o navegador padrão. A página do jogo só consegue pedir uma das páginas conhecidas do
 Hub, com o texto da ficha; o app confere a origem da mensagem.
@@ -495,23 +462,23 @@ Hub, com o texto da ficha; o app confere a origem da mensagem.
 
 Réplica própria, escrita do zero, do "Rotom Sniper" divulgado no Discord do jogo. Vem **desativado**:
 ative em Configurações → Ferramentas no jogo e reinicie a conta (↻). Aparece então o botão
-**🎯 Sniper** no jogo, com:
+**🎯 Sniper** no seu perfil, com:
 
 - **Regras:** Pokémon ou item, nome contém, só shiny, potência mínima, **preço máximo** (obrigatório),
   moeda (ouro ou Gemas) e **limite de compras** por regra.
 - **Interruptor "Sniper ligado":** só com ele ligado o sniper consulta o mercado (a cada 5 s por
-  padrão, mínimo 3 s) e compra. Ele **volta desligado** sempre que a página recarrega.
+  padrão, mínimo 3 s) e compra. Ele **volta desligado** sempre que a página recarrega. Ligado, o
+  botão do perfil fica com borda vermelha e "ON".
 - **Carência:** anúncio que ainda não pode ser comprado é agendado para logo depois de liberar.
 - **Registro:** o que foi enviado, comprado, recusado ou ignorado por falta de saldo.
 
 Use por sua conta e risco: compra automática gasta seu ouro e suas Gemas sem perguntar. Confira as
 regras antes de ligar.
 
-**Sem o app (Chrome/Edge):** extensão em `extensions/sniper`, carregada como as outras.
+**Sem o app (Chrome/Edge):** extensão em `extensions/sniper`, carregada como a de shinies.
 
-Os três (🔔 RMT, 🎯 Sniper, 💰 Preço) usam as mesmas peças de interface, de
-`extensions/shared/ti-ui.js`. Cada extensão do Chrome leva uma cópia: depois de mexer nesse
-arquivo, rode `tools\sync-extensions.ps1`.
+O Sniper e o Hub usam as mesmas peças de interface, de `extensions/shared/ti-ui.js`. A extensão do
+Chrome leva uma cópia: depois de mexer nesse arquivo, rode `tools\sync-extensions.ps1`.
 
 ### Atualização pelo próprio app
 

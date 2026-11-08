@@ -19,6 +19,10 @@ public sealed class SelfTestServer : IDisposable
         <a id="twlink" href="https://www.twitch.tv/canalteste" target="_blank" rel="noopener">canal da Twitch</a>
         <a id="kicklink" href="https://kick.com/canalkick" target="_blank" rel="noopener">canal da Kick</a>
         <div><span id="shl-conta">5 shinies</span></div>
+        <!-- O perfil do treinador como no jogo: as ferramentas entram numa linha depois das moedas. -->
+        <div class="tr-dados" style="width:220px"><div class="tr-moedas" style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <span class="tr-moeda" id="tr-gold-box"><b id="tr-gold">0</b></span><span class="tr-moeda" id="tr-gemas-box"><b>0</b></span>
+        </div><div class="tr-ativos" id="tr-ativos"></div></div>
         <div id="t"></div>
         <script>
           window.bootId = Math.random().toString(36).slice(2);

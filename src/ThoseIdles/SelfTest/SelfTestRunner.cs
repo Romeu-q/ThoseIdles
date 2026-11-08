@@ -318,9 +318,10 @@ public sealed class SelfTestRunner
             return ok ? Pass($"todas conectadas em {sw.Elapsed.TotalSeconds:0.0}s ({states})") : Fail(states);
         });
 
-        // TI_SELFTEST_ONLY=hub: só o que mudou (o Hub), sem repetir o resto do autoteste.
-        if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") == "hub")
+        // TI_SELFTEST_ONLY=ferramentas: só as ferramentas do jogo (Sniper e Hub), sem repetir o resto.
+        if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") is "ferramentas" or "hub")
         {
+            await RunSniperTestsAsync();
             await RunHubTestAsync();
             return;
         }
@@ -446,7 +447,7 @@ public sealed class SelfTestRunner
         await RunExtensionTestsAsync();
         await RunShinyExportTestsAsync();
         await RunAppUpdateTestsAsync();
-        await RunRmtAlertTestsAsync();
+        await RunGameToolsTestsAsync();
         await RunEconomyTestsAsync();
 
         await Test("memória: renderers atribuídos por conta", async () =>
@@ -1039,103 +1040,6 @@ public sealed class SelfTestRunner
         });
     }
 
-    private async Task RunPriceCalcTestsAsync()
-    {
-        await Test("calculadora de preço: IVs úteis pelo perfil + Qualidade + Potência; RMT só com nota 3,5+", async () =>
-        {
-            var core = _manager[1].Core!;
-            await core.ExecuteScriptAsync("localStorage.removeItem('ti-preco-anuncios'); location.reload()");
-            for (var i = 0; i < 60 && await core.ExecuteScriptAsync("window.wsOpen === true && !!window.__tiPreco?.avaliar") != "true"; i++)
-                await Task.Delay(250);
-            var hasButton = await core.ExecuteScriptAsync("!!document.querySelector('#ti-dock #ti-prc-btn')") == "true";
-            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial')");
-            // Meus Pokémon com IVs em português (o classificador tem que reconhecer).
-            const string estado = """{"t":"estado","pokemons":[{"nome":"Rattata","potencia":1,"qualidade":20,"ivs":{"ps":10,"ataque":10,"defesa":10,"atq_esp":10,"def_esp":10,"velocidade":10}}]}""";
-            // Charizard especial: A/C/D parecidos; B tem IV alto só no Ataque (inútil para especial); E é P5.
-            var mercado = """
-              {"t":"market","aba":"pokemon","linhas":[
-              {"id":601,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.7,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31},"preco":2000,"moeda":"orb"},
-              {"id":602,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.7,"ivs":{"hp":31,"atk":31,"def":20,"spatk":0,"spdef":20,"spd":31},"preco":600,"moeda":"orb"},
-              {"id":603,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.68,"ivs":{"hp":31,"atk":0,"def":20,"spatk":29,"spdef":20,"spd":30},"preco":1800,"moeda":"orb"},
-              {"id":604,"ficha":{"nome":"Charizard","shiny":true,"potencia":4,"qualidade":1.75,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31}},"preco":2200,"moeda":"orb"},
-              {"id":605,"pokemonNome":"Charizard","shiny":true,"potencia":5,"qualidade":1.7,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31},"preco":9000,"moeda":"orb"},
-              {"id":606,"pokemonNome":"Charizard","shiny":true,"potencia":4,"qualidade":1.7,"ivs":{"hp":31,"atk":0,"def":20,"spatk":31,"spdef":20,"spd":31},"preco":80000,"moeda":"gold"},
-              {"id":607,"itemId":7,"itemNome":"Charizardite","preco":5,"moeda":"orb"}]}
-              """.Replace("\r", "").Replace("\n", "");
-            foreach (var msg in new[] { estado, mercado })
-                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
-            await Task.Delay(1500);
-            async Task<JsonElement> Eval(string js) =>
-                JsonDocument.Parse(JsonDocument.Parse(await core.ExecuteScriptAsync($"JSON.stringify({js})")).RootElement.GetString()!).RootElement;
-            const string alvo = "{ nome: 'Charizard', shiny: true, pot: 4, qual: 1.7, nota: 4.2, ivs: { hp: 31, atk: 0, def: 20, spatk: 31, spdef: 20, spd: 31 } }";
-            var esp = await Eval($"window.__tiPreco.avaliar({alvo})");
-            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'fisico')");
-            var fis = await Eval($"window.__tiPreco.avaliar({alvo})");
-            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial')");
-            var baixa = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 1.7, nota: 3.4, ivs: { spatk: 31 } })");
-            var limite = await Eval("window.__tiPreco.avaliar({ nome: 'Charizard', shiny: true, pot: 4, qual: 1.7, nota: 3500, ivs: { spatk: 31 } })");
-            var meus = await Eval("window.__tiPreco.meus().map(p => window.__tiPreco.avaliar(p))");
-            var gemas = esp.GetProperty("gemas").GetProperty("preco").GetDouble();
-            var ouro = esp.GetProperty("ouro").GetProperty("preco").GetDouble();
-            var ivEsp = esp.GetProperty("ivUtil").GetInt32();
-            var ivFis = fis.GetProperty("ivUtil").GetInt32();
-            var ivRattata = meus[0].GetProperty("ivUtil").GetInt32();
-            // A ficha real que o usuário mandou (Mega Charizard Y P4, Qualidade 1,796, IVs 17/25/11/21/31/5, nota 4,283).
-            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Mega Charizard Y', 'especial')");
-            var ficha = await Eval("window.__tiPreco.avaliar({ nome: 'Mega Charizard Y', shiny: false, pot: 4, qual: 1.796, nota: 4.283, ivs: { hp: 17, atk: 25, def: 11, spatk: 21, spdef: 31, spd: 5 } })");
-            var fichaIv = ficha.GetProperty("ivUtil").GetInt32();
-            var fichaValor = ficha.GetProperty("valor").GetDouble();
-            var ok = hasButton && gemas == 2000 && ouro == 80000 && ivEsp == 89 && ivFis == 55 && ivRattata == 31 && fichaIv == 52 && Math.Abs(fichaValor - 7.1) < 0.05
-                     && !baixa.GetProperty("podeRmt").GetBoolean() && limite.GetProperty("podeRmt").GetBoolean();
-            return ok
-                ? Pass($"Charizard especial: IVs úteis {ivEsp}% (como físico seriam {ivFis}%), valor {esp.GetProperty("valor")}/10 → {gemas} Gemas e {ouro} ouro; o anúncio com IV só em Ataque e o P5 pesaram pouco; nota 3,4 bloqueada, 3500 (=3,5) liberada; IVs em português reconhecidos ({ivRattata}%); ficha do Mega Charizard Y: IVs úteis {fichaIv}%, valor {fichaValor}/10")
-                : Fail($"botão={hasButton} ficha={ficha} esp={esp} fis={fis} baixa={baixa} limite={limite} meus={meus}");
-        });
-    }
-
-    private async Task RunPriceInFichaTestAsync()
-    {
-        await Test("calcular preço na ficha do Pokémon: botão nas ações da ficha e cartão com o preço", async () =>
-        {
-            var core = _manager[1].Core!;
-            // Mesmo HTML da ficha do jogo (#ficha-corpo, placas, .fi-stat com .fi-iv, nota em data-nota).
-            await core.ExecuteScriptAsync("""
-                (() => {
-                  document.getElementById('ficha-corpo')?.remove();
-                  const d = document.createElement('div');
-                  d.id = 'ficha-corpo';
-                  const stat = (n, v) => `<div class="fi-stat"><span class="fi-stat-nome">${n}</span><b class="fi-stat-num">100</b><em class="fi-iv">IV ${v}</em></div>`;
-                  d.innerHTML = `<div class="fi-heroi"><div class="fi-heroi-info">
-                      <div class="fi-nome">✨Charizard</div>
-                      <div class="fi-placas-heroi"><div class="fi-placas-linha">
-                        <div class="fi-placa pk-selo pk-selo-pot t4"><small><span>Potência</span></small><b>P4</b></div>
-                        <div class="fi-placa pk-selo pk-selo-q t5"><small><span>Qualidade</span></small><b>1,700</b></div>
-                      </div></div>
-                      <div class="fi-acoes"><button class="fi-calc fi-acao" id="fi-calc">Calcular</button></div>
-                    </div>
-                    <div class="fi-heroi-palcos"><div class="fi-palco hf-shiny"><b class="fi-nota-num" data-nota="4.2">4,2</b></div></div></div>
-                    <section class="fi-cartao"><div class="fi-stats">${stat('HP',31)}${stat('ATK',0)}${stat('DEF',20)}${stat('SP.ATK',31)}${stat('SP.DEF',20)}${stat('SPD',31)}</div></section>
-                    <section class="fi-cartao"><div class="fi-placas"><div class="fi-placa"><small><span>Espécie</span></small><b>#6 Charizard</b></div></div></section>`;
-                  document.body.appendChild(d);
-                })();
-                """);
-            var temBotao = false;
-            for (var i = 0; i < 20 && !(temBotao = await core.ExecuteScriptAsync("!!document.querySelector('#ficha-corpo .fi-acoes #ti-fi-preco')") == "true"); i++)
-                await Task.Delay(100);
-            var lido = await core.ExecuteScriptAsync("JSON.stringify(window.__tiPreco.lerFicha(document.getElementById('ficha-corpo')))");
-            await core.ExecuteScriptAsync("document.getElementById('ti-fi-preco').click()");
-            await Task.Delay(800);
-            var texto = JsonDocument.Parse(await core.ExecuteScriptAsync("document.getElementById('ti-fi-card')?.innerText ?? ''")).RootElement.GetString() ?? "";
-            var depoisDoHeroi = await core.ExecuteScriptAsync("document.querySelector('#ficha-corpo .fi-heroi').nextElementSibling?.id") == "\"ti-fi-card\"";
-            await core.ExecuteScriptAsync("document.getElementById('ficha-corpo')?.remove()");
-            var ok = temBotao && depoisDoHeroi && texto.Contains("2.000") && texto.Contains("80.000") && texto.Contains("Charizard")
-                     && lido.Contains("spAtk") && lido.Contains("1.7");
-            return ok
-                ? Pass("botão \"💰 Calcular preço\" entrou nas ações da ficha; o cartão abriu logo abaixo do topo com 2.000 Gemas e 80.000 ouro (lidos da ficha: P4, Qualidade 1,700, IVs por stat, nota 4,2, shiny)")
-                : Fail($"botão={temBotao} posição={depoisDoHeroi} lido={lido} cartão=[{texto.Replace("\n", " | ")}]");
-        });
-    }
-
     private async Task RunHubTestAsync()
     {
         await Test("PokéIdle Hub: botões na ficha abrem o site numa janela da conta, com a ficha colada", async () =>
@@ -1160,7 +1064,11 @@ public sealed class SelfTestRunner
             var botoes = false;
             for (var i = 0; i < 30 && !(botoes = await core.ExecuteScriptAsync("['ti-fi-dex','ti-fi-xp','ti-fi-vale'].every(id => document.querySelector('#ficha-corpo .fi-acoes #' + id))") == "true"); i++)
                 await Task.Delay(100);
-            var pill = await core.ExecuteScriptAsync("!!document.querySelector('#ti-dock #ti-hub-btn')") == "true";
+            // O botão do Hub fica no perfil, na linha logo depois das moedas — nada flutuando sobre o jogo.
+            var pill = false;
+            for (var i = 0; i < 30 && !(pill = await core.ExecuteScriptAsync(
+                "!!document.querySelector('.tr-moedas + #ti-dock.tr-moedas #ti-hub-btn.tr-moeda') && !document.querySelector('.ti-pill')") == "true"); i++)
+                await Task.Delay(100);
             // Uma mensagem fora do combinado (rota desconhecida) não abre nada.
             await core.ExecuteScriptAsync("window.chrome.webview.postMessage({ ti: 'hub', rota: 'https://evil.example' })");
             await Task.Delay(500);
@@ -1183,80 +1091,16 @@ public sealed class SelfTestRunner
             s.HubWindow?.Close();
             var ok = botoes && pill && recusou && abriu && src.StartsWith(BrowserSession.HubOrigin) && src.EndsWith("#xp") && colou.Contains("Nv 523") && colou.Contains("IV 31");
             return ok
-                ? Pass($"botões 📘 Pokédex / 📈 Calcular XP / ⚖ Vale a pena? na ficha e 📘 Hub no canto; rota estranha recusada; \"Calcular XP\" abriu {src} com a ficha colada ({colou.Split('\n').Length} linhas)")
+                ? Pass($"botões 📘 Pokédex / 📈 Calcular XP / ⚖ Vale a pena? na ficha e 📘 PokéIdle Hub no perfil (depois das moedas); rota estranha recusada; \"Calcular XP\" abriu {src} com a ficha colada ({colou.Split('\n').Length} linhas)")
                 : Fail($"botões={botoes} pill={pill} recusou={recusou} abriu={abriu} src={src} colou=[{colou.Replace("\n", " | ")}]");
         });
     }
 
-    private async Task RunMegaPriceTestAsync()
-    {
-        await Test("preço de Mega: nunca abaixo do custo (forma base + fragmentos da pedra)", async () =>
-        {
-            var core = _manager[1].Core!;
-            const string ivs = """{"hp":17,"atk":25,"def":11,"spAtk":21,"spDef":31,"speed":5}""";
-            var msgs = new[]
-            {
-                """{"t":"welcome","mega":{"custo":10,"custoShiny":10,"fragmentoId":70014,"fragmentoShinyId":70015}}""",
-                """{"t":"market","aba":"itens","resumo":{"70014":{"minOrb":45,"minGold":9000},"70015":{"minOrb":300,"minGold":0}}}""",
-                // Três Charizard comuns P4 iguais ao da ficha a 1.200 Gemas, e UM anúncio de Mega Charizard Y a 450.
-                $$"""{"t":"market","aba":"pokemon","linhas":[{"id":701,"pokemonNome":"Charizard","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":1200,"moeda":"orb"},{"id":702,"pokemonNome":"Charizard","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":1200,"moeda":"orb"},{"id":703,"pokemonNome":"Charizard","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":1200,"moeda":"orb"},{"id":704,"pokemonNome":"Mega Charizard Y","potencia":4,"quality":1.796,"ivs":{{ivs}},"preco":450,"moeda":"orb"}]}""",
-            };
-            foreach (var msg in msgs)
-                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
-            await Task.Delay(1500);
-            await core.ExecuteScriptAsync("window.__tiPreco.definirPerfil('Charizard', 'especial'); window.__tiPreco.definirPerfil('Mega Charizard Y', 'especial')");
-            var json = await core.ExecuteScriptAsync($"JSON.stringify(window.__tiPreco.avaliar({{ nome: 'Mega Charizard Y', shiny: false, pot: 4, qual: 1.796, nota: 4.283, ivs: {ivs} }}))");
-            var r = JsonDocument.Parse(JsonDocument.Parse(json).RootElement.GetString()!).RootElement;
-            var g = r.GetProperty("gemas");
-            var preco = g.GetProperty("preco").GetDouble();
-            var mega = g.GetProperty("mega");
-            var custo = mega.GetProperty("total").GetDouble();
-            var frag = mega.GetProperty("unit").GetDouble();
-            var pelaProducao = g.TryGetProperty("pelaProducao", out var pp) && pp.GetBoolean();
-            var ok = preco == 1650 && custo == 1650 && frag == 45 && pelaProducao && mega.GetProperty("basePreco").GetDouble() == 1200;
-            return ok
-                ? Pass($"anúncio de Mega a 450 ignorado como piso: Charizard 1.200 + 10 fragmentos × 45 = {preco} Gemas (pelo custo de produção)")
-                : Fail($"resultado={r}");
-        });
-    }
-
-    private async Task RunRmtAlertTestsAsync()
+    private async Task RunGameToolsTestsAsync()
     {
         await RunSniperTestsAsync();
-        await RunPriceCalcTestsAsync();
-        await RunPriceInFichaTestAsync();
         await RunHubTestAsync();
-        await RunMegaPriceTestAsync();
         await RunAccountCountLayoutTestAsync();
-        await Test("alerta de RMT: avisa só anúncio em Gemas que bate com a regra; não envia nada", async () =>
-        {
-            var core = _manager[1].Core!;
-            var hasButton = await core.ExecuteScriptAsync("!!document.getElementById('ti-rmt-btn')") == "true";
-            // Regra: shiny com "char" no nome, P3+, até 2000 Gemas.
-            await core.ExecuteScriptAsync("localStorage.setItem('ti-rmt-regras', JSON.stringify([{ ativa: true, texto: 'char', soShiny: true, potMin: 3, precoMax: 2000 }]))");
-            await core.ExecuteScriptAsync("location.reload()"); // recarrega para o script ler as regras salvas
-            for (var i = 0; i < 60 && await core.ExecuteScriptAsync("window.wsOpen === true && !!window.__tiRmtAlertState") != "true"; i++)
-                await Task.Delay(250);
-            // Conta o que a página manda ao servidor a partir daqui (o alerta não pode mandar nada).
-            await core.ExecuteScriptAsync("""
-                window.__enviados = [];
-                const s = WebSocket.prototype.send;
-                WebSocket.prototype.send = function (d) { window.__enviados.push(String(d)); return s.apply(this, arguments); };
-                """);
-            const string mercado = """{"t":"market","aba":"pokemon","linhas":[{"id":1,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":1500,"moeda":"orb","vendedor":"fulano"},{"id":2,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":2500,"moeda":"orb"},{"id":3,"pokemonNome":"Charmander","potencia":5,"preco":10,"moeda":"orb"},{"id":4,"pokemonNome":"Charmeleon","shiny":true,"potencia":3,"preco":100,"moeda":"gold"},{"id":5,"pokemonNome":"Charizard","shiny":true,"potencia":5,"preco":900,"moeda":"orb","comprador":"x"}]}""";
-            foreach (var msg in new[] { mercado, mercado })
-                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
-            await Task.Delay(1500);
-            var state = JsonDocument.Parse(JsonDocument.Parse(await core.ExecuteScriptAsync("JSON.stringify(window.__tiRmtAlertState())")).RootElement.GetString()!).RootElement;
-            var alertas = state.GetProperty("alertas").EnumerateArray().Select(a => a.GetProperty("desc").GetString()!).ToList();
-            var badge = await core.ExecuteScriptAsync("document.getElementById('ti-rmt-btn').textContent");
-            var enviados = JsonDocument.Parse(await core.ExecuteScriptAsync("JSON.stringify(window.__enviados)")).RootElement.GetString()!;
-            var proprios = JsonDocument.Parse(enviados).RootElement.EnumerateArray().Select(e => e.GetString()!).Where(s => !s.Contains("teste.eco")).ToList();
-            var ok = hasButton && alertas.Count == 1 && alertas[0].StartsWith("Charizard ✨ P4 por 1500 Gemas") && System.Text.RegularExpressions.Regex.IsMatch(badge, @"RMT\s*1") && proprios.Count == 0;
-            return ok
-                ? Pass($"de 5 anúncios (repetidos 2×; 1 em ouro, 1 caro, 1 sem shiny, 1 vendido) só 1 alertou: \"{alertas[0]}\"; botão {badge}; nenhuma mensagem enviada")
-                : Fail($"botão={hasButton} badge={badge} alertas=[{string.Join(" | ", alertas)}] enviados=[{string.Join(" | ", proprios)}]");
-        });
     }
 
     // ------------------------------------------------------------------ aviso de versão nova

@@ -1,9 +1,9 @@
 // ThoseIdles — PokéIdle Hub (https://pokeidle-gg.pages.dev) dentro do app.
 // Na ficha de qualquer Pokémon do jogo entram os botões "📘 Pokédex", "📈 Calcular XP" e
-// "⚖ Vale a pena?", junto do "💰 Calcular preço". Cada um pede ao app para abrir o Hub numa janela
+// "⚖ Vale a pena?", junto das ações da ficha. Cada um pede ao app para abrir o Hub numa janela
 // (no perfil desta conta) na página certa, já com a ficha do Pokémon colada — o mesmo texto que você
-// copiaria à mão "do nome até Stats-base da espécie". No canto do jogo, o botão "📘 Hub" abre o site
-// (Pokédex, Calculadora de XP, Hunt, Vale a pena?, Mercado, Guias).
+// copiaria à mão "do nome até Stats-base da espécie". No perfil do treinador, abaixo das moedas, o
+// botão "📘 PokéIdle Hub" abre o site (Pokédex, Calculadora de XP, Hunt, Vale a pena?, Mercado, Guias).
 // Só do app (usa chrome.webview); não lê nem envia nada ao jogo.
 (() => {
   'use strict';
@@ -107,7 +107,7 @@
   function prepararFicha() {
     const acoes = document.querySelector('#ficha-corpo .fi-acoes');
     if (!acoes || acoes.querySelector('#ti-fi-dex')) return;
-    let depois = acoes.querySelector('#ti-fi-preco');
+    let depois = null;
     for (const [id, rotulo, titulo, rota] of BOTOES) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -131,9 +131,10 @@
 
   function montar() {
     if (!UI() || !document.body) return;
-    UI().pill('ti-hub-btn', 'PokéIdle Hub: Pokédex, Calculadora de XP, Vale a pena? e Guias', () => abrir('pokedex')).innerHTML = '📘 Hub';
+    const b = UI().pill('ti-hub-btn', 'PokéIdle Hub: Pokédex, Calculadora de XP, Vale a pena?, Mercado e Guias', () => abrir('pokedex'));
+    if (b && !b.innerHTML) b.innerHTML = '<i>📘</i><span>PokéIdle Hub</span>';
   }
-  setInterval(montar, 5000);
+  setInterval(montar, 2000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar); else montar();
 
   // Para o autoteste.

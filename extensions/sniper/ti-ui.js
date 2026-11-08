@@ -1,20 +1,23 @@
-// ThoseIdles — peças de interface compartilhadas pelos painéis do jogo (🔔 RMT, 🎯 Sniper, 💰 Preço).
-// Um estilo só para os três: barra de botões no canto, painel com cabeçalho, cartões, interruptores,
-// campos e avisos. Carregado ANTES dos scripts das ferramentas (no app e em cada extensão do Chrome,
-// que leva uma cópia deste arquivo — ver tools/sync-extensions.ps1).
+// ThoseIdles — peças de interface compartilhadas pelas ferramentas do jogo (🎯 Sniper, 📘 Hub).
+// Os botões entram NO PERFIL do treinador (painel da esquerda), numa linha própria logo abaixo das
+// moedas, com o mesmo visual das moedas do jogo — nada flutuando por cima da tela. Também: painel com
+// cabeçalho, cartões, interruptores, campos e avisos. Carregado ANTES dos scripts das ferramentas (no
+// app e na extensão do Chrome, que leva uma cópia deste arquivo — ver tools/sync-extensions.ps1).
 (() => {
   'use strict';
   if (window.top !== window || window.__tiUI) return;
 
   const CSS = `
-  .ti-dock{position:fixed;left:12px;bottom:12px;z-index:2147483000;display:flex;gap:8px;font-family:'Segoe UI',system-ui,sans-serif}
-  .ti-pill{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 14px;border-radius:16px;
-    background:rgba(23,21,31,.94);border:1px solid #3a3550;color:#ece9f5;font:600 12.5px 'Segoe UI',system-ui,sans-serif;
-    cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);transition:border-color .15s,transform .15s}
-  .ti-pill:hover{border-color:#8b6cff;transform:translateY(-1px)}
-  .ti-pill.ativo{border-color:#8b6cff;background:#2a2342}
-  .ti-pill.alerta{background:#5a1d22;border-color:#e5484d}
-  .ti-badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ff5d6c;color:#fff;font-size:11px;
+  .ti-perfil{margin-top:4px}
+  .ti-perfil-bt{border:0;cursor:pointer;font:inherit;text-align:left;transition:filter .12s,transform .08s}
+  .ti-perfil-bt:hover{filter:brightness(1.18)}
+  .ti-perfil-bt:active{transform:translateY(1px)}
+  .ti-perfil-bt>span{flex:1;min-width:0;overflow:hidden;color:#fff;
+    font:700 9.5px/1.15 Tahoma,Verdana,"Segoe UI",sans-serif;letter-spacing:.2px}
+  .ti-perfil-bt>i{font-style:normal;font-size:13px;line-height:1}
+  .ti-perfil-bt.ativo{box-shadow:inset 0 0 0 2px #8b6cff}
+  .ti-perfil-bt.alerta{box-shadow:inset 0 0 0 2px #e5484d}
+  .ti-badge{min-width:18px;height:16px;padding:0 4px;border-radius:8px;background:#ff5d6c;color:#fff;font:700 9px Tahoma,sans-serif;
     display:inline-flex;align-items:center;justify-content:center}
 
   .ti-panel{position:fixed;left:12px;bottom:54px;z-index:2147483000;width:440px;max-width:calc(100vw - 24px);max-height:74vh;
@@ -98,24 +101,36 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
+  /**
+   * A linha do ThoseIdles no perfil do treinador: uma grade igual à das moedas (.tr-moedas, duas
+   * colunas), logo depois dela. null enquanto o perfil não existe (tela de login, carregando).
+   */
   function dock() {
+    const moedas = document.getElementById('tr-gold-box')?.closest('.tr-moedas');
+    if (!moedas) return null;
     injetarCss();
     let d = document.getElementById('ti-dock');
-    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.className = 'ti-dock'; document.body.appendChild(d); }
+    if (!d) { d = document.createElement('div'); d.id = 'ti-dock'; d.className = 'tr-moedas ti-perfil'; }
+    if (d.previousElementSibling !== moedas) moedas.after(d); // o jogo redesenhou o perfil
     return d;
   }
 
-  /** Botão da barra do canto. Devolve o botão (ou o que já existia). */
+  /**
+   * Botão no perfil do treinador (com o visual das moedas do jogo). Devolve o botão, ou null se o
+   * perfil ainda não está na tela. `rotulo(html)` troca o conteúdo: ícone + texto.
+   */
   function pill(id, titulo, onclick) {
-    if (!document.body) return null;
+    const d = document.body && dock();
+    if (!d) return null;
     let b = document.getElementById(id);
-    if (b) return b;
+    if (b) { if (b.parentElement !== d) d.appendChild(b); return b; }
     b = document.createElement('button');
+    b.type = 'button';
     b.id = id;
-    b.className = 'ti-pill';
+    b.className = 'tr-moeda ti-perfil-bt';
     b.title = titulo;
     b.onclick = onclick;
-    dock().appendChild(b);
+    d.appendChild(b);
     return b;
   }
 

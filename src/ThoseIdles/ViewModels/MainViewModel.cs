@@ -412,30 +412,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool EnableRmtAlert
-    {
-        get => _settings.EnableRmtAlert;
-        set
-        {
-            _settings.EnableRmtAlert = value;
-            OnPropertyChanged();
-            SaveSettings();
-            Notice = "O alerta de RMT muda nas contas abertas a partir de agora (reinicie a conta ↻ para aplicar já).";
-        }
-    }
-
-    public bool EnablePriceCalc
-    {
-        get => _settings.EnablePriceCalc;
-        set
-        {
-            _settings.EnablePriceCalc = value;
-            OnPropertyChanged();
-            SaveSettings();
-            Notice = "A calculadora de preço muda nas contas a partir de agora (Mais → Reiniciar esta conta para aplicar já).";
-        }
-    }
-
     public bool EnablePokeIdleHub
     {
         get => _settings.EnablePokeIdleHub;
