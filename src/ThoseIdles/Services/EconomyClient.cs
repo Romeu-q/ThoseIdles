@@ -188,7 +188,7 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         welcomed = true;
                         ReadAutomation(message);
-                        Parse(message, root => { Stats.LerWelcome(root); LerTwitch(root); });
+                        Parse(message, root => Stats.LerWelcome(root));
                         _ = SpeciesCatalog.EnsureLoadedAsync(); // para a nota da "melhor captura"
                         ConnectedSinceUtc = DateTime.UtcNow;
                         SetState(EconomyState.Connected, ConnectedText());
@@ -207,13 +207,9 @@ public sealed class EconomyClient : IAsyncDisposable
                     }
                     else if (welcomed && type == "estado")
                     {
-                        // O estado da conta mudou (nível, Pokémon ativo, pokébolas, Twitch…): só vêm os campos alterados.
+                        // O estado da conta mudou (nível, Pokémon ativo, pokébolas…): só vêm os campos alterados.
                         var leu = false;
-                        Parse(message, root =>
-                        {
-                            leu = Stats.LerEstado(root) | Stats.LerBolas(root);
-                            LerTwitch(root);
-                        });
+                        Parse(message, root => leu = Stats.LerEstado(root) | Stats.LerBolas(root));
                         if (leu) AtualizarResumo();
                     }
                     else if (welcomed && Contains(message, "\"balls\""))
@@ -293,14 +289,6 @@ public sealed class EconomyClient : IAsyncDisposable
         catch { return null; }
     }
 
-    /// <summary>O bloco "twitch" do estado (lives oficiais no ar, quais valem bônus, onde o vigia te achou).</summary>
-    public event EventHandler<TwitchInfo>? TwitchInfoReceived;
-
-    private void LerTwitch(JsonElement root)
-    {
-        if (EconomySessionStats.Achar(root, "twitch", 0) is { ValueKind: JsonValueKind.Object } tw && TwitchInfo.From(tw) is { } info)
-            TwitchInfoReceived?.Invoke(this, info);
-    }
 
     private static void Parse(MemoryStream message, Action<JsonElement> use)
     {

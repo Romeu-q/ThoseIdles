@@ -136,6 +136,8 @@
                                       Tag="Botão &quot;🔔 RMT&quot; no canto do jogo: avisa anúncios em Gemas que batem com as suas regras. Só avisa, nunca compra." />
                             <CheckBox Content="Calculadora de preço" IsChecked="{Binding EnablePriceCalc}"
                                       Tag="Botão &quot;💰 Preço&quot; no jogo: quanto vale o seu Pokémon no RMT (nota 3,5 ou mais) e em ouro, comparando com o mercado." />
+                            <CheckBox Content="PokéIdle Hub (Pokédex, XP, Vale a pena?, Guias)" IsChecked="{Binding EnablePokeIdleHub}"
+                                      Tag="Botões &quot;📘 Pokédex&quot;, &quot;📈 Calcular XP&quot; e &quot;⚖ Vale a pena?&quot; na ficha do Pokémon e &quot;📘 Hub&quot; no canto do jogo: abrem o pokeidle-gg.pages.dev numa janela do app, já com a ficha colada." />
                             <CheckBox Content="Sniper do mercado (compra automática)" IsChecked="{Binding EnableSniper}"
                                       Tag="Botão &quot;🎯 Sniper&quot; no jogo: compra sozinho o que bater com as suas regras (preço máximo e limite de compras obrigatórios). Sempre abre desligado." />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
@@ -149,8 +151,6 @@
                             <TextBlock Style="{StaticResource CardTitle}" Text="Lives da Twitch e da Kick (bônus)" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6"
                                        Text="Abra a tela &quot;Twitch&quot; ou &quot;Kick&quot; dentro do jogo e clique num canal: a live abre escondida, embaixo da conta, e continua assistindo (na Kick, rendendo os pontos do canal)." />
-                            <CheckBox Content="Abrir e fechar as lives sozinho" IsChecked="{Binding AutoTwitchLives}"
-                                      Tag="Abre as lives oficiais que estão no ar e valem bônus, e fecha as que saem do ar (pela lista do próprio jogo)." />
                             <CheckBox Content="Abrir sem som" IsChecked="{Binding LiveMutedByDefault}" />
                             <CheckBox Content="Qualidade mais baixa" IsChecked="{Binding LiveLowestQuality}"
                                       Tag="Gasta menos internet e computador." />

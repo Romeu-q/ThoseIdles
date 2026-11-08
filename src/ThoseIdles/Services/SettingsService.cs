@@ -133,8 +133,11 @@ public sealed class AppSettings
     /// <summary>Live da Twitch: qualidade padrão 160p (gravada uma vez; trocar no player continua valendo).</summary>
     public bool LiveLowestQuality { get; set; } = true;
 
-    /// <summary>Abre sozinho as lives oficiais da Twitch no ar que valem bônus e fecha as que saem do ar.</summary>
-    public bool AutoTwitchLives { get; set; } = true;
+    /// <summary>
+    /// PokéIdle Hub (pokeidle-gg.pages.dev): botões na ficha do Pokémon (Pokédex, Calcular XP, Vale a
+    /// pena?) e no jogo (Guias…) que abrem o site numa janela do app, já com a ficha preenchida.
+    /// </summary>
+    public bool EnablePokeIdleHub { get; set; } = true;
 
     /// <summary>Reabre a live de cada conta quando a conta abre.</summary>
     public bool ReopenLives { get; set; } = true;

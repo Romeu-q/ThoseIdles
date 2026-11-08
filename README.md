@@ -475,6 +475,22 @@ canto do jogo faz o mesmo para os seus Pokémon e para um que você digitar.
   "Charizard 1.200 + 10 fragmentos × 45 = 1.650". Na Mega, **Buscar no mercado** também busca a
   forma base e o preço dos fragmentos.
 
+### PokéIdle Hub (Pokédex, Calculadora de XP, Vale a pena?, Guias)
+
+O [PokéIdle Hub](https://pokeidle-gg.pages.dev/) dentro do app (opção "PokéIdle Hub" em Ferramentas
+no jogo, ligada por padrão). Na ficha de qualquer Pokémon, junto do **💰 Calcular preço**:
+
+- **📘 Pokédex:** abre a Pokédex do Hub já buscando a espécie.
+- **📈 Calcular XP:** abre a Calculadora de XP com a ficha colada (espécie, nível, Potência,
+  Qualidade, stats e IVs, refino e AoE).
+- **⚖ Vale a pena?:** cola a ficha como "o seu Pokémon de agora"; se a ficha for de um anúncio do
+  mercado (tem botão de comprar), entra como o **candidato**.
+
+No canto do jogo, **📘 Hub** abre o site para as outras páginas (Hunt, Mercado, **Guias**…). O Hub
+abre numa janela do app, no perfil da conta (o login do Discord dos Guias fica nela); links para fora
+do Hub vão para o navegador padrão. A página do jogo só consegue pedir uma das páginas conhecidas do
+Hub, com o texto da ficha; o app confere a origem da mensagem.
+
 ### Sniper do mercado (compra automática)
 
 Réplica própria, escrita do zero, do "Rotom Sniper" divulgado no Discord do jogo. Vem **desativado**:

@@ -207,6 +207,7 @@ public sealed partial class BrowserSession : ObservableObject
         _generation++;
         CancelTimers();
         CloseLoginPopups();
+        CloseHubWindow();
         DetachAndDispose();
         _ = StopEconomyClientAsync(); // o modo fica salvo: a conta reabre em modo econômico
         _wasConnected = false;
@@ -272,6 +273,7 @@ public sealed partial class BrowserSession : ObservableObject
         CancelTimers();
         CloseLive(forget: true); // a live usa o mesmo perfil (login da Twitch), que vai ser apagado
         CloseLoginPopups();
+        CloseHubWindow();
         SetStatus(SessionStatus.Loading, "Limpando dados…");
         await NavigateAndWaitAsync(core, "about:blank", TimeSpan.FromSeconds(10));
         await core.Profile.ClearBrowsingDataAsync();
@@ -453,12 +455,12 @@ public sealed partial class BrowserSession : ObservableObject
         if (_settings.EnableShinyExport && ShinyExportScript.Value is { Length: > 0 } script)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
 
-        // Lives automáticas: a página repassa o bloco "twitch" do estado (quais lives oficiais estão no ar).
-        if (_settings.AutoTwitchLives) await EnableTwitchRelayAsync(core);
-
-        // Peças de interface dos painéis do jogo (RMT, Sniper, Preço): carregadas antes deles.
-        if ((_settings.EnableRmtAlert || _settings.EnableSniper || _settings.EnablePriceCalc) && TiUiScript.Value is { Length: > 0 } ui)
+        // Peças de interface dos painéis do jogo (RMT, Sniper, Preço, Hub): carregadas antes deles.
+        if ((_settings.EnableRmtAlert || _settings.EnableSniper || _settings.EnablePriceCalc || _settings.EnablePokeIdleHub) && TiUiScript.Value is { Length: > 0 } ui)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(ui);
+
+        // PokéIdle Hub: botões na ficha do Pokémon e no canto do jogo (abrem o site numa janela do app).
+        if (_settings.EnablePokeIdleHub) await EnableHubButtonsAsync(core);
 
         // Alerta de RMT (só lê o que o jogo manda; nunca envia nada).
         if (_settings.EnableRmtAlert && RmtAlertScript.Value is { Length: > 0 } rmt)
@@ -672,6 +674,13 @@ public sealed partial class BrowserSession : ObservableObject
         if (IsLoginPopupUrl(e.Uri))
         {
             OpenLoginPopup(e);
+            return;
+        }
+        // Links para o PokéIdle Hub: a janela do Hub desta conta, na mesma rota.
+        if (_settings.EnablePokeIdleHub && IsHubUrl(e.Uri))
+        {
+            var rota = new Uri(e.Uri).Fragment.TrimStart('#').Split('/')[0];
+            _ = OpenHubAsync(HubRoutes.Contains(rota) ? rota : "pokedex");
             return;
         }
         if (!NavigationPolicy.IsSafeExternalUrl(e.Uri)) return;

@@ -359,19 +359,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { _settings.LiveLowestQuality = value; OnPropertyChanged(); SaveSettings(); }
     }
 
-    public bool AutoTwitchLives
-    {
-        get => _settings.AutoTwitchLives;
-        set
-        {
-            _settings.AutoTwitchLives = value;
-            OnPropertyChanged();
-            SaveSettings();
-            Notice = value
-                ? "Lives automáticas ligadas: vale nas contas a partir da próxima abertura (Mais → Reiniciar esta conta para aplicar já)."
-                : "Lives automáticas desligadas: as lives abertas ficam como estão.";
-        }
-    }
 
     public bool ReopenLives
     {
@@ -446,6 +433,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged();
             SaveSettings();
             Notice = "A calculadora de preço muda nas contas a partir de agora (Mais → Reiniciar esta conta para aplicar já).";
+        }
+    }
+
+    public bool EnablePokeIdleHub
+    {
+        get => _settings.EnablePokeIdleHub;
+        set
+        {
+            _settings.EnablePokeIdleHub = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = "Os botões do PokéIdle Hub mudam nas contas a partir de agora (Mais → Reiniciar esta conta para aplicar já).";
         }
     }
 

@@ -318,6 +318,13 @@ public sealed class SelfTestRunner
             return ok ? Pass($"todas conectadas em {sw.Elapsed.TotalSeconds:0.0}s ({states})") : Fail(states);
         });
 
+        // TI_SELFTEST_ONLY=hub: só o que mudou (o Hub), sem repetir o resto do autoteste.
+        if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") == "hub")
+        {
+            await RunHubTestAsync();
+            return;
+        }
+
         await Test("um único processo de navegador compartilhado", async () =>
         {
             var pids = _manager.Sessions.Select(s => s.Core!.BrowserProcessId).Distinct().ToList();
@@ -1129,6 +1136,58 @@ public sealed class SelfTestRunner
         });
     }
 
+    private async Task RunHubTestAsync()
+    {
+        await Test("PokéIdle Hub: botões na ficha abrem o site numa janela da conta, com a ficha colada", async () =>
+        {
+            var s = _manager[1];
+            var core = s.Core!;
+            await core.ExecuteScriptAsync("""
+                (() => {
+                  document.getElementById('ficha-corpo')?.remove();
+                  const d = document.createElement('div');
+                  d.id = 'ficha-corpo';
+                  const stat = (n, a, v) => `<div class="fi-stat"><span class="fi-stat-nome">${n}</span><b class="fi-stat-num">${a}</b><em class="fi-iv">IV ${v}</em></div>`;
+                  d.innerHTML = `<div class="fi-heroi"><div class="fi-heroi-info">
+                      <div class="fi-nome">Charizard</div><span class="fi-nivel-chip">Nv 523</span>
+                      <div class="fi-placa pk-selo pk-selo-pot t4"><b>P4</b></div><div class="fi-placa pk-selo pk-selo-q t5"><b>1,796</b></div>
+                      <div class="fi-acoes"><button class="fi-calc fi-acao" id="fi-calc">Calcular</button></div></div></div>
+                    <section class="fi-cartao"><div class="fi-stats">${stat('HP','1.520',17)}${stat('ATK','1.300',25)}${stat('DEF','1.100',11)}${stat('SP.ATK','2.400',21)}${stat('SP.DEF','1.900',31)}${stat('SPD','1.200',5)}</div></section>
+                    <section class="fi-cartao"><div class="fi-placas"><div class="fi-placa"><b>#6 Charizard</b></div></div></section>`;
+                  document.body.appendChild(d);
+                })();
+                """);
+            var botoes = false;
+            for (var i = 0; i < 30 && !(botoes = await core.ExecuteScriptAsync("['ti-fi-dex','ti-fi-xp','ti-fi-vale'].every(id => document.querySelector('#ficha-corpo .fi-acoes #' + id))") == "true"); i++)
+                await Task.Delay(100);
+            var pill = await core.ExecuteScriptAsync("!!document.querySelector('#ti-dock #ti-hub-btn')") == "true";
+            // Uma mensagem fora do combinado (rota desconhecida) não abre nada.
+            await core.ExecuteScriptAsync("window.chrome.webview.postMessage({ ti: 'hub', rota: 'https://evil.example' })");
+            await Task.Delay(500);
+            var recusou = s.HubWindow is null;
+            await core.ExecuteScriptAsync("document.getElementById('ti-fi-xp').click()");
+            var abriu = await WaitUntil(() => s.HubWindow is not null && s.HubCore is not null, TimeSpan.FromSeconds(15));
+            var colou = "";
+            var src = "";
+            if (abriu)
+            {
+                // O site é o de verdade (internet): espera ele carregar e conferir o campo da ficha.
+                for (var i = 0; i < 40 && !colou.Contains("Nv 523"); i++)
+                {
+                    await Task.Delay(500);
+                    try { colou = JsonDocument.Parse(await s.HubCore!.ExecuteScriptAsync("document.getElementById('xpc-ficha')?.value ?? ''")).RootElement.GetString() ?? ""; } catch { }
+                }
+                src = s.HubCore?.Source ?? "";
+            }
+            await core.ExecuteScriptAsync("document.getElementById('ficha-corpo')?.remove()");
+            s.HubWindow?.Close();
+            var ok = botoes && pill && recusou && abriu && src.StartsWith(BrowserSession.HubOrigin) && src.EndsWith("#xp") && colou.Contains("Nv 523") && colou.Contains("IV 31");
+            return ok
+                ? Pass($"botões 📘 Pokédex / 📈 Calcular XP / ⚖ Vale a pena? na ficha e 📘 Hub no canto; rota estranha recusada; \"Calcular XP\" abriu {src} com a ficha colada ({colou.Split('\n').Length} linhas)")
+                : Fail($"botões={botoes} pill={pill} recusou={recusou} abriu={abriu} src={src} colou=[{colou.Replace("\n", " | ")}]");
+        });
+    }
+
     private async Task RunMegaPriceTestAsync()
     {
         await Test("preço de Mega: nunca abaixo do custo (forma base + fragmentos da pedra)", async () =>
@@ -1166,6 +1225,7 @@ public sealed class SelfTestRunner
         await RunSniperTestsAsync();
         await RunPriceCalcTestsAsync();
         await RunPriceInFichaTestAsync();
+        await RunHubTestAsync();
         await RunMegaPriceTestAsync();
         await RunAccountCountLayoutTestAsync();
         await Test("alerta de RMT: avisa só anúncio em Gemas que bate com a regra; não envia nada", async () =>
