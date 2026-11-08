@@ -45,6 +45,8 @@
     <EmbeddedResource Include="..\..\extensions\sniper\sniper.js" LogicalName="Sniper.js" />
     <!-- PokéIdle Hub: botões na ficha que abrem pokeidle-gg.pages.dev numa janela do app (só do app). -->
     <EmbeddedResource Include="..\..\extensions\pokeidle-hub\pokeidle-hub.js" LogicalName="PokeIdleHub.js" />
+    <!-- Na janela do Hub: o botão "▶ Caçar" em cada hunt da Calculadora de XP. -->
+    <EmbeddedResource Include="..\..\extensions\pokeidle-hub\hub-site.js" LogicalName="PokeIdleHubSite.js" />
     <None Remove="Assets\pokeball.preview.png" />
   </ItemGroup>
 

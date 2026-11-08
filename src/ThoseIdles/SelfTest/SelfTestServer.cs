@@ -135,6 +135,9 @@ public sealed class SelfTestServer : IDisposable
 
     /// <summary>Pedidos "market.comprar" recebidos (JSON bruto), na ordem.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> BuyRequests { get; } = new();
+
+    /// <summary>Pedidos "hunt.select" recebidos (JSON bruto), na ordem.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<string> HuntSelects { get; } = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, bool> _sold = new();
     private int _marketScans, _sentCooldown;
     public int MarketScans => _marketScans;
@@ -173,6 +176,15 @@ public sealed class SelfTestServer : IDisposable
             // 1: compra já · 2: caro · 3: em Gemas (regra é de ouro) · 4: sem shiny · 6: libera daqui a 1,5 s (só na 1ª listagem).
             var libera = Interlocked.Exchange(ref _sentCooldown, 1) == 0 ? DateTimeOffset.Now.ToUnixTimeMilliseconds() + 1500 : 0;
             await Send($$"""{"t":"market","aba":"pokemon","linhas":[{"id":1,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":1500,"moeda":"gold"},{"id":2,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":9000,"moeda":"gold"},{"id":3,"pokemonNome":"Charizard","shiny":true,"potencia":4,"preco":10,"moeda":"orb"},{"id":4,"pokemonNome":"Charmander","potencia":5,"preco":10,"moeda":"gold"},{"id":6,"pokemonNome":"Charmeleon","shiny":true,"potencia":3,"preco":800,"moeda":"gold","compravelEm":{{libera}}}]}""");
+            return false;
+        }
+        if (type == "hunt.select")
+        {
+            // Como o jogo: troca a hunt e manda o estado em delta só com o que mudou.
+            HuntSelects.Enqueue(text);
+            using var d = System.Text.Json.JsonDocument.Parse(text);
+            var slug = d.RootElement.GetProperty("slug").GetString();
+            await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { huntSlug = slug } }));
             return false;
         }
         if (type == "market.comprar")

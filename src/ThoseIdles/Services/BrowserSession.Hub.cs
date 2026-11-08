@@ -30,6 +30,49 @@ public sealed partial class BrowserSession
         && string.Equals(u.Host, new Uri(HubOrigin).Host, StringComparison.OrdinalIgnoreCase);
 
     private static readonly Lazy<string> HubScript = new(() => ReadResource("PokeIdleHub.js"));
+    private static readonly Lazy<string> HubSiteScript = new(() => ReadResource("PokeIdleHubSite.js"));
+    private static readonly System.Text.RegularExpressions.Regex SlugValido = new("^[a-z0-9][a-z0-9_-]{0,63}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Da página do Hub: só { ti: 'cacar', slug } (o botão "▶ Caçar" da Calculadora de XP).</summary>
+    private void OnHubWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            if (!IsHubUrl(e.Source)) return;
+            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
+            var r = doc.RootElement;
+            if (r.ValueKind != JsonValueKind.Object || Str(r, "ti") != "cacar" || Str(r, "slug") is not { } slug || !SlugValido.IsMatch(slug)) return;
+            _ = IrCacarAsync(slug);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Leva a conta para a hunt: pela página do jogo (o script dela manda "hunt.select", como o clique
+    /// no mapa) ou, no modo econômico, pelo cliente leve. A resposta aparece na janela do Hub.
+    /// </summary>
+    public async Task IrCacarAsync(string slug)
+    {
+        LoggingService.Log.Info($"[conta{Slot}] PokéIdle Hub: ir caçar em {slug}.");
+        if (_eco is { } eco)
+        {
+            var (ok, msg) = await eco.IrCacarAsync(slug);
+            AvisarHub(ok, msg);
+            return;
+        }
+        if (_core is null) { AvisarHub(false, "A conta está fechada. Abra a conta para ir caçar."); return; }
+        // A página responde com { ti: 'cacou' } (OnGameWebMessage → AvisarHub).
+        var tem = await _core.ExecuteScriptAsync($"(window.__tiHub && typeof window.__tiHub.cacar === 'function') ? (window.__tiHub.cacar({JsonSerializer.Serialize(slug)}), true) : false");
+        if (tem != "true") AvisarHub(false, "O jogo desta conta ainda não carregou.");
+    }
+
+    private void AvisarHub(bool ok, string msg)
+    {
+        LoggingService.Log.Info($"[conta{Slot}] Ir caçar: {(ok ? "ok" : "não")} — {msg}");
+        if (HubCore is not { } core || !IsHubUrl(core.Source)) return;
+        if (msg.Length > 300) msg = msg[..300];
+        _ = core.ExecuteScriptAsync($"window.__tiCacou && window.__tiCacou({(ok ? "true" : "false")}, {JsonSerializer.Serialize(msg)})");
+    }
 
     private async Task EnableHubButtonsAsync(CoreWebView2 core)
     {
@@ -48,30 +91,74 @@ public sealed partial class BrowserSession
             if (!Uri.TryCreate(e.Source, UriKind.Absolute, out var src) || !string.Equals(src.Host, origem.Host, StringComparison.OrdinalIgnoreCase)) return;
             using var doc = JsonDocument.Parse(e.WebMessageAsJson);
             var r = doc.RootElement;
-            if (r.ValueKind != JsonValueKind.Object || Str(r, "ti") != "hub") return;
+            if (r.ValueKind != JsonValueKind.Object) return;
+            // Resposta do "ir caçar": vai para a janela do Hub, como aviso.
+            if (Str(r, "ti") == "cacou")
+            {
+                AvisarHub(r.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True, Str(r, "msg") ?? "");
+                return;
+            }
+            if (Str(r, "ti") != "hub") return;
             var rota = Str(r, "rota");
             if (rota is null || !HubRoutes.Contains(rota)) return;
             var ficha = Str(r, "ficha");
             var busca = Str(r, "busca");
             if (ficha is { Length: > HubMaxFicha } || busca is { Length: > 80 }) return;
             var alvo = Str(r, "alvo") == "candidato" ? "candidato" : "atual";
-            _ = OpenHubAsync(rota, ficha, busca, alvo);
+            var xp = rota == "xp" && r.TryGetProperty("xp", out var x) ? DadosDeXp(x) : null;
+            _ = OpenHubAsync(rota, ficha, busca, alvo, xp);
         }
         catch { }
+    }
 
-        static string? Str(JsonElement o, string p) => o.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    private static string? Str(JsonElement o, string p) => o.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static readonly string[] EscolhasBool = { "vip", "xpBoost", "xpBoostPokemon", "boostGuild", "twitch", "kick", "atrasados" };
+
+    /// <summary>
+    /// Os dados da conta para a Calculadora de XP, refeitos campo a campo (nada além do que a
+    /// Calculadora guarda): nível do treinador e as escolhas de bônus. JSON pronto, ou null.
+    /// </summary>
+    internal static string? DadosDeXp(JsonElement x)
+    {
+        if (x.ValueKind != JsonValueKind.Object || !x.TryGetProperty("nivelTreinador", out var nv) || !nv.TryGetInt32(out var nivel) || nivel is < 1 or > 1_000_000)
+            return null;
+        var escolhas = new Dictionary<string, object>();
+        if (x.TryGetProperty("escolhas", out var es) && es.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var k in EscolhasBool)
+                if (es.TryGetProperty(k, out var b) && b.ValueKind is JsonValueKind.True or JsonValueKind.False) escolhas[k] = b.GetBoolean();
+            if (es.TryGetProperty("guildPosicao", out var gp) && gp.TryGetInt32(out var g)) escolhas["guildPosicao"] = Math.Clamp(g, 0, 10);
+            if (es.TryGetProperty("eventoPct", out var ep) && ep.TryGetDouble(out var ev)) escolhas["eventoPct"] = Math.Clamp(ev, 0, 10_000);
+            if (es.TryGetProperty("atrasadosAlvo", out var aa) && aa.TryGetInt32(out var a) && a > 0) escolhas["atrasadosAlvo"] = a;
+        }
+        return JsonSerializer.Serialize(new { nivelTreinador = nivel, escolhas });
     }
 
     /// <summary>
     /// Script que roda NO HUB: vai para a rota e, quando o campo aparecer, cola a ficha (ou a busca)
     /// e avisa a página (evento "input"), como se você tivesse colado.
     /// </summary>
-    internal static string HubFillScript(string rota, string? ficha, string? busca, string alvo)
+    internal static string HubFillScript(string rota, string? ficha, string? busca, string alvo, string? xp = null)
     {
         var dados = JsonSerializer.Serialize(new { rota, ficha = ficha ?? "", busca = busca ?? "", alvo });
         return $$"""
-            (async (d) => {
-              if (location.hash.slice(1) !== d.rota) location.hash = d.rota;
+            (async (d, xp) => {
+              if (xp && d.rota === 'xp') {
+                // A Calculadora guarda o que foi preenchido no navegador: nível e bônus entram ali, e a
+                // página é redesenhada para ler (o resto do que você escolheu, como a cadência, fica).
+                const CHAVE = 'pokeidle-painel.calculadora-xp.v2';
+                let s = {};
+                try { s = JSON.parse(localStorage.getItem(CHAVE) || '{}') || {}; } catch { }
+                s.nivelTreinador = xp.nivelTreinador;
+                s.escolhas = { ...(s.escolhas || {}), ...xp.escolhas };
+                s.metaEscolhida = null;
+                s.tutorialVisto = true;
+                if (d.ficha) { s.fichaAberta = true; s.tutorialFichaVisto = true; }
+                try { localStorage.setItem(CHAVE, JSON.stringify(s)); } catch { }
+                location.hash = location.hash === '#xp/ti' ? 'xp' : 'xp/ti';
+                await new Promise(r => setTimeout(r, 50));
+              } else if (location.hash.slice(1).split('/')[0] !== d.rota) location.hash = d.rota;
               if (!d.ficha && !d.busca) return 'rota';
               const esperar = async (sel) => {
                 for (let i = 0; i < 150; i++) {
@@ -102,14 +189,14 @@ public sealed partial class BrowserSession
               por(campo, d.rota === 'pokedex' ? d.busca : d.ficha);
               campo.scrollIntoView({ block: 'center' });
               return 'preenchido';
-            })({{dados}})
+            })({{dados}}, {{xp ?? "null"}})
             """;
     }
 
     /// <summary>Abre (ou traz para a frente) a janela do Hub desta conta na rota pedida.</summary>
-    public async Task OpenHubAsync(string rota, string? ficha = null, string? busca = null, string alvo = "atual")
+    public async Task OpenHubAsync(string rota, string? ficha = null, string? busca = null, string alvo = "atual", string? xp = null)
     {
-        var fill = HubFillScript(rota, ficha, busca, alvo);
+        var fill = HubFillScript(rota, ficha, busca, alvo, xp);
         try
         {
             if (_hubWindow is not null && _hubView?.CoreWebView2 is { } atual)
@@ -149,8 +236,11 @@ public sealed partial class BrowserSession
             var core = wv.CoreWebView2;
             core.Settings.AreDevToolsEnabled = _settings.DeveloperMode;
             core.Settings.AreHostObjectsAllowed = false;
-            core.Settings.IsWebMessageEnabled = false;
+            // Mensagens só para o "▶ Caçar" (script do app na página do Hub; ver OnHubWebMessage).
+            core.Settings.IsWebMessageEnabled = true;
             core.Settings.IsStatusBarEnabled = false;
+            core.WebMessageReceived += OnHubWebMessage;
+            if (HubSiteScript.Value is { Length: > 0 } site) await core.AddScriptToExecuteOnDocumentCreatedAsync(site);
             core.DocumentTitleChanged += (_, _) => { try { win.Title = $"{Account.DisplayName} — {core.DocumentTitle}"; } catch { } };
             core.NavigationStarting += (_, ev) =>
             {

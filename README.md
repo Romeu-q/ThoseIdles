@@ -453,6 +453,18 @@ no jogo, ligada por padrão). Na ficha de qualquer Pokémon, junto de "Calcular"
 - **⚖ Vale a pena?:** cola a ficha como "o seu Pokémon de agora"; se a ficha for de um anúncio do
   mercado (tem botão de comprar), entra como o **candidato**.
 
+**📈 Calcular XP no perfil (sem preencher nada):** abre a Calculadora de XP já com o **nível do
+treinador**, o **Pokémon ativo** (espécie, nível, Potência, Qualidade, IVs) e os **bônus de XP
+ligados agora** (VIP, XP Boost, XP Boost Pokémon, ranking e Boost da guild, Twitch, Kick, evento e
+Atrasados), tudo lido do estado que o jogo já manda para a página. A cadência (abates/h) continua a
+que você escolheu na Calculadora. O 📈 Calcular XP da ficha também leva o nível e os bônus.
+
+**▶ Caçar:** cada hunt do resultado da Calculadora (rota otimizada, hunt fixa, ouro por hora) ganha
+um botão **▶ Caçar**, que leva a conta para lá na hora: o app manda ao jogo a mesma mensagem do clique
+no mapa (`hunt.select`). O servidor confere nível, trava de troca e luta; o resultado aparece num
+aviso no canto do Hub. Não tira a conta do Safari (o jogo pede confirmação para isso). No modo
+econômico, o cliente leve faz a troca.
+
 No perfil, **📘 PokéIdle Hub** abre o site para as outras páginas (Hunt, Mercado, **Guias**…). O Hub
 abre numa janela do app, no perfil da conta (o login do Discord dos Guias fica nela); links para fora
 do Hub vão para o navegador padrão. A página do jogo só consegue pedir uma das páginas conhecidas do

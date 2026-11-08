@@ -188,7 +188,8 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         welcomed = true;
                         ReadAutomation(message);
-                        Parse(message, root => Stats.LerWelcome(root));
+                        Parse(message, root => { Stats.LerWelcome(root); LerHunt(root); });
+                        _wsAtual = ws;
                         _ = SpeciesCatalog.EnsureLoadedAsync(); // para a nota da "melhor captura"
                         ConnectedSinceUtc = DateTime.UtcNow;
                         SetState(EconomyState.Connected, ConnectedText());
@@ -209,7 +210,7 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         // O estado da conta mudou (nível, Pokémon ativo, pokébolas…): só vêm os campos alterados.
                         var leu = false;
-                        Parse(message, root => leu = Stats.LerEstado(root) | Stats.LerBolas(root));
+                        Parse(message, root => { leu = Stats.LerEstado(root) | Stats.LerBolas(root); LerHunt(root); });
                         if (leu) AtualizarResumo();
                     }
                     else if (welcomed && Contains(message, "\"balls\""))
@@ -335,10 +336,42 @@ public sealed class EconomyClient : IAsyncDisposable
         return null;
     }
 
-    private static async Task SendAsync(ClientWebSocket ws, object payload, CancellationToken stop)
+    private async Task SendAsync(ClientWebSocket ws, object payload, CancellationToken stop)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
-        await ws.SendAsync(bytes, WebSocketMessageType.Text, true, stop);
+        // Um envio por vez: o ping do laço e um pedido da tela (ir caçar) podem coincidir.
+        await _envio.WaitAsync(stop);
+        try { await ws.SendAsync(bytes, WebSocketMessageType.Text, true, stop); }
+        finally { _envio.Release(); }
+    }
+
+    /// <summary>"huntSlug" do estado: ausente = não mudou; null = saiu da hunt.</summary>
+    private void LerHunt(JsonElement root)
+    {
+        var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
+        if (!est.TryGetProperty("huntSlug", out var h)) return;
+        HuntAtual = h.ValueKind == JsonValueKind.String ? h.GetString() : null;
+    }
+
+    private readonly SemaphoreSlim _envio = new(1, 1);
+    private ClientWebSocket? _wsAtual;
+
+    /// <summary>A hunt em que a conta está agora (do estado do jogo), ou null.</summary>
+    public string? HuntAtual { get; private set; }
+
+    /// <summary>
+    /// Vai caçar na hunt pedida: a MESMA mensagem do clique no mapa do jogo ("hunt.select"). O servidor
+    /// confere nível, trava de combate e Safari; aqui só se espera a resposta (a hunt do estado mudar).
+    /// </summary>
+    public async Task<(bool Ok, string Mensagem)> IrCacarAsync(string slug)
+    {
+        if (_wsAtual is not { State: WebSocketState.Open } ws) return (false, "O modo econômico não está conectado agora.");
+        if (HuntAtual == slug) return (true, "A conta já está caçando nessa hunt.");
+        await SendAsync(ws, new { t = "hunt.select", slug }, CancellationToken.None);
+        for (var i = 0; i < 20 && HuntAtual != slug; i++) await Task.Delay(200);
+        return HuntAtual == slug
+            ? (true, "Pronto: a conta foi caçar lá.")
+            : (false, "O jogo não trocou de hunt (a troca pode estar travada por alguns segundos, ou a hunt não está liberada).");
     }
 
     private static async Task CloseQuietly(ClientWebSocket ws)

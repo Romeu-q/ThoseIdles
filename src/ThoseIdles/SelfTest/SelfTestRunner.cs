@@ -321,8 +321,9 @@ public sealed class SelfTestRunner
         // TI_SELFTEST_ONLY=ferramentas: só as ferramentas do jogo (Sniper e Hub), sem repetir o resto.
         if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") is "ferramentas" or "hub")
         {
-            await RunSniperTestsAsync();
+            if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") == "ferramentas") await RunSniperTestsAsync();
             await RunHubTestAsync();
+            await RunHubXpTestAsync();
             return;
         }
 
@@ -1040,6 +1041,62 @@ public sealed class SelfTestRunner
         });
     }
 
+    private async Task RunHubXpTestAsync()
+    {
+        await Test("Calcular XP preenchido com a conta e \"▶ Caçar\" levando a conta à hunt", async () =>
+        {
+            var s = _manager[1];
+            var core = s.Core!;
+            // O estado como o jogo manda (quadro cheio): Nv 1284, VIP e XP Boost ligados, guild 3º, Kick, evento 50%,
+            // e o Pokémon ativo.
+            var futuro = DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeMilliseconds();
+            await core.ExecuteScriptAsync($$"""
+                window.__tiHub.mesclar({ cheio: true, level: 1284, activeId: 7, huntSlug: 'pidgey',
+                  loja: { vipAte: {{futuro}}, boosts: { xp: {{futuro}} } }, guildBonusPct: 6, guildBonusRank: 3,
+                  kick: { bonus: { xp: {{futuro}} } }, evento: { xpTreinadorPct: 50, xpPokemonPct: 50, terminaEm: {{futuro}} },
+                  pokemons: [{ id: 7, nome: 'Charizard', level: 900, potencia: 4, qualidade: 1.796, ivs: { hp: 17, atk: 25, def: 11, spAtk: 21, spDef: 31, speed: 5 } }] });
+                """);
+            var botao = false;
+            for (var i = 0; i < 30 && !(botao = await core.ExecuteScriptAsync("!!document.querySelector('#ti-dock #ti-xp-btn')") == "true"); i++)
+                await Task.Delay(100);
+            await core.ExecuteScriptAsync("document.getElementById('ti-xp-btn').click()");
+            var abriu = await WaitUntil(() => s.HubCore is not null, TimeSpan.FromSeconds(15));
+            async Task<string> NoHub(string js)
+            {
+                try { return JsonDocument.Parse(await s.HubCore!.ExecuteScriptAsync(js)).RootElement.ToString(); } catch { return ""; }
+            }
+            // Espera a calculadora ler a ficha do ativo e mostrar as hunts com o "▶ Caçar".
+            string estadoXp = "", ficha = "";
+            var botoesCacar = 0;
+            for (var i = 0; abriu && i < 60 && botoesCacar == 0; i++)
+            {
+                await Task.Delay(500);
+                estadoXp = await NoHub("localStorage.getItem('pokeidle-painel.calculadora-xp.v2') || ''");
+                ficha = await NoHub("document.querySelector('.xpc-ficha-retorno')?.innerText || ''");
+                int.TryParse(await NoHub("String(document.querySelectorAll('.ti-cacar').length)"), out botoesCacar);
+            }
+            // "▶ Caçar" na primeira hunt: o jogo deve receber hunt.select; simulamos o servidor confirmando.
+            var slug = await NoHub("document.querySelector('.ti-cacar')?.dataset.slug || ''");
+            await NoHub("document.querySelector('.ti-cacar')?.click(), ''");
+            // O servidor de teste age como o jogo: recebe "hunt.select" e responde o estado com a hunt nova.
+            var server = SelfTestServer.Current!;
+            var enviou = false;
+            for (var i = 0; i < 30 && !(enviou = server.HuntSelects.Any(h => h.Contains(slug))); i++)
+                await Task.Delay(100);
+            var aviso = "";
+            for (var i = 0; i < 30 && aviso.Length == 0; i++) { await Task.Delay(200); aviso = await NoHub("document.querySelector('.ti-cacar-aviso')?.innerText || ''"); }
+            var enviados = string.Join(" ", server.HuntSelects);
+            s.HubWindow?.Close();
+            var ok = botao && abriu && estadoXp.Contains("\"nivelTreinador\":1284") && estadoXp.Contains("\"vip\":true") && estadoXp.Contains("\"xpBoost\":true")
+                     && estadoXp.Contains("\"guildPosicao\":3") && estadoXp.Contains("\"kick\":true") && estadoXp.Contains("\"eventoPct\":50")
+                     && ficha.Contains("Charizard") && botoesCacar > 0 && enviou && slug.Length > 0 && enviados.Contains(slug)
+                     && aviso.Contains("Pronto");
+            return ok
+                ? Pass($"perfil → 📈 Calcular XP: Nv 1284, VIP, XP Boost, guild 3º, Kick e evento 50% marcados; ficha do ativo lida ({ficha.Trim()}); {botoesCacar} hunts com ▶ Caçar; clique mandou hunt.select ({slug}) ao jogo e o Hub avisou \"{aviso}\"")
+                : Fail($"botão={botao} abriu={abriu} estado={estadoXp} ficha={ficha} caçar={botoesCacar} slug={slug} enviou={enviou} enviados={enviados} aviso={aviso}");
+        });
+    }
+
     private async Task RunHubTestAsync()
     {
         await Test("PokéIdle Hub: botões na ficha abrem o site numa janela da conta, com a ficha colada", async () =>
@@ -1100,6 +1157,7 @@ public sealed class SelfTestRunner
     {
         await RunSniperTestsAsync();
         await RunHubTestAsync();
+        await RunHubXpTestAsync();
         await RunAccountCountLayoutTestAsync();
     }
 
