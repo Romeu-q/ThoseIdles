@@ -133,7 +133,7 @@
                             <CheckBox Content="Exportar shinies para TXT" IsChecked="{Binding EnableShinyExport}"
                                       Tag="Botão &quot;Exportar TXT&quot; na página Shinies: espécie, potência, qualidade, IVs e valor no RMT." />
                             <CheckBox Content="PokéIdle Hub (Pokédex, XP, Vale a pena?, Mercado, Guias)" IsChecked="{Binding EnablePokeIdleHub}"
-                                      Tag="Botões &quot;📘 Pokédex&quot;, &quot;📈 Calcular XP&quot; e &quot;⚖ Vale a pena?&quot; na ficha do Pokémon e &quot;📘 PokéIdle Hub&quot; no seu perfil, abaixo das moedas: abrem o pokeidle-gg.pages.dev numa janela do app, já com a ficha colada." />
+                                      Tag="Botões &quot;📘 Pokédex&quot;, &quot;📈 Calcular XP&quot; e &quot;⚖ Vale a pena?&quot; na ficha do Pokémon e &quot;📘 PokéIdle Hub&quot; no seu perfil, abaixo das moedas: abrem o pokeidleguide.io numa janela do app, já com a ficha colada." />
                             <CheckBox Content="Sniper do mercado (compra automática)" IsChecked="{Binding EnableSniper}"
                                       Tag="Botão &quot;🎯 Sniper&quot; no seu perfil, abaixo das moedas: compra sozinho o que bater com as suas regras (preço máximo e limite de compras obrigatórios). Sempre abre desligado." />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"

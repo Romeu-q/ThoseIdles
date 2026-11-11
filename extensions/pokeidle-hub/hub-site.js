@@ -1,11 +1,11 @@
-// ThoseIdles — roda DENTRO da janela do PokéIdle Hub (pokeidle-gg.pages.dev), só no app.
+// ThoseIdles — roda DENTRO da janela do PokéIdle Hub (pokeidleguide.io), só no app.
 // Em cada hunt que a Calculadora de XP mostra (rota otimizada, hunt fixa, ouro por hora) entra um
 // botão "▶ Caçar": ele pede ao app para levar a conta até essa hunt (o app repassa ao jogo, que manda
 // a mesma mensagem do clique no mapa). A resposta volta como um aviso no canto do Hub.
 (() => {
   'use strict';
   if (window.top !== window || window.__tiHubSite || !window.chrome?.webview) return;
-  if (location.hostname !== 'pokeidle-gg.pages.dev') return;
+  if (!/^(pokeidleguide\.io|pokeidle-gg\.pages\.dev)$/.test(location.hostname)) return;
   window.__tiHubSite = true;
 
   const CSS = `

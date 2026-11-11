@@ -6,14 +6,14 @@ using Microsoft.Web.WebView2.Wpf;
 namespace ThoseIdles.Services;
 
 /// <summary>
-/// PokéIdle Hub (https://pokeidle-gg.pages.dev): Pokédex, Calculadora de XP, Vale a pena?, Guias…
+/// PokéIdle Hub (https://pokeidleguide.io): Pokédex, Calculadora de XP, Vale a pena?, Guias…
 /// Os botões que o script do jogo põe na ficha do Pokémon pedem (postMessage) para abrir o Hub numa
 /// janela do app, no perfil desta conta, na página certa e já com a ficha colada no campo.
 /// A página do jogo só pode pedir ISSO: uma das rotas conhecidas, com um texto curto.
 /// </summary>
 public sealed partial class BrowserSession
 {
-    public const string HubOrigin = "https://pokeidle-gg.pages.dev";
+    public const string HubOrigin = "https://pokeidleguide.io";
     private static readonly string[] HubRoutes = { "pokedex", "xp", "hunt", "vale-a-pena", "mercado", "guias", "wishlist" };
     private const int HubMaxFicha = 6000;
 
@@ -27,7 +27,9 @@ public sealed partial class BrowserSession
 
     public static bool IsHubUrl(string? url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps
-        && string.Equals(u.Host, new Uri(HubOrigin).Host, StringComparison.OrdinalIgnoreCase);
+        && (string.Equals(u.Host, new Uri(HubOrigin).Host, StringComparison.OrdinalIgnoreCase)
+            // O endereço antigo (até 11/2026): se ainda redirecionar para o novo, a janela acompanha.
+            || string.Equals(u.Host, "pokeidle-gg.pages.dev", StringComparison.OrdinalIgnoreCase));
 
     private static readonly Lazy<string> HubScript = new(() => ReadResource("PokeIdleHub.js"));
     private static readonly Lazy<string> HubSiteScript = new(() => ReadResource("PokeIdleHubSite.js"));

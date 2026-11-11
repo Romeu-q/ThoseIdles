@@ -1,4 +1,4 @@
-// ThoseIdles — PokéIdle Hub (https://pokeidle-gg.pages.dev) dentro do app.
+// ThoseIdles — PokéIdle Hub (https://pokeidleguide.io) dentro do app.
 // Na ficha de qualquer Pokémon do jogo entram os botões "📘 Pokédex", "📈 Calcular XP" e
 // "⚖ Vale a pena?", junto das ações da ficha. Cada um pede ao app para abrir o Hub numa janela
 // (no perfil desta conta) na página certa, já com a ficha do Pokémon colada — o mesmo texto que você

@@ -134,7 +134,7 @@ public sealed class AppSettings
     public bool LiveLowestQuality { get; set; } = true;
 
     /// <summary>
-    /// PokéIdle Hub (pokeidle-gg.pages.dev): botões na ficha do Pokémon (Pokédex, Calcular XP, Vale a
+    /// PokéIdle Hub (pokeidleguide.io): botões na ficha do Pokémon (Pokédex, Calcular XP, Vale a
     /// pena?) e no jogo (Guias…) que abrem o site numa janela do app, já com a ficha preenchida.
     /// </summary>
     public bool EnablePokeIdleHub { get; set; } = true;

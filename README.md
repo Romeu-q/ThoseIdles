@@ -444,7 +444,7 @@ Vale a pena?) faz isso melhor.
 
 ### PokéIdle Hub (Pokédex, Calculadora de XP, Vale a pena?, Mercado, Guias)
 
-O [PokéIdle Hub](https://pokeidle-gg.pages.dev/) dentro do app (opção "PokéIdle Hub" em Ferramentas
+O [PokéIdle Hub](https://pokeidleguide.io/) dentro do app (opção "PokéIdle Hub" em Ferramentas
 no jogo, ligada por padrão). Na ficha de qualquer Pokémon, junto de "Calcular" e "Comparar":
 
 - **📘 Pokédex:** abre a Pokédex do Hub já buscando a espécie.
