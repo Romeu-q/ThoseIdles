@@ -57,11 +57,18 @@
                             <TextBlock Text="{Binding LayoutButtonText}" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource BarButton}" Click="OnOpenSummary"
-                            ToolTip="Os números de todas as contas numa janela só: ouro/h, XP/h, abates, capturas, shinies e o total de hoje. Funciona com o jogo aberto ou no modo econômico.">
+                    <Button Style="{StaticResource BarButton}" Command="{Binding ToggleSummaryCommand}"
+                            ToolTip="Troca a grade de jogos pelo RESUMO: os números das quatro contas de uma vez (ouro/h, XP/h, abates, capturas, shinies, Outland e drops, total de hoje). As contas seguem rodando; funciona com o jogo aberto ou no modo econômico.">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE9D2;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="Resumo" />
+                            <TextBlock Text="{Binding SummaryButtonText}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Command="{Binding EconomySummaryCommand}"
+                            ToolTip="O jeito mais leve de deixar as quatro contas farmando: liga o modo econômico em todas as contas abertas (sem a página do jogo, poucos MB de RAM cada) e mostra o Resumo. Clicar de novo reabre os jogos.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding EconomySummaryText}" />
                         </StackPanel>
                     </Button>
                     <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="8,0" />
@@ -300,13 +307,18 @@
         </Border>
 
         <!-- As contas: sempre presentes e visíveis; o modo só muda a disposição -->
-        <v:SessionLayoutPanel Margin="6" IsFocusMode="{Binding IsFocusMode}" FocusedIndex="{Binding FocusedIndex}" VisibleCount="{Binding VisibleAccounts}"
-                              RowSplit="{Binding RowSplit}" TopSplit="{Binding TopSplit}" BottomSplit="{Binding BottomSplit}"
-                              FocusSplit="{Binding FocusSplit}" SplitCommitted="OnSplitCommitted">
-            <v:AccountPanel DataContext="{Binding Account1}" />
-            <v:AccountPanel DataContext="{Binding Account2}" />
-            <v:AccountPanel DataContext="{Binding Account3}" />
-            <v:AccountPanel DataContext="{Binding Account4}" />
-        </v:SessionLayoutPanel>
+        <Grid>
+            <v:SessionLayoutPanel Margin="6" IsFocusMode="{Binding IsFocusMode}" FocusedIndex="{Binding FocusedIndex}" VisibleCount="{Binding VisibleAccounts}"
+                                  RowSplit="{Binding RowSplit}" TopSplit="{Binding TopSplit}" BottomSplit="{Binding BottomSplit}"
+                                  FocusSplit="{Binding FocusSplit}" SplitCommitted="OnSplitCommitted"
+                                  Visibility="{Binding IsSummaryMode, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                <v:AccountPanel DataContext="{Binding Account1}" />
+                <v:AccountPanel DataContext="{Binding Account2}" />
+                <v:AccountPanel DataContext="{Binding Account3}" />
+                <v:AccountPanel DataContext="{Binding Account4}" />
+            </v:SessionLayoutPanel>
+            <!-- O RESUMO: a função que observa as 4 contas de uma vez, no lugar da grade (as contas seguem rodando) -->
+            <v:SummaryView Visibility="{Binding IsSummaryMode, Converter={StaticResource BoolToVis}}" />
+        </Grid>
     </DockPanel>
 </Window>

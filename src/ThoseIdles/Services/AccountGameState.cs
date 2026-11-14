@@ -78,6 +78,64 @@ public sealed class AccountGameState
         }
     }
 
+    // ---- o estado BRUTO que o motor do /hunt precisa (ele lê o estado inteiro do pokémon e os campos do `eu`) ----
+    private static readonly string[] ChavesDoWelcome =
+    {
+        "hunts", "tabelaTipos", "ampliacaoHunt", "multHpSelvagem", "multDanoSelvagem", "tiposBoost",
+        "catalogoBolas", "captura", "chanceShiny", "shinyLooks", "shinyLooksOutland",
+    };
+    private static readonly HashSet<string> FORA_DOS_CAMPOS = new() { "pokemons", "pkMud", "pkFora", "dexMud", "dexFora", "cheio", "pokedex" };
+    private readonly Dictionary<string, string> _welcomeBruto = new();
+    private readonly Dictionary<string, string> _camposBrutos = new();
+    private readonly Dictionary<long, string> _pokBrutos = new();
+    private const int MaxCampoBruto = 400_000;
+
+    /// <summary>
+    /// A entrada do motor "Onde caçar?" (/hunt): o welcome (hunts, tabelas e multiplicadores), o `eu` (os campos do estado) e o
+    /// pokémon em campo — tudo como o servidor mandou, em JSON. null enquanto não houver welcome, pokémon em campo ou stats.
+    /// </summary>
+    public string? EntradaDoMotor()
+    {
+        lock (_lock)
+        {
+            if (ActiveId is not { } id || !_pokBrutos.TryGetValue(id, out var pk) || _welcomeBruto.Count == 0 || !_welcomeBruto.ContainsKey("hunts")) return null;
+            var sb = new System.Text.StringBuilder(64 * 1024);
+            sb.Append("{\"welcome\":{");
+            sb.Append(string.Join(",", _welcomeBruto.Select(kv => $"\"{kv.Key}\":{kv.Value}")));
+            sb.Append("},\"eu\":{");
+            foreach (var kv in _camposBrutos) sb.Append($"\"{kv.Key}\":{kv.Value},");
+            sb.Append($"\"pokemons\":[{pk}]}},\"pk\":{pk}}}");
+            return sb.ToString();
+        }
+    }
+
+    /// <summary>
+    /// O que muda o ranking do /hunt: o pokémon em campo (id, nível, stats, golpes), o bônus de XP que o servidor aplica e o dia
+    /// sazonal. Não inclui o XP que ele ganha a cada abate — senão recalcularia o tempo todo.
+    /// </summary>
+    public string ChaveDoMotor()
+    {
+        lock (_lock)
+        {
+            if (ActiveId is not { } id || !_pokBrutos.TryGetValue(id, out var pk)) return "";
+            string stats = "";
+            long level = 0;
+            try
+            {
+                using var d = JsonDocument.Parse(pk);
+                var r = d.RootElement;
+                level = Num(r, "level") ?? 0;
+                stats = r.TryGetProperty("stats", out var st) ? st.GetRawText() : "";
+                var aoe = r.TryGetProperty("tmAoe", out var a) ? a.GetRawText() : "";
+                stats += aoe;
+            }
+            catch { }
+            _camposBrutos.TryGetValue("bonusXp", out var bonus);
+            _camposBrutos.TryGetValue("diaSazonal", out var dia);
+            return $"{id}|{level}|{stats}|{bonus}|{dia}";
+        }
+    }
+
     public string? Nick { get; private set; }
     public long Level { get; private set; }
     public long Gold { get; private set; }
@@ -191,6 +249,12 @@ public sealed class AccountGameState
         if (root.ValueKind != JsonValueKind.Object) return;
         lock (_lock)
         {
+            foreach (var chave in ChavesDoWelcome)
+                if (root.TryGetProperty(chave, out var wv) && wv.ValueKind != JsonValueKind.Undefined)
+                {
+                    var raw = wv.GetRawText();
+                    if (raw.Length <= 2_000_000) _welcomeBruto[chave] = raw;
+                }
             if (root.TryGetProperty("hunts", out var hs) && hs.ValueKind == JsonValueKind.Array) LerHunts(hs);
             if (root.TryGetProperty("catalogoBolas", out var cb) && cb.ValueKind == JsonValueKind.Array) LerCatalogoBolas(cb);
             var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
@@ -290,22 +354,30 @@ public sealed class AccountGameState
                 if (int.TryParse(p.Name, out var id) && p.Value.ValueKind == JsonValueKind.Number) _balls[id] = (long)p.Value.GetDouble();
 
         var cheio = est.TryGetProperty("cheio", out var ch) && ch.ValueKind == JsonValueKind.True;
-        if (cheio) _pokemons.Clear();
+        if (cheio) { _pokemons.Clear(); _camposBrutos.Clear(); _pokBrutos.Clear(); }
+        foreach (var prop in est.EnumerateObject())
+        {
+            if (FORA_DOS_CAMPOS.Contains(prop.Name)) continue;
+            var raw = prop.Value.GetRawText();
+            if (raw.Length <= MaxCampoBruto) _camposBrutos[prop.Name] = raw;
+        }
         if (est.TryGetProperty("pokemons", out var lista) && lista.ValueKind == JsonValueKind.Array)
         {
             _pokemons.Clear(); // uma lista completa SUBSTITUI a coleção
+            _pokBrutos.Clear();
             foreach (var p in lista.EnumerateArray()) Guardar(p);
         }
         if (est.TryGetProperty("pkMud", out var mud) && mud.ValueKind == JsonValueKind.Array)
             foreach (var p in mud.EnumerateArray()) Guardar(p);
         if (est.TryGetProperty("pkFora", out var fora) && fora.ValueKind == JsonValueKind.Array)
             foreach (var id in fora.EnumerateArray())
-                if (id.ValueKind == JsonValueKind.Number) _pokemons.Remove((long)id.GetDouble());
+                if (id.ValueKind == JsonValueKind.Number) { _pokemons.Remove((long)id.GetDouble()); _pokBrutos.Remove((long)id.GetDouble()); }
     }
 
     private void Guardar(JsonElement p)
     {
         if (p.ValueKind != JsonValueKind.Object || Num(p, "id") is not { } id) return;
+        _pokBrutos[id] = p.GetRawText();
         var especie = Str(p, "nome") ?? "?";
         var nome = Str(p, "apelido") is { Length: > 0 } ap ? ap : especie;
         double? qual = p.TryGetProperty("quality", out var qv) && qv.ValueKind == JsonValueKind.Number ? qv.GetDouble()

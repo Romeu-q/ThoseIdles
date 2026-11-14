@@ -340,14 +340,15 @@ Com a conta em modo econômico, o painel dela vira uma **tela mínima do jogo** 
 nick, nível, barra de XP e as moedas no alto; o que a conta está fazendo (hunt, Pokémon em campo, ouro/h,
 XP/h, abates/h, capturas, shinies); e cinco abas:
 
-- **Caçar:** no topo, as **🏆 melhores hunts de XP agora** (as 5 primeiras) para o **Pokémon em campo**, com
-  **▶ Caçar** em cada uma; depois, todas as hunts do jogo, com busca (as de nível maior aparecem apagadas; a hunt
-  de agora fica marcada e a melhor leva "★ melhor XP agora"; as da Outland levam 🌌). O ranking é o da Calculadora
-  de XP do PokéIdle Hub — a mesma conta do jogo, com o nível, o Pokémon e os **bônus ligados na conta** (VIP, XP
-  Boost, guild, Twitch, Kick, evento, Atrasados) lidos do servidor e, depois de uns minutos na hunt, os abates/h que
-  a conta de fato faz. O app abre o Hub **escondido e sem login** (perfil temporário, que não guarda nada), lê a
-  tabela e fecha: leva alguns segundos, só roda com a aba à vista e renova a cada 5 min ou quando o Pokémon ou os
-  bônus mudam (**↻ Recalcular** força).
+- **Caçar:** no topo, as **🏆 melhores hunts de XP agora** (as 5 primeiras) para o **Pokémon em campo**, com **▶ Caçar**
+  em cada uma; depois, todas as hunts do jogo, com busca (as de nível maior aparecem apagadas; a hunt de agora fica
+  marcada e a melhor leva "★ melhor XP agora"; as da Outland levam 🌌). **É a mesma conta do /hunt ("Onde caçar?")
+  do jogo**: com a extensão /hunt instalada (opção "Extensão /hunt"), o app roda o motor **dela** numa janela escondida
+  e sem login (perfil temporário, que não guarda nada), entregando a ele o estado da conta como o servidor mandou —
+  então os números batem com o painel do jogo: **abates/h de cada hunt** (o ritmo do mapa), "mata em", risco, a
+  vantagem dos golpes e os bônus de XP do servidor. Sem a extensão, cai para a Calculadora do Hub (aproximado: abates/h
+  iguais em todas as hunts) e o cartão avisa. Só calcula com a aba à vista; renova a cada 5 min ou quando o Pokémon, o
+  nível ou os bônus mudam (**↻ Recalcular** força).
 - **Time:** o time (até 5) com vida; **Em campo** troca o Pokémon que luta; **Tirar** manda para o Depot.
 - **Depot:** os Pokémon guardados (shinies primeiro, depois do maior nível), com busca e páginas de 25;
   **→ Time** (na vaga livre), **🔒 Coleção / 🔓 Soltar** (a Coleção protege da venda e das automações) e
@@ -361,31 +362,29 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
 **✋ Desistir** do combate (pede confirmação). **Abrir o jogo completo** sai do modo econômico.
 
-**Econômica resumida:** ainda mais enxuta. No lugar das abas ficam só os **números da conta** (onde está —
-inclusive 🌌 Outland —, ouro/h, XP/h, abates/h, capturas, shinies, melhor captura, drops raros e pokébolas). Liga
-no botão **Econômica resumida** da faixa de ações da conta (liga o modo econômico já nessa versão) ou em
-**▾ Resumida / ▴ Completa** no alto da tela mínima; a escolha fica salva por conta.
-
-**As travas do jogo são respeitadas:** o app **espera** antes de mandar a troca de hunt ou a ida ao Centro —
-os 3 s sem dano (o carimbo que o servidor manda), a porta de 10 s desde a última entrada numa hunt e uma
-**guarda de 4 s** entre duas trocas de hunt/idas ao Centro. Enquanto espera, mostra "Aguardando 2,3 s…"; um
-pedido novo substitui o que ainda esperava. A troca do Pokémon em campo espera os 3 s do jogo. Quem manda de
-verdade é o servidor: se ele recusar (nível, luta, Safari), o motivo aparece na tela e no Registro. A mesma
-espera vale para o **▶ Caçar** do PokéIdle Hub. No Safari o app não sai sozinho (o jogo pede confirmação).
+**Econômica resumida:** o botão da barra de cima que junta as duas coisas — liga o **modo econômico em todas as contas
+abertas** (sem a página do jogo: 0 renderers, poucos MB cada) e mostra o **Resumo** no lugar da grade. É o Resumo mesmo,
+não uma tela à parte. Clicar de novo reabre os jogos e devolve a grade.
 
 ### Resumo de todas as contas
 
-O botão **Resumo** da barra de cima abre uma janela com os números das contas, no estilo do "Modo Simples" do
-PokeGrid: cartões com a soma de **ouro/h, XP/h, abates/h**, capturas, shinies (visto/capturado), contas ativas e **quantas estão farmando em Outland**;
-a tabela **por conta** (hunt, **área — 🌌 Outland em destaque, ou a região**, tempo na hunt, ouro/h, XP/h, abates/h, capturas, ✨, melhor e última captura e
-o status — Caçando, Na cidade, ⚠ Parada há X min, Desconectada, Desligada…), em que **clicar no cabeçalho
-ordena** e **clicar na linha abre a conta**; as últimas capturas (com a nota), as aparições de shiny
-(capturado ou não) e o **total de hoje**, que fica salvo e continua depois de fechar o app. As taxas por hora
-contam desde que a conta entrou na hunt de agora.
+O **Resumo** não é uma janela nem uma tela nova: é uma **função da janela principal que observa as quatro contas de uma vez**
+(como o "Modo Simples" do PokeGrid). O botão **Resumo** da barra de cima troca a grade de jogos pelos números (as contas
+seguem rodando por baixo) e **Ver contas** volta; o app reabre no modo em que você deixou. Mostra:
 
-Funciona nos **dois modos**: no modo econômico os números vêm do cliente leve; com a página do jogo aberta, um
-script repassa ao app uma cópia do que o servidor já manda à página (estado e eventos da caça — só leitura,
-nada é enviado ao servidor; opção "Resumo de todas as contas" em Ferramentas no jogo).
+- cartões com a soma de **ouro/h, XP/h, abates/h**, capturas, shinies (visto/capturado), contas ativas e **quantas estão
+  farmando em Outland**;
+- a tabela **por conta**: hunt, **área (🌌 Outland em destaque, ou a região)**, tempo na hunt, ouro/h, XP/h, abates/h,
+  capturas, ✨, melhor e última captura e o status (Caçando, Na cidade, ⚠ Parada há X min, Desconectada, Desligada…) —
+  **clicar no cabeçalho ordena**, **clicar na linha abre a conta**;
+- **🌌 os drops da Outland**: quem está lá (ou já farmou lá nesta sessão) mostra tudo o que dropou, os raros primeiro (★);
+- as últimas capturas (com a nota), as aparições de shiny (capturado ou não) e o **total de hoje**, que fica salvo e
+  continua depois de fechar o app.
+
+As taxas por hora contam desde que a conta entrou na hunt de agora. Funciona nos **dois modos**: no modo econômico os
+números vêm do cliente leve; com a página do jogo aberta, um script repassa ao app uma cópia do que o servidor já manda à
+página (estado e eventos da caça — só leitura, nada é enviado ao servidor; opção "Resumo de todas as contas" em
+Ferramentas no jogo).
 
 ### 8.2 Live da Twitch (bônus de XP do jogo)
 

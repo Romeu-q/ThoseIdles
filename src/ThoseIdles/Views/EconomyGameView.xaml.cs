@@ -65,8 +65,6 @@ public partial class EconomyGameView : UserControl
         }
         var g = eco.Game;
         var st = eco.Stats;
-        var compacto = Sessao?.EconomyCompact == true;
-        AplicarModo(compacto);
 
         // Treinador
         Nick.Text = g.Nick ?? eco.Session.Nick;
@@ -111,7 +109,6 @@ public partial class EconomyGameView : UserControl
         }
         else Aviso.Visibility = Visibility.Collapsed;
 
-        if (compacto) { AtualizarCompacto(eco, g, st); Rodape.Text = $"atualizado {DateTime.Now:HH:mm:ss} · {eco.MessagesReceived:N0} mensagens"; return; }
         if (PainelCacar.Visibility == Visibility.Visible) { AtualizarMelhores(g); AtualizarHunts(g); }
         if (PainelTime.Visibility == Visibility.Visible) AtualizarTime(g);
         if (PainelDepot.Visibility == Visibility.Visible) AtualizarDepot(g);
@@ -143,13 +140,14 @@ public partial class EconomyGameView : UserControl
         ListaHunts.ItemsSource = linhas;
     }
 
+
     private void AtualizarMelhores(AccountGameState g)
     {
         if (Sessao is not { } s) return;
         // Calcula (sozinho) quando a aba está à vista e o ranking está velho, ou quando o Pokémon / os bônus mudaram.
         if (s.PrecisaDoRanking()) _ = s.AtualizarRankingAsync();
         MelhoresInfo.Text = s.RankingStatus.Length > 0 ? s.RankingStatus
-            : s.RankingPara.Length > 0 ? $"Para {s.RankingPara}, na ordem do XP/h do treinador · calculado às {s.RankingQuando:HH:mm} com o motor do PokéIdle Hub (renova a cada 5 min ou ao trocar de Pokémon/bônus)."
+            : s.RankingPara.Length > 0 ? $"Para {s.RankingPara}, na ordem do XP/h · calculado às {s.RankingQuando:HH:mm} · {s.RankingOrigem} (renova a cada 5 min ou ao trocar de Pokémon, nível ou bônus)."
             : "Escolha um Pokémon em campo para calcular.";
         var lista = s.MelhoresHunts;
         var sig = $"{s.RankingPara}|{s.RankingQuando}|{g.HuntSlug}|{g.Level}|{lista.Count}";
@@ -160,8 +158,8 @@ public partial class EconomyGameView : UserControl
             var info = g.Hunts.FirstOrDefault(h => h.Slug == m.Slug);
             var aqui = m.Slug == g.HuntSlug;
             var livre = info is null || info.Nivel <= g.Level;
-            return new MelhorLinha(m.Slug, $"{(m.Posicao == 1 ? "★ " : "")}{m.Posicao}. {m.Nome}{(info is { Outland: true } ? "  🌌 Outland" : "")}",
-                $"{m.Detalhe} · XP/h {m.XpH} · pokémon {m.XpPokemonH}/h · ouro/h {m.OuroH}{(m.Vantagem is { Length: > 0 } and not "—" ? $" · vantagem {m.Vantagem}" : "")}",
+            return new MelhorLinha(m.Slug, $"{(m.Posicao == 1 ? "★ " : "")}{m.Posicao}. {m.Nome}{(m.Outland || info is { Outland: true } ? "  🌌 Outland" : "")}",
+                $"{(m.Regiao.Length > 0 ? char.ToUpper(m.Regiao[0], Pt) + m.Regiao[1..] + " · " : "")}Nv {m.Nivel:N0} · XP/h {m.XpH}{(m.AbatesH is { Length: > 0 } and not "—" ? $" · {m.AbatesH} abates/h" : "")}{(m.MataEm is { Length: > 0 } and not "—" ? $" · mata em {m.MataEm}" : "")} · risco {m.Risco} · ouro/h {m.OuroH}{(m.Golpe.Length > 0 ? $" · {m.Golpe}" : "")}",
                 aqui ? "● Aqui" : "▶ Caçar", !aqui && livre);
         }).ToList();
     }
@@ -171,48 +169,8 @@ public partial class EconomyGameView : UserControl
         if (Sessao is { } s) { _sigMelhores = ""; _ = s.AtualizarRankingAsync(forcar: true); }
     }
 
-    // ------------------------------------------------------------------ versão resumida (só os números)
-
     /// <summary>Em painéis baixos a tela inteira rola (o cabeçalho junto); nos altos, só as listas rolam.</summary>
     private void OnTamanho(object sender, SizeChangedEventArgs e) => Raiz.Height = Math.Max(e.NewSize.Height, 440);
-
-    private bool? _compactoAplicado;
-
-    private void AplicarModo(bool compacto)
-    {
-        BtModo.Content = compacto ? "▴ Completa" : "▾ Resumida";
-        if (_compactoAplicado == compacto) return;
-        _compactoAplicado = compacto;
-        BarraAbas.Visibility = compacto ? Visibility.Collapsed : Visibility.Visible;
-        PainelCompacto.Visibility = compacto ? Visibility.Visible : Visibility.Collapsed;
-        if (compacto)
-        {
-            PainelCacar.Visibility = PainelTime.Visibility = PainelDepot.Visibility = PainelBolas.Visibility = PainelRegistro.Visibility = Visibility.Collapsed;
-        }
-        else MostrarPaineis();
-    }
-
-    private void OnModo(object sender, RoutedEventArgs e)
-    {
-        if (Sessao is { } s) { s.SetEconomyCompact(!s.EconomyCompact); Atualizar(); }
-    }
-
-    private void AtualizarCompacto(EconomyClient eco, AccountGameState g, EconomySessionStats st)
-    {
-        var hunt = g.HuntAtual;
-        var onde = !g.Recebeu ? "aguardando os dados da conta…"
-            : g.NoSafari ? "no Safari"
-            : g.HuntSlug is null ? (g.NoCentro ? "no Centro Pokémon" : "sem hunt")
-            : $"{hunt?.Nome ?? g.HuntSlug}{(hunt is not null ? $" (Nv {hunt.Nivel})" : "")}  ·  {(hunt is { Outland: true } ? "🌌 Outland" : hunt?.Regiao is { Length: > 0 } r ? char.ToUpper(r[0], Pt) + r[1..] : "área comum")}";
-        var linhas = new List<string> { $"📍 {onde}" };
-        if (g.HuntSlug is not null)
-        {
-            var (o, x, a) = st.PorHoraNaHunt();
-            linhas.Add($"⚡ {Curto(o)} ouro/h · {Curto(x)} XP/h · {Curto(a)} abates/h  (desde que entrou na hunt: {SummaryBuilder.Duracao(DateTime.UtcNow - st.HuntDesde)})");
-        }
-        linhas.Add(st.Resumo());
-        TextoCompacto.Text = string.Join("\n", linhas);
-    }
 
     private void AtualizarTime(AccountGameState g)
     {

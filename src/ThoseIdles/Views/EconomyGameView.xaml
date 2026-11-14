@@ -59,8 +59,6 @@
 
         <!-- Treinador: nick, nível, barra de XP e moedas -->
         <DockPanel Grid.Row="0">
-            <Button x:Name="BtModo" DockPanel.Dock="Right" Style="{StaticResource Mini}" Margin="10,0,0,0" Content="▾ Resumida" Click="OnModo"
-                    ToolTip="Alterna entre a tela de jogo e a versão resumida (só os números da conta)." />
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock x:Name="Ouro" Text="🪙 —" FontSize="12" Margin="0,0,10,0" ToolTip="Ouro" />
                 <TextBlock x:Name="Diamantes" Text="💎 —" FontSize="12" Margin="0,0,10,0" ToolTip="Diamantes" />
@@ -102,13 +100,6 @@
         </DockPanel>
 
         <Grid Grid.Row="4">
-            <!-- Resumida: só os números da conta -->
-            <ScrollViewer x:Name="PainelCompacto" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                <Border Style="{StaticResource Linha}" Padding="12,10">
-                    <TextBlock x:Name="TextoCompacto" FontSize="12.5" TextWrapping="Wrap" LineHeight="21" />
-                </Border>
-            </ScrollViewer>
-
             <!-- Caçar -->
             <DockPanel x:Name="PainelCacar">
 

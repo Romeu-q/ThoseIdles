@@ -158,20 +158,6 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Command="{Binding ToggleEconomyCompactCommand}" ToolTip="Versão ainda mais enxuta do modo econômico: no painel ficam só os números da conta (status, taxas, capturas, melhor captura, shinies, drops raros e bolas).">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource BarButton}">
-                                <Setter Property="MinHeight" Value="24" /><Setter Property="Padding" Value="8,1" /><Setter Property="Margin" Value="2" /><Setter Property="FontSize" Value="11.5" />
-                                <Setter Property="Content" Value="Econômica resumida" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsEconomyCompact}" Value="True">
-                                        <Setter Property="Content" Value="✓ Econômica resumida (ligada)" />
-                                        <Setter Property="Background" Value="#1F3A2A" /><Setter Property="Foreground" Value="{StaticResource Good}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
                     <Button Command="{Binding ToggleHuntCommand}" Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}" ToolTip="A extensão /hunt (guia de hunts) nesta conta.">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource BarButton}">

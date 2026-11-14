@@ -331,6 +331,8 @@ public sealed class SelfTestRunner
             await RunTravasTestAsync();
             await RunTelaMinimaTestAsync();
             await RunRankingTestAsync();
+            await RunRankingMotorHuntTestAsync();
+            await RunEconomicaResumidaTestAsync();
             return;
         }
         if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") is "ferramentas" or "hub")
@@ -1298,37 +1300,61 @@ public sealed class SelfTestRunner
                 await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
             var chegou = await WaitUntil(() => s.Stats.Abates == 3 && s.Game.Recebeu, TimeSpan.FromSeconds(10));
 
-            var janela = ((MainWindow)_window).OpenSummary();
-            SummarySnapshot snap = await _window.Dispatcher.InvokeAsync(() => janela.Atualizar());
+            // O Resumo NÃO é uma janela: é a aba da janela principal, no lugar da grade de jogos.
+            var vm = (ThoseIdles.ViewModels.MainViewModel)_window.DataContext;
+            var vista = Visuais<SummaryView>(_window).First();
+            var gradeVisivelAntes = Visuais<SessionLayoutPanel>(_window).First().IsVisible;
+            await _window.Dispatcher.InvokeAsync(() => vm.IsSummaryMode = true);
+            await Task.Delay(300);
+            var gradeSumiu = !Visuais<SessionLayoutPanel>(_window).First().IsVisible && vista.IsVisible;
+            SummarySnapshot snap = (await _window.Dispatcher.InvokeAsync(() => vista.Atualizar()))!;
             await Task.Delay(400);
-            await _window.Dispatcher.InvokeAsync(() => FotoDe((System.Windows.FrameworkElement)janela.Content, "foto-resumo.png"));
+            await _window.Dispatcher.InvokeAsync(() => FotoDe(vista, "foto-resumo.png"));
             var linha = snap.Linhas.FirstOrDefault(l => l.Slot == 1);
             var hoje = DailyTotals.Instance.Da(1);
             // Depois a conta vai caçar na OUTLAND: o resumo mostra a área e conta a conta no cartão.
             await core.ExecuteScriptAsync("window.__ws.send(JSON.stringify({ t: 'teste.eco', msg: {t:'estado',estado:{huntSlug:'ancient_dragonite'}} }))");
             await WaitUntil(() => s.Game.HuntSlug == "ancient_dragonite", TimeSpan.FromSeconds(10));
-            SummarySnapshot snap2 = await _window.Dispatcher.InvokeAsync(() => janela.Atualizar());
+            // Na Outland os drops aparecem (os raros primeiro); o que veio ANTES de chegar lá não conta como da Outland.
+            const string drops = """{"t":"batalha","ev":[{"k":"morte","quem":"selvagem","nome":"Dragonite","xpTreinador":10,"ouro":5,"drops":[{"itemId":70012,"nome":"Shiny Stone Fragment","qtd":2},{"itemId":99999,"nome":"Rare Candy","qtd":3}]},{"k":"morte","quem":"selvagem","nome":"Dragonite","xpTreinador":10,"ouro":5,"drops":[{"itemId":99999,"nome":"Rare Candy","qtd":1}]}]}""";
+            await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {drops} }}))");
+            await WaitUntil(() => s.Stats.Drops(true).Count >= 2, TimeSpan.FromSeconds(10));
+            SummarySnapshot snap2 = (await _window.Dispatcher.InvokeAsync(() => vista.Atualizar()))!;
+            await Task.Delay(400);
+            await _window.Dispatcher.InvokeAsync(() => FotoDe(vista, "foto-resumo-outland.png"));
             var linha2 = snap2.Linhas.FirstOrDefault(l => l.Slot == 1);
-            janela.Close();
+            var drop = snap2.Outland.FirstOrDefault(o => o.Conta == linha2?.Conta);
+            var dropsOk = drop is { Agora: true } && drop.Itens.StartsWith("★ Shiny Stone Fragment ×2") && drop.Itens.Contains("Rare Candy ×4") && drop.Total == 6
+                          && snap.Outland.Count == 0 && vista.CartaoOutland.Visibility == System.Windows.Visibility.Visible;
+            // Sai da Outland: a linha continua, como "já farmou lá".
+            await core.ExecuteScriptAsync("window.__ws.send(JSON.stringify({ t: 'teste.eco', msg: {t:'estado',estado:{huntSlug:'pidgey'}} }))");
+            await WaitUntil(() => s.Game.HuntSlug == "pidgey", TimeSpan.FromSeconds(10));
+            SummarySnapshot snap3 = (await _window.Dispatcher.InvokeAsync(() => vista.Atualizar()))!;
+            var dropsDepois = snap3.Outland.FirstOrDefault(o => o.Conta == linha2?.Conta) is { Agora: false } d3 && d3.Local.Contains("já farmou");
+            await _window.Dispatcher.InvokeAsync(() => vm.IsSummaryMode = false);
+            await Task.Delay(300);
+            var gradeVolta = Visuais<SessionLayoutPanel>(_window).First().IsVisible && !vista.IsVisible;
             var outlandOk = linha is { Area: "Kanto", Outland: false } && snap.Totais.Outland == "0 / 1"
                             && linha2 is { Area: "🌌 Outland", Outland: true } && snap2.Totais.Outland == "1 / 1";
 
-            var ok = chegou && outlandOk && linha is not null
+            var ok = chegou && gradeVisivelAntes && gradeSumiu && gradeVolta && dropsOk && dropsDepois && outlandOk && linha is not null
                      && linha.Hunt == "Pidgey" && linha.Status.StartsWith("Caçando") && linha.Status.Contains("Charizard")
                      && linha.Capturas == "1" && linha.Shiny == "1 / 1" && linha.OuroHNum > 0 && linha.XpHNum > 0
                      && snap.Totais.Capturas == "1" && snap.Totais.Shiny == "1 / 1"
                      && hoje.Abates == 3 && hoje.Ouro == 1500 && hoje.Xp == 3000 && hoje.Capturas == 1 && hoje.ShiniesVistos == 1 && hoje.ShiniesCapturados == 1
                      && snap.Shinies.Count == 1 && snap.Shinies[0].Capturado && snap.Capturas.Count == 1;
             return ok
-                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); depois na Outland: área “{linha2!.Area}” e cartão {snap2.Totais.Outland}; total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
-                : Fail($"chegou={chegou} outland={outlandOk} (área1={linha?.Area}, área2={linha2?.Area}, cartão={snap2.Totais.Outland}) linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
+                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); o Resumo é a aba da janela (troca a grade e volta); depois na Outland: área “{linha2!.Area}”, cartão {snap2.Totais.Outland} e os drops “{drop!.Itens}”; total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
+                : Fail($"chegou={chegou} aba(grade antes={gradeVisivelAntes}, sumiu={gradeSumiu}, volta={gradeVolta}) drops={dropsOk}({drop?.Itens}) depois={dropsDepois} outland={outlandOk} (área1={linha?.Area}, área2={linha2?.Area}, cartão={snap2.Totais.Outland}) linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
         });
     }
 
     private async Task RunRankingTestAsync()
     {
-        await Test("melhor hunt de XP (motor do Hub): ranking para o Pokémon em campo, com os bônus da conta, mostrado na aba Caçar", async () =>
+        await Test("melhor hunt de XP (plano B, Calculadora do Hub): ranking para o Pokémon em campo, com os bônus da conta, mostrado na aba Caçar", async () =>
         {
+            BrowserSession.RankingAutomatico = false; // quem calcula é o teste, não o relógio da tela
+            BrowserSession.RankingSoHub = true;
             var s = _manager[4];
             var g = s.Game;
             // O que o app manda de bônus, lido do estado que o servidor mandou (VIP, XP Boost, guild 3º, Kick).
@@ -1338,6 +1364,7 @@ public sealed class SelfTestRunner
             var inicio = DateTime.UtcNow;
             await await _window.Dispatcher.InvokeAsync(() => s.AtualizarRankingAsync(forcar: true));
             var segundos = (DateTime.UtcNow - inicio).TotalSeconds;
+            BrowserSession.RankingSoHub = false;
             var lista = s.MelhoresHunts;
             var vista = Visuais<EconomyGameView>(_window).First(v => (v.DataContext as ThoseIdles.ViewModels.AccountViewModel)?.Slot == 4);
             await _window.Dispatcher.InvokeAsync(() => { vista.AbaCacar.IsChecked = true; vista.Atualizar(); });
@@ -1346,10 +1373,86 @@ public sealed class SelfTestRunner
             var cartao = await _window.Dispatcher.InvokeAsync(() => (vista.ListaMelhores.Items.Cast<EconomyGameView.MelhorLinha>().ToList(), vista.MelhoresInfo.Text, vista.CartaoMelhores.Visibility));
             await _window.Dispatcher.InvokeAsync(() => FotoDe(vista.Raiz, "foto-minimo-melhores.png"));
             var ok = bonusOk && s.RankingStatus == "" && lista.Count >= 3 && lista[0].Posicao == 1 && lista.All(m => m.Nome.Length > 0 && m.XpH.Length > 0)
-                     && s.RankingPara == $"{ativo!.Especie} Nv {ativo.Level:N0}" && cartao.Item1.Count == lista.Count && cartao.Item1[0].Titulo.StartsWith("★ 1.") && cartao.Item2.Contains(s.RankingPara);
+                     && s.RankingOrigem.StartsWith("Calculadora do Hub") && s.RankingPara == $"{ativo!.Especie} Nv {ativo.Level:N0}" && cartao.Item1.Count == lista.Count && cartao.Item1[0].Titulo.StartsWith("★ 1.") && cartao.Item2.Contains(s.RankingPara);
             return ok
                 ? Pass($"{s.RankingPara}: {lista.Count} hunts em {segundos:0.0} s — 1º {lista[0].Nome} ({lista[0].XpH} XP/h, ouro/h {lista[0].OuroH}), 2º {lista[1].Nome}, 3º {lista[2].Nome}; bônus lidos do servidor (VIP, XP Boost, guild 3º, Kick) e entregues ao Hub; a aba Caçar mostra o cartão")
                 : Fail($"bônus={bonusOk}({string.Join(",", esc.Select(kv => kv.Key + "=" + kv.Value))}) status=[{s.RankingStatus}] lista={lista.Count} ({string.Join(" | ", lista.Select(m => $"{m.Posicao}.{m.Nome}:{m.XpH}"))}) para={s.RankingPara} cartão={cartao.Item1.Count}/{cartao.Item2}");
+        });
+    }
+
+    private async Task RunRankingMotorHuntTestAsync()
+    {
+        await Test("melhor hunt de XP pelo motor do /hunt (o mesmo do painel do jogo): scripts da extensão numa janela escondida, com o estado da conta", async () =>
+        {
+            var baseExt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThoseIdles", "extensions", "hunt");
+            var atual = File.Exists(Path.Combine(baseExt, "current.txt")) ? File.ReadAllText(Path.Combine(baseExt, "current.txt")).Trim() : null;
+            var pasta = atual is null ? null : Path.Combine(baseExt, atual);
+            if (pasta is null || !Directory.Exists(pasta)) return Pass("extensão /hunt não instalada nesta máquina: teste do motor pulado (o plano B do Hub foi testado)");
+
+            BrowserSession.RankingAutomatico = false;
+            var s = _manager[4];
+            // As hunts REAIS do jogo (o mesmo formato do welcome) e um Charizard com stats, como o servidor manda.
+            using var http = new System.Net.Http.HttpClient();
+            var huntsJson = await http.GetStringAsync("https://pokeidleguide.io/data/jogo/hunts.json");
+            using var hd = JsonDocument.Parse(huntsJson);
+            var hunts = hd.RootElement.GetProperty("hunts").GetRawText();
+            var msg = $$$"""
+                {"t":"estado","hunts":{{{hunts}}},"estado":{"level":1284,"activeId":7,"pkMud":[
+                  {"id":7,"nome":"Charizard","speciesId":6,"level":900,"slot":0,"hp":2800,"maxHp":3000,"potencia":4,"shiny":false,
+                   "tipos":["FIRE","FLYING"],"ivs":{"hp":17,"atk":25,"def":11,"spAtk":21,"spDef":31,"speed":5},
+                   "stats":{"hp":3000,"atk":1500,"def":1100,"spAtk":2500,"spDef":1900,"speed":1200}}]}}
+                """;
+            using var md = JsonDocument.Parse(msg);
+            s.Game.Apply(md.RootElement);
+            BrowserSession.RankingExtensaoPasta = pasta;
+            BrowserSession.RankingSoHub = false;
+            try
+            {
+                var inicio = DateTime.UtcNow;
+                await await _window.Dispatcher.InvokeAsync(() => s.AtualizarRankingAsync(forcar: true));
+                var seg = (DateTime.UtcNow - inicio).TotalSeconds;
+                var lista = s.MelhoresHunts;
+                var ok = s.RankingStatus == "" && s.RankingOrigem.StartsWith("motor do /hunt") && lista.Count >= 3
+                         && lista.All(m => m.Nome.Length > 0 && m.XpH.Length > 0 && m.MataEm.Length > 0 && m.Risco.Length > 0 && m.AbatesH.Length > 0 && m.Nivel > 0 && m.Nivel <= 1284);
+                return ok
+                    ? Pass($"{s.RankingOrigem}: {lista.Count} hunts em {seg:0.0} s — 1º {lista[0].Nome} (Nv {lista[0].Nivel}, {lista[0].XpH} XP/h, {lista[0].AbatesH} abates/h, mata em {lista[0].MataEm}, risco {lista[0].Risco}), 2º {lista[1].Nome} ({lista[1].XpH} XP/h, {lista[1].AbatesH} abates/h); só hunts liberadas para o Nv 1284")
+                    : Fail($"status=[{s.RankingStatus}] origem={s.RankingOrigem} lista=[{string.Join(" | ", lista.Select(m => $"{m.Posicao}.{m.Nome} nv{m.Nivel} {m.XpH} {m.AbatesH}/h {m.MataEm} {m.Risco}"))}]");
+            }
+            finally
+            {
+                BrowserSession.RankingExtensaoPasta = null;
+            }
+        });
+    }
+
+    private async Task RunEconomicaResumidaTestAsync()
+    {
+        await Test("Econômica resumida (global): liga o modo econômico em todas as contas abertas e mostra o Resumo; clicar de novo reabre os jogos", async () =>
+        {
+            var vm = (ThoseIdles.ViewModels.MainViewModel)_window.DataContext;
+            // As contas 1 a 3 estão com a página aberta (logadas no servidor de teste); a 4 já está em modo econômico.
+            for (var slot = 1; slot <= 3; slot++) await SetGameSession(_manager[slot], $"rico{slot}", $"rico{slot}tok", $"disp-{slot}{slot}{slot}{slot}-abcd");
+            await _window.Dispatcher.InvokeAsync(() => vm.EconomySummaryCommand.Execute(null));
+            var ligou = await WaitUntil(() => vm.Accounts.All(a => a.Session.IsEconomy) && vm.IsSummaryMode && vm.EconomySummaryActive, TimeSpan.FromSeconds(40));
+            var conectadas = await WaitUntil(() => vm.Accounts.All(a => a.Session.Game.Recebeu && a.Session.Status == SessionStatus.Connected), TimeSpan.FromSeconds(25));
+            var vista = Visuais<SummaryView>(_window).First();
+            var snap = (await _window.Dispatcher.InvokeAsync(() => vista.Atualizar()))!;
+            await Task.Delay(300);
+            await _window.Dispatcher.InvokeAsync(() => FotoDe(vista, "foto-economica-resumida.png"));
+            var grade = Visuais<SessionLayoutPanel>(_window).First().IsVisible;
+            var texto = vm.EconomySummaryText;
+            var renderers = (await _memory.SampleAsync()).Accounts.Select(a => a.Processes).ToList();
+            var caçando = snap.Linhas.Count(l => l.Slot <= 3 && l.Status.StartsWith("Caçando"));
+
+            await _window.Dispatcher.InvokeAsync(() => vm.EconomySummaryCommand.Execute(null));
+            var voltou = await WaitUntil(() => vm.Accounts.All(a => !a.Session.IsEconomy) && !vm.IsSummaryMode, TimeSpan.FromSeconds(40));
+            var paginas = await WaitUntil(() => vm.Accounts.All(a => a.Session.Core is not null), TimeSpan.FromSeconds(40));
+            var gradeVolta = Visuais<SessionLayoutPanel>(_window).First().IsVisible;
+
+            var ok = ligou && conectadas && !grade && texto == "✓ Econômica resumida" && caçando == 3 && snap.Linhas.Count == 4 && voltou && paginas && gradeVolta;
+            return ok
+                ? Pass($"um clique: as 4 contas em modo econômico (sem página: renderers por conta {string.Join("/", renderers)}), grade trocada pelo Resumo (3 contas \"Caçando\" nos números), botão “{texto}”; outro clique: os jogos reabriram e a grade voltou")
+                : Fail($"ligou={ligou} conectadas={conectadas} grade={grade} texto={texto} caçando={caçando} linhas={snap.Linhas.Count} voltou={voltou} páginas={paginas} gradeVolta={gradeVolta} econ=[{string.Join(",", vm.Accounts.Select(a => a.Session.IsEconomy))}]");
         });
     }
 
@@ -1495,27 +1598,17 @@ public sealed class SelfTestRunner
                 await Pausa();
                 var curou = Tem("\"centro.curar\"");
 
-                // VERSÃO RESUMIDA: no lugar das abas, só os números (status, taxas, shinies, melhor captura, drops raros, bolas).
-                await Ui2(() => s.SetEconomyCompact(true));
-                await Pausa(900);
-                var resumida = await Ui(() => (vista.PainelCompacto.Visibility, vista.BarraAbas.Visibility, vista.TextoCompacto.Text, vista.BtModo.Content as string));
-                var botaoResumida = await Ui(() => Visuais<System.Windows.Controls.Button>(_window).Any(b => b.Content as string == "✓ Econômica resumida (ligada)"));
-                await Ui2(() => vista.BtModo.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)));
-                await Pausa(900);
-                var completaDeNovo = await Ui(() => vista.BarraAbas.Visibility == System.Windows.Visibility.Visible && vista.PainelCompacto.Visibility == System.Windows.Visibility.Collapsed) && !s.Account.EconomyCompact;
-                var resumidaOk = resumida.Item1 == System.Windows.Visibility.Visible && resumida.Item2 == System.Windows.Visibility.Collapsed
-                                 && resumida.Item3.Contains("no Centro Pokémon") && resumida.Item3.Contains("Treinador Nv") && resumida.Item3.Contains("Pokébolas") && resumida.Item4 == "▴ Completa"
-                                 && botaoResumida && completaDeNovo;
-
+                // Não existe mais "resumida por conta": o Resumo é o da janela principal (o botão "Econômica resumida" fica na barra de cima).
+                var semBotaoPorConta = !(await Ui(() => Visuais<System.Windows.Controls.Button>(_window).Any(b => (b.Content as string)?.StartsWith("Econômica resumida") == true && b.Command is null)));
+                var resumidaOk = semBotaoPorConta;
                 var ok = cabOk && resumidaOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && faixaOk && centro && avisouEspera && esperouGuarda && curou;
                 return ok
-                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas: ligar e comprar 100 (confirmação mostrou 60.000) · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · versão resumida: só os números no lugar das abas, e volta à completa · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
-                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk}({resumida.Item3.Replace("\n", " | ")}; botão={botaoResumida}; voltou={completaDeNovo}) faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
+                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas: ligar e comprar 100 (confirmação mostrou 60.000) · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
+                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk} faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
             }
             finally
             {
                 EconomyGameView.ConfirmarParaTeste = null;
-                BrowserSession.RankingAutomatico = true;
             }
         });
     }

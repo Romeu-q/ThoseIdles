@@ -335,6 +335,21 @@ public sealed class EconomySessionStats
         }
     }
 
+    // ---- TODOS os drops (não só os raros): o total da sessão e o que veio enquanto a conta estava na OUTLAND ----
+    private readonly Dictionary<string, (long Qtd, bool Raro)> _dropsSessao = new();
+    private readonly Dictionary<string, (long Qtd, bool Raro)> _dropsOutland = new();
+
+    /// <summary>A hunt de agora é da Outland? (quem cria as estatísticas liga isto ao estado da conta.)</summary>
+    public Func<bool> EmOutland { get; set; } = () => false;
+
+    /// <summary>Os drops da sessão (ou só os da Outland): os raros primeiro, depois do mais para o menos.</summary>
+    public IReadOnlyList<(string Nome, long Qtd, bool Raro)> Drops(bool soOutland)
+    {
+        lock (_lock)
+            return (soOutland ? _dropsOutland : _dropsSessao).Select(kv => (kv.Key, kv.Value.Qtd, kv.Value.Raro))
+                .OrderByDescending(x => x.Raro).ThenByDescending(x => x.Qtd).ThenBy(x => x.Key, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
     private void SomarDrops(JsonElement e)
     {
         if (!e.TryGetProperty("drops", out var drops) || drops.ValueKind != JsonValueKind.Array) return;
@@ -344,6 +359,13 @@ public sealed class EconomySessionStats
             var id = (int)(Num(d, "itemId") ?? 0);
             var nome = Str(d, "nome");
             var qtd = (int)(Num(d, "qtd") ?? 1);
+            {
+                var chave = nome ?? $"item #{id}";
+                var raro = Raros.Any(r => (r.Id != 0 && r.Id == id) || (nome is not null && string.Equals(nome, r.Nome, StringComparison.OrdinalIgnoreCase)));
+                var q = Math.Max(1, qtd);
+                _dropsSessao[chave] = (_dropsSessao.GetValueOrDefault(chave).Qtd + q, raro);
+                if (EmOutland()) _dropsOutland[chave] = (_dropsOutland.GetValueOrDefault(chave).Qtd + q, raro);
+            }
             foreach (var r in Raros)
                 if ((r.Id != 0 && r.Id == id) || (nome is not null && string.Equals(nome, r.Nome, StringComparison.OrdinalIgnoreCase)))
                 {

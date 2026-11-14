@@ -37,6 +37,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly BenchmarkService _benchmark;
 
     private bool _isFocusMode;
+    private bool _isSummaryMode;
     private int _focusedSlot;
     private bool _showSettings;
     private string _summaryText = "";
@@ -60,6 +61,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         Accounts = manager.Sessions.Select(s => new AccountViewModel(s, this, _settings)).ToList();
         _isFocusMode = _settings.FocusMode;
+        _isSummaryMode = _settings.SummaryMode;
         _focusedSlot = _settings.FocusedSlot;
         ApplyRoles();
 
@@ -67,6 +69,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         CloseAllCommand = new RelayCommand(() => _manager.CloseAll());
         RestartAllCommand = new AsyncCommand(() => _manager.RestartAllAsync());
         ToggleLayoutCommand = new RelayCommand(() => IsFocusMode = !IsFocusMode);
+        ToggleSummaryCommand = new RelayCommand(() => IsSummaryMode = !IsSummaryMode);
+        EconomySummaryCommand = new AsyncCommand(EconomySummaryAsync);
+        foreach (var a in Accounts)
+            a.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(AccountViewModel.IsEconomy) or nameof(AccountViewModel.IsRunning))
+                {
+                    OnPropertyChanged(nameof(EconomySummaryActive));
+                    OnPropertyChanged(nameof(EconomySummaryText));
+                }
+            };
         ToggleSettingsCommand = new RelayCommand(() => ShowSettings = !ShowSettings);
         ExportSnapshotCommand = new AsyncCommand(ExportSnapshotAsync);
         OpenLogsCommand = new RelayCommand(() => OpenFolder(AppPaths.LogsFolder));
@@ -86,6 +99,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ICommand CloseAllCommand { get; }
     public ICommand RestartAllCommand { get; }
     public ICommand ToggleLayoutCommand { get; }
+    public ICommand ToggleSummaryCommand { get; }
+    public ICommand EconomySummaryCommand { get; }
     public ICommand ToggleSettingsCommand { get; }
     public ICommand ExportSnapshotCommand { get; }
     public ICommand OpenLogsCommand { get; }
@@ -107,6 +122,54 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             ApplyRoles();
             SaveSettings();
         }
+    }
+
+    // ------------------------------------------------------------------ Resumo (a função que observa as 4 contas)
+
+    /// <summary>
+    /// O Resumo no lugar da grade de jogos. Não abre janela nenhuma: é um modo da janela principal, e as contas seguem
+    /// rodando por baixo. Guardado nas configurações (o app reabre no mesmo modo).
+    /// </summary>
+    public bool IsSummaryMode
+    {
+        get => _isSummaryMode;
+        set
+        {
+            if (!Set(ref _isSummaryMode, value)) return;
+            _settings.SummaryMode = value;
+            OnPropertyChanged(nameof(SummaryButtonText));
+            OnPropertyChanged(nameof(EconomySummaryActive));
+            OnPropertyChanged(nameof(EconomySummaryText));
+            SaveSettings();
+        }
+    }
+
+    public string SummaryButtonText => IsSummaryMode ? "Ver contas" : "Resumo";
+
+    /// <summary>A "Econômica resumida" está valendo: Resumo na tela e todas as contas abertas em modo econômico.</summary>
+    public bool EconomySummaryActive =>
+        IsSummaryMode && Accounts.Where(a => a.Slot <= VisibleAccounts && a.IsRunning).ToList() is { Count: > 0 } abertas && abertas.All(a => a.IsEconomy);
+
+    public string EconomySummaryText => EconomySummaryActive ? "✓ Econômica resumida" : "Econômica resumida";
+
+    /// <summary>
+    /// "Econômica resumida" = o Resumo + o modo econômico em todas as contas abertas (sem a página do jogo, quase sem RAM).
+    /// Clicar de novo desliga: as contas voltam para o jogo e a grade volta à tela.
+    /// </summary>
+    private async Task EconomySummaryAsync()
+    {
+        if (EconomySummaryActive)
+        {
+            IsSummaryMode = false;
+            foreach (var a in Accounts.Where(a => a.Session.IsEconomy)) await a.Session.ExitEconomyAsync();
+            return;
+        }
+        foreach (var a in Accounts.Where(a => a.Slot <= VisibleAccounts && a.Session.IsRunning && !a.Session.IsEconomy))
+        {
+            var problem = await a.Session.EnterEconomyAsync();
+            if (problem is not null) Notice = $"{a.DisplayName}: {problem}";
+        }
+        IsSummaryMode = true;
     }
 
     /// <summary>Índice 0-based da conta em foco (usado pelo painel de layout).</summary>

@@ -7,43 +7,36 @@ using ThoseIdles.ViewModels;
 namespace ThoseIdles.Views;
 
 /// <summary>
-/// O resumo de todas as contas (como o "Modo Simples" do PokeGrid): cartões com as somas, a tabela por
-/// conta (clique no cabeçalho ordena, na linha abre a conta), últimas capturas, shinies e o total de hoje.
-/// Atualiza a cada segundo a partir de <see cref="BrowserSession.Stats"/>, nos dois modos da conta.
+/// O RESUMO das contas: não é uma tela à parte, é uma função da janela principal que observa as quatro contas de uma vez
+/// (como o "Modo Simples" do PokeGrid): cartões com as somas, a tabela por conta (clicar no cabeçalho ordena, na linha
+/// abre a conta), os drops de quem está na Outland, últimas capturas, shinies e o total de hoje. Fica no lugar da grade de
+/// jogos quando o modo Resumo está ligado, e atualiza a cada segundo (só enquanto está à vista) a partir de
+/// <see cref="BrowserSession.Stats"/>, com a página aberta ou no modo econômico.
 /// </summary>
-public partial class SummaryWindow : Window
+public partial class SummaryView : UserControl
 {
-    private readonly MainViewModel _vm;
-    private readonly Func<IEnumerable<BrowserSession>> _sessoes;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private string _ordem = "conta";
     private bool _decrescente;
 
-    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
-
-    public SummaryWindow(MainViewModel vm, Func<IEnumerable<BrowserSession>> sessoes)
+    public SummaryView()
     {
-        _vm = vm;
-        _sessoes = sessoes;
         InitializeComponent();
         _timer.Tick += (_, _) => Atualizar();
-        Loaded += (_, _) => { Atualizar(); _timer.Start(); };
-        Closed += (_, _) => _timer.Stop();
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) { Atualizar(); _timer.Start(); }
+            else _timer.Stop();
+        };
     }
 
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        var on = 1;
-        if (DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int)) != 0) DwmSetWindowAttribute(hwnd, 19, ref on, sizeof(int));
-    }
+    private MainViewModel? Vm => DataContext as MainViewModel;
 
     /// <summary>Recalcula tudo (público: o autoteste chama).</summary>
-    public SummarySnapshot Atualizar()
+    public SummarySnapshot? Atualizar()
     {
-        var snap = SummaryBuilder.Build(_sessoes(), DailyTotals.Instance, _vm.VisibleAccounts);
+        if (Vm is not { } vm) return null;
+        var snap = SummaryBuilder.Build(vm.Accounts.Select(a => a.Session), DailyTotals.Instance, vm.VisibleAccounts);
         Mostrar(snap);
         return snap;
     }
@@ -58,8 +51,9 @@ public partial class SummaryWindow : Window
         TotAtivas.Text = s.Totais.Ativas;
         TotOutland.Text = s.Totais.Outland;
 
-        var linhas = Ordenar(s.Linhas);
-        Linhas.ItemsSource = linhas;
+        Linhas.ItemsSource = Ordenar(s.Linhas);
+        ListaOutland.ItemsSource = s.Outland;
+        CartaoOutland.Visibility = s.Outland.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         Capturas.ItemsSource = s.Capturas;
         SemCapturas.Visibility = s.Capturas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         Shinies.ItemsSource = s.Shinies;
@@ -98,15 +92,11 @@ public partial class SummaryWindow : Window
         Atualizar();
     }
 
+    /// <summary>Clicar na linha leva à conta: sai do Resumo e põe aquela conta em destaque.</summary>
     private void OnOpenAccount(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: int slot }) return;
-        // Leva a janela principal para a frente, com a conta em destaque (a menos que ela já esteja).
-        if (!(_vm.IsFocusMode && _vm.FocusedIndex == slot - 1)) _vm.ToggleFocus(slot);
-        if (Owner is { } dono)
-        {
-            if (dono.WindowState == WindowState.Minimized) dono.WindowState = WindowState.Normal;
-            dono.Activate();
-        }
+        if (sender is not Button { Tag: int slot } || Vm is not { } vm) return;
+        vm.IsSummaryMode = false;
+        if (!(vm.IsFocusMode && vm.FocusedIndex == slot - 1)) vm.ToggleFocus(slot);
     }
 }

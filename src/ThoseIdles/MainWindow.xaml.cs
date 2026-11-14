@@ -100,26 +100,6 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm) vm.SaveSettings();
     }
 
-    private Views.SummaryWindow? _summary;
-
-    /// <summary>Abre (ou traz para a frente) o resumo de todas as contas.</summary>
-    public Views.SummaryWindow OpenSummary()
-    {
-        if (_summary is { IsLoaded: true })
-        {
-            if (_summary.WindowState == WindowState.Minimized) _summary.WindowState = WindowState.Normal;
-            _summary.Activate();
-            return _summary;
-        }
-        var vm = (MainViewModel)DataContext;
-        _summary = new Views.SummaryWindow(vm, () => vm.Accounts.Select(a => a.Session)) { Owner = this };
-        _summary.Closed += (_, _) => _summary = null;
-        _summary.Show();
-        return _summary;
-    }
-
-    private void OnOpenSummary(object sender, RoutedEventArgs e) => OpenSummary();
-
     private void OnDismissNotice(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel vm) vm.Notice = "";

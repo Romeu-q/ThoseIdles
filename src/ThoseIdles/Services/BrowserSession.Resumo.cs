@@ -22,7 +22,12 @@ public sealed partial class BrowserSession
     /// <summary>O estado da conta (nível, moedas, hunt, time…).</summary>
     public AccountGameState Game => _eco?.Game ?? _pageGame;
 
-    private void LigarTotalDoDia(EconomySessionStats stats) => stats.Somou += soma => DailyTotals.Instance.Somar(Slot, soma);
+    private void LigarTotalDoDia(EconomySessionStats stats)
+    {
+        stats.Somou += soma => DailyTotals.Instance.Somar(Slot, soma);
+        // Os drops da OUTLAND: a hunt de agora (do estado da conta, no modo em que ela estiver) diz se é de lá.
+        stats.EmOutland = () => Game.HuntAtual is { Outland: true };
+    }
 
     private static readonly Lazy<string> ContaRelayScript = new(() => ReadResource("ContaRelay.js"));
 

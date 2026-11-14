@@ -25,11 +25,16 @@ public sealed record ShinyLinha(string Conta, string Cor, string Nome, bool Capt
     public string Resultado => Capturado ? "✓ capturado" : "✗ não capturado";
     public string ResultadoCor => Capturado ? "#3FC46E" : "#E5484D";
 }
+/// <summary>Os drops de uma conta que está (ou esteve, nesta sessão) na Outland.</summary>
+public sealed record OutlandLinha(string Conta, string Cor, string Hunt, bool Agora, string Itens, long Total)
+{
+    public string Local => Agora ? $"farmando agora em {Hunt}" : "já farmou na Outland nesta sessão";
+}
 public sealed record HojeResumo(string Data, string Ouro, string Xp, string Abates, string Capturas, string Shiny, string SeteDias);
 
 public sealed record SummarySnapshot(
     SummaryTotals Totais, IReadOnlyList<SummaryRow> Linhas,
-    IReadOnlyList<CapturaLinha> Capturas, IReadOnlyList<ShinyLinha> Shinies, HojeResumo Hoje);
+    IReadOnlyList<CapturaLinha> Capturas, IReadOnlyList<ShinyLinha> Shinies, HojeResumo Hoje, IReadOnlyList<OutlandLinha> Outland);
 
 /// <summary>
 /// Monta o RESUMO de todas as contas (o que o "Modo Simples" do PokeGrid mostra): por conta, a hunt,
@@ -60,6 +65,7 @@ public static class SummaryBuilder
         var linhas = new List<SummaryRow>();
         var capturas = new List<CapturaLinha>();
         var shinies = new List<ShinyLinha>();
+        var outlandLinhas = new List<OutlandLinha>();
         double ouroH = 0, xpH = 0, abatesH = 0;
         int caps = 0, sv = 0, sc = 0, ativas = 0, total = 0, outland = 0;
 
@@ -96,6 +102,13 @@ public static class SummaryBuilder
                 st.Capturas.ToString(Pt), $"{st.ShiniesVistos} / {st.ShiniesCapturados}", st.MelhorCapturaCurta() ?? "—", ultima,
                 status, statusCor, ativa, o, x, a, st.Capturas, tempo.TotalSeconds));
 
+            // Quem está na Outland (ou já dropou algo lá nesta sessão) mostra os DROPS: raros primeiro, tudo à mostra.
+            var dropsOutland = st.Drops(soOutland: true);
+            if (emOutland || dropsOutland.Count > 0)
+                outlandLinhas.Add(new OutlandLinha(nome, cor, huntInfo?.Nome ?? hunt, emOutland,
+                    dropsOutland.Count == 0 ? "nenhum drop ainda" : string.Join("  ·  ", dropsOutland.Select(d => $"{(d.Raro ? "★ " : "")}{d.Nome} ×{d.Qtd:N0}")),
+                    dropsOutland.Sum(d => d.Qtd)));
+
             foreach (var r in recentes.Take(12))
                 capturas.Add(new CapturaLinha(nome, cor, $"{r.Nome}{(r.Shiny ? " ✨" : "")}",
                     $"Nv {r.Nivel:N0} · P{r.Potencia} · ×{r.Qualidade.ToString("0.00", Pt)}{(r.Nota is { } n ? $" · nota {n.ToString("0.000", Pt)}" : "")}", r.Em.ToString("HH:mm"), r.Em));
@@ -115,7 +128,7 @@ public static class SummaryBuilder
 
         return new SummarySnapshot(totais, linhas,
             capturas.OrderByDescending(c => c.Em).Take(14).ToList(),
-            shinies.OrderByDescending(c => c.Em).Take(14).ToList(), hoje);
+            shinies.OrderByDescending(c => c.Em).Take(14).ToList(), hoje, outlandLinhas);
     }
 
     /// <summary>"Caçando · Charizard Nv337", "Na cidade", "⚠ Parada há 12 min", "Desconectada"… e a cor (verde farmando, âmbar atenção, vermelho parou).</summary>
