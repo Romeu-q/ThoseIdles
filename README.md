@@ -320,8 +320,9 @@ conta continuam abertas. "Abrir o jogo desta conta" volta para a página normal.
 - **Permitido pelos termos do jogo** (seção 5: "Automações são permitidas", até 4 contas por pessoa,
   sem explorar falhas nem sobrecarregar o servidor). O cliente faz só o que o cliente oficial faz para
   manter a conexão: o mesmo `hello` (nick, token e id do aparelho que o jogo guardou no navegador da
-  conta), `ping` a cada 25 s e reconexão com espera crescente (2 s → 60 s). **Não envia nenhuma ação
-  de jogo.**
+  conta), `ping` a cada 25 s e reconexão com espera crescente (2 s → 60 s). **Sozinho, não envia
+  nenhuma ação de jogo**: só manda uma ação (trocar de hunt, ir ao Centro…) quando **você clica** num
+  botão da tela mínima abaixo, e é a mesma mensagem que o cliente oficial manda naquele clique.
 - Se o jogo recusar (conta aberta em outro lugar, código 4001; IP bloqueado, 4003; ou erro na
   entrada, como token inválido ou rede cheia), o cliente **para e avisa**, sem insistir.
 - Nick, token e id do aparelho ficam guardados **criptografados com o DPAPI do Windows** (só o seu
@@ -332,6 +333,48 @@ conta continuam abertas. "Abrir o jogo desta conta" volta para a página normal.
 - **Validado contra um servidor que imita o do jogo** (autoteste). Com o servidor real e uma conta
   real, isso ainda depende do seu teste: se o servidor do jogo pedir algo que o navegador manda e o
   cliente leve não manda, o status da conta vai mostrar o motivo.
+
+#### Jogar pelo modo econômico (a versão mínima do jogo)
+
+Com a conta em modo econômico, o painel dela vira uma **tela mínima do jogo** (nativa do app, sem a página):
+nick, nível, barra de XP e as moedas no alto; o que a conta está fazendo (hunt, Pokémon em campo, ouro/h,
+XP/h, abates/h, capturas, shinies); e cinco abas:
+
+- **Caçar:** as hunts do jogo, com busca; **▶ Caçar** nas liberadas para o seu nível (as de nível maior
+  aparecem apagadas). A hunt de agora fica marcada.
+- **Time:** o time (até 5) com vida; **Em campo** troca o Pokémon que luta; **Tirar** manda para o Depot.
+- **Depot:** os Pokémon guardados (shinies primeiro, depois do maior nível), com busca e páginas de 25;
+  **→ Time** (na vaga livre), **🔒 Coleção / 🔓 Soltar** (a Coleção protege da venda e das automações) e
+  **Vender** — sempre com confirmação, com aviso extra para shiny ou Potência 4+. O Pokémon inicial e os da
+  Coleção não vendem. Não existe venda em lote.
+- **Bolas e automação:** os interruptores do jogo (bola até capturar e sem parar — do VIP —, reviver, poção e
+  voltar à hunt), as bolas que a automação usa (com a quantidade) e **+100 / +1.000** para comprar na loja (com
+  confirmação). O pedido leva as automações **inteiras**, como o jogo faz (o limiar de HP e a Coleção seguem).
+- **Registro:** abates, capturas, shinies, níveis e as recusas do servidor.
+
+Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
+**✋ Desistir** do combate (pede confirmação). **Abrir o jogo completo** sai do modo econômico.
+
+**As travas do jogo são respeitadas:** o app **espera** antes de mandar a troca de hunt ou a ida ao Centro —
+os 3 s sem dano (o carimbo que o servidor manda), a porta de 10 s desde a última entrada numa hunt e uma
+**guarda de 4 s** entre duas trocas de hunt/idas ao Centro. Enquanto espera, mostra "Aguardando 2,3 s…"; um
+pedido novo substitui o que ainda esperava. A troca do Pokémon em campo espera os 3 s do jogo. Quem manda de
+verdade é o servidor: se ele recusar (nível, luta, Safari), o motivo aparece na tela e no Registro. A mesma
+espera vale para o **▶ Caçar** do PokéIdle Hub. No Safari o app não sai sozinho (o jogo pede confirmação).
+
+### Resumo de todas as contas
+
+O botão **Resumo** da barra de cima abre uma janela com os números das contas, no estilo do "Modo Simples" do
+PokeGrid: cartões com a soma de **ouro/h, XP/h, abates/h**, capturas, shinies (visto/capturado) e contas ativas;
+a tabela **por conta** (hunt, tempo na hunt, ouro/h, XP/h, abates/h, capturas, ✨, melhor e última captura e
+o status — Caçando, Na cidade, ⚠ Parada há X min, Desconectada, Desligada…), em que **clicar no cabeçalho
+ordena** e **clicar na linha abre a conta**; as últimas capturas (com a nota), as aparições de shiny
+(capturado ou não) e o **total de hoje**, que fica salvo e continua depois de fechar o app. As taxas por hora
+contam desde que a conta entrou na hunt de agora.
+
+Funciona nos **dois modos**: no modo econômico os números vêm do cliente leve; com a página do jogo aberta, um
+script repassa ao app uma cópia do que o servidor já manda à página (estado e eventos da caça — só leitura,
+nada é enviado ao servidor; opção "Resumo de todas as contas" em Ferramentas no jogo).
 
 ### 8.2 Live da Twitch (bônus de XP do jogo)
 

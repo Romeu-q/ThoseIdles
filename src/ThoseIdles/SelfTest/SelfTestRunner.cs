@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using ThoseIdles.Services;
+using ThoseIdles.Views;
 using ThoseIdles.ViewModels;
 
 namespace ThoseIdles.SelfTest;
@@ -319,6 +320,18 @@ public sealed class SelfTestRunner
         });
 
         // TI_SELFTEST_ONLY=ferramentas: só as ferramentas do jogo (Sniper e Hub), sem repetir o resto.
+        if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") == "economia")
+        {
+            await RunEconomyTestsAsync();
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") == "jogo")
+        {
+            await RunResumoTestAsync();
+            await RunTravasTestAsync();
+            await RunTelaMinimaTestAsync();
+            return;
+        }
         if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") is "ferramentas" or "hub")
         {
             if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") == "ferramentas") await RunSniperTestsAsync();
@@ -1239,6 +1252,222 @@ public sealed class SelfTestRunner
         if (last is null) return null;
         using var doc = JsonDocument.Parse(last);
         return doc.RootElement.TryGetProperty(field, out var v) ? v.ToString() : null;
+    }
+
+    // ------------------------------------------------------------------ resumo das contas e tela mínima do modo econômico
+
+    /// <summary>Salva uma foto de um controle do app (renderizada pelo WPF, nunca da tela do usuário) para conferir o visual.</summary>
+    private static void FotoDe(System.Windows.FrameworkElement el, string nome)
+    {
+        try
+        {
+            var w = (int)Math.Max(1, el.ActualWidth); var h = (int)Math.Max(1, el.ActualHeight);
+            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bmp.Render(el);
+            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+            using var fs = File.Create(Path.Combine(AppPaths.Root, nome));
+            enc.Save(fs);
+        }
+        catch (Exception ex) { LoggingService.Log.Warn($"foto {nome}: {ex.Message}"); }
+    }
+
+    private static IEnumerable<T> Visuais<T>(System.Windows.DependencyObject raiz) where T : System.Windows.DependencyObject
+    {
+        var n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(raiz);
+        for (var i = 0; i < n; i++)
+        {
+            var filho = System.Windows.Media.VisualTreeHelper.GetChild(raiz, i);
+            if (filho is T t) yield return t;
+            foreach (var neto in Visuais<T>(filho)) yield return neto;
+        }
+    }
+
+    private async Task RunResumoTestAsync()
+    {
+        await Test("resumo das contas: uma conta com a página aberta é somada (hunt, taxas, capturas, shiny, total de hoje)", async () =>
+        {
+            DailyTotals.Instance.Reiniciar();
+            var s = _manager[1];
+            var core = s.Core!;
+            // O servidor manda o estado da conta e a caça; o script do app repassa uma cópia e o app soma.
+            const string welcome = """{"t":"welcome","hunts":[{"slug":"pidgey","nome":"Pidgey","nivel":1,"regiao":"kanto"}],"catalogoBolas":[{"id":1,"nome":"Poké Ball"}],"estado":{"cheio":true,"nick":"conta1","level":1284,"huntSlug":"pidgey","activeId":7,"balls":{"1":50},"pokemons":[{"id":7,"nome":"Charizard","level":900,"slot":0,"potencia":4,"speciesId":6}]}}""";
+            const string batalha = """{"t":"batalha","ev":[{"k":"spawn"},{"k":"morte","quem":"selvagem","nome":"Pidgey","xpTreinador":1000,"ouro":500},{"k":"morte","quem":"selvagem","nome":"Pidgey","xpTreinador":1000,"ouro":500},{"k":"morte","quem":"selvagem","nome":"Pidgey","xpTreinador":1000,"ouro":500},{"k":"bola","ballId":1,"shiny":true,"sucesso":false},{"k":"bola","ballId":1,"shiny":true,"sucesso":true},{"k":"capturado","pokemon":{"nome":"Pidgey","level":50,"shiny":true,"speciesId":16,"potencia":1,"quality":1.2}}]}""";
+            foreach (var msg in new[] { welcome, batalha })
+                await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
+            var chegou = await WaitUntil(() => s.Stats.Abates == 3 && s.Game.Recebeu, TimeSpan.FromSeconds(10));
+
+            var janela = ((MainWindow)_window).OpenSummary();
+            SummarySnapshot snap = await _window.Dispatcher.InvokeAsync(() => janela.Atualizar());
+            await Task.Delay(400);
+            await _window.Dispatcher.InvokeAsync(() => FotoDe((System.Windows.FrameworkElement)janela.Content, "foto-resumo.png"));
+            var linha = snap.Linhas.FirstOrDefault(l => l.Slot == 1);
+            var hoje = DailyTotals.Instance.Da(1);
+            janela.Close();
+
+            var ok = chegou && linha is not null
+                     && linha.Hunt == "Pidgey" && linha.Status.StartsWith("Caçando") && linha.Status.Contains("Charizard")
+                     && linha.Capturas == "1" && linha.Shiny == "1 / 1" && linha.OuroHNum > 0 && linha.XpHNum > 0
+                     && snap.Totais.Capturas == "1" && snap.Totais.Shiny == "1 / 1"
+                     && hoje.Abates == 3 && hoje.Ouro == 1500 && hoje.Xp == 3000 && hoje.Capturas == 1 && hoje.ShiniesVistos == 1 && hoje.ShiniesCapturados == 1
+                     && snap.Shinies.Count == 1 && snap.Shinies[0].Capturado && snap.Capturas.Count == 1;
+            return ok
+                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
+                : Fail($"chegou={chegou} linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
+        });
+    }
+
+    private Task RunTravasTestAsync() => Test("travas do jogo: 3 s sem dano, porta de 10 s e guarda de 4 s entre trocas de hunt / Centro", () =>
+    {
+        var g = new AccountGameState();
+        var agora = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        void Msg(string json) { using var d = JsonDocument.Parse(json); g.Apply(d.RootElement); }
+        void Ev(string json) { using var d = JsonDocument.Parse(json); g.Evento(d.RootElement); }
+        // O relógio do servidor está 2 s à frente do local: as esperas contam no relógio dele.
+        Msg($$$"""{"t":"welcome","estado":{"cheio":true,"level":100,"huntSlug":"pidgey","servidorAgora":{{{agora + 2000}}},"centroLivreEm":{{{agora + 2000 + 5000}}}}}""");
+        var combate = g.EsperaCombateMs();
+        var semGuardaAoConectar = g.EsperaGuardaMs() == 0; // a primeira leitura (conectar) não arma a guarda
+        Ev($$$"""{"t":"batalha","ev":[{"k":"hunt","nome":"Pidgey","trocaLivreEm":{{{agora + 2000 + 10000}}}}]}""");
+        var porta = g.EsperaPortaMs();
+        Ev("""{"t":"batalha","ev":[{"k":"ataque","por":"jogador"}]}""");
+        var rearmou = g.EsperaCombateMs(); // qualquer dano rearma os 3 s (e o carimbo 5 s anterior é substituído pelo mais novo? não: vale o dos 3 s do golpe)
+        Msg("""{"t":"estado","estado":{"huntSlug":"gyarados"}}""");
+        var guarda = g.EsperaGuardaMs(); // uma troca de hunt vista arma os 4 s
+        Msg("""{"t":"estado","estado":{"huntSlug":null,"noCentro":true}}""");
+        var zerou = g.EsperaCombateMs() == 0;
+        var ok = combate is > 4500 and <= 5000 && semGuardaAoConectar && porta is > 9500 and <= 10000 && rearmou is > 2500 and <= 3000
+                 && guarda is > 3500 and <= 4000 && zerou;
+        return Task.FromResult(ok
+            ? Pass($"carimbo do servidor: faltavam {combate:0} ms (5 s); porta de 10 s: {porta:0} ms; um golpe rearma os 3 s ({rearmou:0} ms); trocar de hunt arma a guarda de 4 s ({guarda:0} ms); no Centro as travas zeram")
+            : Fail($"combate={combate} semGuarda={semGuardaAoConectar} porta={porta} rearmou={rearmou} guarda={guarda} zerou={zerou}"));
+    });
+
+    private async Task RunTelaMinimaTestAsync()
+    {
+        await Test("modo econômico mínimo: caçar, time, Depot, Centro, automações e bolas pela tela (mesmas mensagens do jogo)", async () =>
+        {
+            var server = SelfTestServer.Current!;
+            var s = _manager[4];
+            var pedidos = new List<string>();
+            EconomyGameView.ConfirmarParaTeste = texto => { pedidos.Add(texto); return true; };
+            try
+            {
+                await SetGameSession(s, "ricoteste", "rico4", "disp-4444-abcd");
+                var problema = await s.EnterEconomyAsync();
+                var pronto = await WaitUntil(() => s.IsEconomy && s.Game.Recebeu && s.Status == SessionStatus.Connected, TimeSpan.FromSeconds(15));
+                if (problema is not null || !pronto) return Fail($"problema={problema} pronto={pronto} ({s.StatusDetail})");
+
+                var vista = Visuais<EconomyGameView>(_window).FirstOrDefault(v => (v.DataContext as ThoseIdles.ViewModels.AccountViewModel)?.Slot == 4);
+                if (vista is null) return Fail("não achei a tela mínima da conta 4 na janela");
+                var d = _window.Dispatcher;
+                async Task<T> Ui<T>(Func<T> f) => await d.InvokeAsync(f);
+                async Task Ui2(Action a) => await d.InvokeAsync(a);
+                async Task Pausa(int ms = 450) { await Task.Delay(ms); await Ui2(() => vista.Atualizar()); }
+                async Task<List<System.Windows.Controls.Button>> Botoes() { await Task.Delay(150); return await Ui(() => Visuais<System.Windows.Controls.Button>(vista).ToList()); }
+                async Task Clica(Func<System.Windows.Controls.Button, bool> qual, string o)
+                {
+                    var b = (await Botoes()).FirstOrDefault(x => x.IsVisible && qual(x)) ?? throw new InvalidOperationException($"botão não achado: {o}");
+                    await Ui2(() => b.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)));
+                }
+                bool Tem(string chave) => server.Comandos.Any(c => c.Contains(chave)) || server.HuntSelects.Any(c => c.Contains(chave));
+
+                await Pausa();
+                var cab = await Ui(() => (vista.Nick.Text, vista.Nivel.Text, vista.Ouro.Text, vista.Situacao.Text));
+                var cabOk = cab.Item1 == "ricoteste" && cab.Item2 == "Nv 1.284" && cab.Item3.Contains("208.750") && cab.Item4 == "Caçando em Pidgey (Nv 1)";
+
+                // CAÇAR: a hunt liberada tem o botão; a de nível alto não.
+                var hunts = await Ui(() => vista.ListaHunts.Items.Cast<EconomyGameView.HuntLinha>().ToList());
+                var gyarados = hunts.FirstOrDefault(h => h.Slug == "gyarados");
+                var alto = hunts.FirstOrDefault(h => h.Slug == "alto");
+                var huntsOk = gyarados is { PodeCacar: true } && alto is { PodeCacar: false } && hunts.First(h => h.Slug == "pidgey").Botao == "● Aqui";
+                await Clica(b => b.Tag as string == "gyarados", "caçar Gyarados");
+                var t0 = DateTime.UtcNow;
+                await Pausa(900);
+                var cacou = server.HuntSelects.Any(h => h.Contains("gyarados")) && s.Game.HuntSlug == "gyarados"
+                            && await Ui(() => vista.Situacao.Text) == "Caçando em Gyarados (Nv 150)";
+
+                // CENTRO logo depois de trocar de hunt: o app ESPERA a guarda de 4 s (e avisa) antes de mandar "centro.ir".
+                await Clica(b => b.Content as string == "🏥 Centro", "ir ao Centro");
+                await Task.Delay(700);
+                var avisouEspera = (await Ui(() => vista.Aviso.Text)).Contains("Aguardando");
+                var mandouCedo = Tem("\"centro.ir\"");
+                DateTime? tCentro = null;
+                for (var i = 0; i < 100 && tCentro is null; i++) { if (Tem("\"centro.ir\"")) tCentro = DateTime.UtcNow; else await Task.Delay(100); }
+                var esperouGuarda = !mandouCedo && tCentro is { } tc && (tc - t0).TotalMilliseconds >= 3500;
+                await Pausa(900);
+                var centro = Tem("\"centro.ir\"") && await Ui(() => vista.Situacao.Text) == "No Centro Pokémon";
+
+                // TIME: troca o Pokémon em campo.
+                await Ui2(() => FotoDe(vista, "foto-minimo-cacar.png"));
+                // As ações da conta estão TODAS à mostra no topo (nada de menu "Mais" escondendo): conferimos os botões e a ausência do "Mais".
+                var faixaOk = await Ui(() =>
+                {
+                    var painel = Visuais<AccountPanel>(_window).FirstOrDefault(p => (p.DataContext as ThoseIdles.ViewModels.AccountViewModel)?.Slot == 4);
+                    if (painel is null) return false;
+                    var textos = Visuais<System.Windows.Controls.Button>(painel).Select(b => b.Content as string ?? "").ToList();
+                    var temMais = Visuais<System.Windows.Controls.TextBlock>(painel).Any(t => t.Text == "Mais");
+                    string[] esperados = { "↻ Reiniciar esta conta", "✓ Modo econômico (ligado)", "− Zoom", "+ Zoom", "Zoom 100%", "✎ Mudar o nome", "🛠 Ferramentas de desenvolvedor", "⎋ Sair desta conta (apaga o login)" };
+                    return !temMais && esperados.All(e => textos.Contains(e));
+                });
+                await Ui2(() => vista.AbaTime.IsChecked = true);
+                await Pausa();
+                await Ui2(() => FotoDe(vista, "foto-minimo-time.png"));
+                var time = await Ui(() => vista.ListaTime.Items.Cast<EconomyGameView.TimeLinha>().ToList());
+                await Clica(b => b.Tag is long l && l == 8 && (b.Content as string) == "Em campo", "Gyarados em campo");
+                await Pausa(900);
+                var trocou = Tem("\"team.active\"") && s.Game.ActiveId == 8;
+                await Clica(b => b.Tag is long l && l == 8 && (b.Content as string) == "Tirar", "tirar Gyarados");
+                await Pausa();
+                var tirou = server.Comandos.Any(c => c.Contains("\"team.move\"") && c.Contains("\"pokemonId\":8") && c.Contains("\"slot\":null"));
+
+                // DEPOT: shinies primeiro; inicial e Coleção protegidos; para o time (vaga livre = 2); vender com confirmação.
+                await Ui2(() => vista.AbaDepot.IsChecked = true);
+                await Pausa();
+                await Ui2(() => FotoDe(vista, "foto-minimo-depot.png"));
+                var depot = await Ui(() => vista.ListaDepot.Items.Cast<EconomyGameView.DepotLinha>().ToList());
+                var ordemOk = depot.Count == 4 && depot[0].Titulo.StartsWith("Pidgey") && depot[0].Titulo.Contains("✨");
+                var protegidos = depot.First(x => x.Id == 11) is { PodeVender: false } && depot.First(x => x.Id == 12) is { PodeVender: false, BotaoColecao: "🔓 Soltar" } && depot.First(x => x.Id == 9).PodeVender;
+                await Clica(b => b.Tag is long l && l == 9 && (b.Content as string) == "→ Time", "Rattata para o time");
+                await Pausa();
+                var paraTime = server.Comandos.Any(c => c.Contains("\"team.move\"") && c.Contains("\"pokemonId\":9") && c.Contains("\"slot\":2"));
+                await Clica(b => b.Tag is long l && l == 9 && (b.Content as string) == "Vender", "vender Rattata");
+                await Pausa(900);
+                var vendeu = Tem("\"shop.sellPokemon\"") && pedidos.Any(p => p.Contains("Rattata")) && !(await Ui(() => vista.ListaDepot.Items.Cast<EconomyGameView.DepotLinha>().Any(x => x.Id == 9)));
+                await Clica(b => b.Tag is long l && l == 12 && (b.Content as string) == "🔓 Soltar", "soltar da Coleção");
+                await Pausa();
+                var soltou = server.Comandos.Any(c => c.Contains("\"colecao.mover\"") && c.Contains("\"pokemonId\":12") && c.Contains("\"para\":\"depot\""));
+
+                // CENTRO e automações.
+                await Ui2(() => vista.AbaBolas.IsChecked = true);
+                await Pausa();
+                await Ui2(() => FotoDe(vista, "foto-minimo-bolas.png"));
+                var revive = await Ui(() => vista.AutoRevive.IsChecked == true && vista.AutoPotion.IsChecked != true);
+                await Ui2(() => vista.AutoPotion.IsChecked = true);
+                await Ui2(() => vista.AutoPotion.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)));
+                await Pausa(900);
+                var pedidoAuto = server.Comandos.LastOrDefault(c => c.Contains("\"auto.set\"")) ?? "";
+                // O pedido leva o objeto de automações INTEIRO (como o do jogo): o limiar e a Coleção seguem junto.
+                var autoOk = pedidoAuto.Contains("\"autoPotion\":true") && pedidoAuto.Contains("\"hpLimiar\":50") && pedidoAuto.Contains("\"pokemonTravado\":[12]") && pedidoAuto.Contains("\"autoRevive\":true") && s.Game.Auto("autoPotion");
+                await Clica(b => b.Tag is int i && i == 2 && b.ToolTip as string == "Liga ou desliga esta bola na automação.", "ligar a Great Ball");
+                await Pausa(900);
+                var bolasOk = server.Comandos.Last(c => c.Contains("\"auto.set\"")).Contains("\"ballIds\":[1,2]");
+                await Clica(b => b.Tag is int i && i == 2 && b.Content as string == "+100", "comprar 100 Great Ball");
+                await Pausa();
+                var comprou = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"ball\"") && c.Contains("\"id\":2") && c.Contains("\"qty\":100")) && pedidos.Any(p => p.Contains("Great Ball") && p.Contains("60.000"));
+                await Clica(b => b.Content as string == "💊 Curar", "curar");
+                await Pausa();
+                var curou = Tem("\"centro.curar\"");
+
+                var ok = cabOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && faixaOk && centro && avisouEspera && esperouGuarda && curou;
+                return ok
+                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas: ligar e comprar 100 (confirmação mostrou 60.000) · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
+                    : Fail($"cab={cabOk}({cab}) faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
+            }
+            finally
+            {
+                EconomyGameView.ConfirmarParaTeste = null;
+            }
+        });
     }
 
     private static async Task SetGameSession(BrowserSession s, string nick, string token, string device) =>

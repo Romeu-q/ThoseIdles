@@ -459,8 +459,14 @@ public sealed partial class BrowserSession : ObservableObject
         if ((_settings.EnableSniper || _settings.EnablePokeIdleHub) && TiUiScript.Value is { Length: > 0 } ui)
             await core.AddScriptToExecuteOnDocumentCreatedAsync(ui);
 
+        // Canal página do jogo → app (Hub e Resumo das contas).
+        if (_settings.EnablePokeIdleHub || _settings.EnableResumo) EnableGameMessages(core);
+
         // PokéIdle Hub: botões na ficha do Pokémon e no perfil (abrem o site numa janela do app).
         if (_settings.EnablePokeIdleHub) await EnableHubButtonsAsync(core);
+
+        // Resumo das contas: a página repassa o que o servidor já manda (só leitura).
+        if (_settings.EnableResumo) await EnableResumoRelayAsync(core);
 
         // Sniper do mercado (compra automática). Desligado por padrão nas configurações, e mesmo
         // carregado só age com o interruptor do painel ligado (que volta desligado a cada recarga).

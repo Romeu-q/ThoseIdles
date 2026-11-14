@@ -188,7 +188,7 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         welcomed = true;
                         ReadAutomation(message);
-                        Parse(message, root => { Stats.LerWelcome(root); LerHunt(root); });
+                        Parse(message, root => { Stats.LerWelcome(root); Game.Apply(root); });
                         _wsAtual = ws;
                         _ = SpeciesCatalog.EnsureLoadedAsync(); // para a nota da "melhor captura"
                         ConnectedSinceUtc = DateTime.UtcNow;
@@ -201,7 +201,7 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         var shiniesAntes = Stats.ShiniesCapturados;
                         var mudou = false;
-                        Parse(message, root => mudou = Stats.Somar(root));
+                        Parse(message, root => { mudou = Stats.Somar(root); Game.Evento(root); });
                         if (Stats.ShiniesCapturados > shiniesAntes)
                             LoggingService.Log.Info($"[conta{_slot}] Modo econômico: SHINY capturado — {Stats.UltimosShinies.FirstOrDefault()}.");
                         if (mudou) AtualizarResumo(Stats.ShiniesCapturados > shiniesAntes);
@@ -210,8 +210,17 @@ public sealed class EconomyClient : IAsyncDisposable
                     {
                         // O estado da conta mudou (nível, Pokémon ativo, pokébolas…): só vêm os campos alterados.
                         var leu = false;
-                        Parse(message, root => { leu = Stats.LerEstado(root) | Stats.LerBolas(root); LerHunt(root); });
+                        Parse(message, root => { leu = Stats.LerEstado(root) | Stats.LerBolas(root); Game.Apply(root); });
                         if (leu) AtualizarResumo();
+                    }
+                    else if (welcomed && type == "erro")
+                    {
+                        // Recusas do servidor depois de entrar (troca de hunt travada, sem bola, nível baixo…): vão para o registro.
+                        var key = ReadString(message, "chave") ?? ReadString(message, "msg") ?? "erro";
+                        Stats.Anotar($"⚠ o jogo recusou: {key}");
+                        UltimoErro = key;
+                        UltimoErroEm = DateTime.UtcNow;
+                        ErroRecebido?.Invoke(this, key);
                     }
                     else if (welcomed && Contains(message, "\"balls\""))
                     {
@@ -345,33 +354,105 @@ public sealed class EconomyClient : IAsyncDisposable
         finally { _envio.Release(); }
     }
 
-    /// <summary>"huntSlug" do estado: ausente = não mudou; null = saiu da hunt.</summary>
-    private void LerHunt(JsonElement root)
-    {
-        var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
-        if (!est.TryGetProperty("huntSlug", out var h)) return;
-        HuntAtual = h.ValueKind == JsonValueKind.String ? h.GetString() : null;
-    }
-
     private readonly SemaphoreSlim _envio = new(1, 1);
     private ClientWebSocket? _wsAtual;
 
     /// <summary>A hunt em que a conta está agora (do estado do jogo), ou null.</summary>
-    public string? HuntAtual { get; private set; }
+    public string? HuntAtual => Game.HuntSlug;
+
+    /// <summary>O estado da conta (nível, moedas, hunts, time, automações, bolas) remontado das mensagens do servidor.</summary>
+    public AccountGameState Game { get; } = new();
+
+    /// <summary>A última recusa do servidor depois de entrar ("erro" com a chave) e o aviso dela.</summary>
+    public string? UltimoErro { get; private set; }
+    public DateTime UltimoErroEm { get; private set; }
+    public event EventHandler<string>? ErroRecebido;
 
     /// <summary>
-    /// Vai caçar na hunt pedida: a MESMA mensagem do clique no mapa do jogo ("hunt.select"). O servidor
-    /// confere nível, trava de combate e Safari; aqui só se espera a resposta (a hunt do estado mudar).
+    /// Manda uma ação de jogo ao servidor (a mesma mensagem que o cliente oficial manda ao clicar: "hunt.select",
+    /// "team.active", "auto.set"…). false se a conta não está conectada agora.
     /// </summary>
-    public async Task<(bool Ok, string Mensagem)> IrCacarAsync(string slug)
+    public async Task<bool> EnviarAsync(object payload)
     {
-        if (_wsAtual is not { State: WebSocketState.Open } ws) return (false, "O modo econômico não está conectado agora.");
+        if (_wsAtual is not { State: WebSocketState.Open } ws) return false;
+        try { await SendAsync(ws, payload, CancellationToken.None); return true; }
+        catch { return false; }
+    }
+
+    // ---- trocas de hunt, Centro e Pokémon em campo: respeitam as travas do jogo ----
+
+    private CancellationTokenSource? _espera;
+    private DateTime _ultimaTrocaAtivoUtc = DateTime.MinValue;
+
+    /// <summary>Espera o tempo das travas (até ~15 s), avisando o que falta. false = outro pedido tomou o lugar deste.</summary>
+    private async Task<bool> EsperarAsync(Func<double> faltaMs, Action<string>? aviso, string oQue, CancellationToken ct)
+    {
+        for (var i = 0; i < 70; i++)
+        {
+            var falta = faltaMs();
+            if (falta <= 0) return true;
+            aviso?.Invoke($"Aguardando {falta / 1000:0.0} s para {oQue} (trava do jogo)…");
+            try { await Task.Delay((int)Math.Clamp(falta, 50, 250), ct); }
+            catch (OperationCanceledException) { return false; }
+        }
+        return true; // passou do teto: manda, e quem decide é o servidor
+    }
+
+    private CancellationToken NovoPedido()
+    {
+        _espera?.Cancel();
+        _espera = new CancellationTokenSource();
+        return _espera.Token;
+    }
+
+    /// <summary>
+    /// Vai caçar na hunt pedida: a MESMA mensagem do clique no mapa do jogo ("hunt.select"). Antes, ESPERA as
+    /// travas — os 3 s sem dano (carimbo do servidor), a porta de 10 s desde a última entrada e a guarda de 4 s
+    /// entre trocas — e só então manda; um pedido novo cancela o que ainda esperava. O servidor confere o resto
+    /// (nível, Safari) e a resposta é a hunt do estado mudar.
+    /// </summary>
+    public async Task<(bool Ok, string Mensagem)> IrCacarAsync(string slug, Action<string>? aviso = null)
+    {
+        if (_wsAtual is not { State: WebSocketState.Open }) return (false, "O modo econômico não está conectado agora.");
         if (HuntAtual == slug) return (true, "A conta já está caçando nessa hunt.");
+        var ct = NovoPedido();
+        if (!await EsperarAsync(() => Math.Max(Game.EsperaCombateMs(), Math.Max(Game.EsperaPortaMs(), Game.EsperaGuardaMs())), aviso, "trocar de hunt", ct))
+            return (false, "Pedido substituído por outro.");
+        if (_wsAtual is not { State: WebSocketState.Open } ws) return (false, "O modo econômico não está conectado agora.");
+        Game.ArmarGuarda();
         await SendAsync(ws, new { t = "hunt.select", slug }, CancellationToken.None);
         for (var i = 0; i < 20 && HuntAtual != slug; i++) await Task.Delay(200);
         return HuntAtual == slug
             ? (true, "Pronto: a conta foi caçar lá.")
-            : (false, "O jogo não trocou de hunt (a troca pode estar travada por alguns segundos, ou a hunt não está liberada).");
+            : (false, "O jogo não trocou de hunt (você pode estar em luta/boss, ou a hunt não está liberada para o seu nível).");
+    }
+
+    /// <summary>Volta ao Centro Pokémon ("centro.ir"), esperando os 3 s sem dano e a guarda de 4 s entre trocas.</summary>
+    public async Task<(bool Ok, string Mensagem)> IrAoCentroAsync(Action<string>? aviso = null)
+    {
+        if (_wsAtual is not { State: WebSocketState.Open }) return (false, "O modo econômico não está conectado agora.");
+        if (Game.NoSafari) return (false, "A conta está no Safari: sair é abandoná-lo, e o jogo pede confirmação. Abra o jogo completo para isso.");
+        var ct = NovoPedido();
+        if (!await EsperarAsync(() => Math.Max(Game.EsperaCombateMs(), Game.EsperaGuardaMs()), aviso, "voltar ao Centro", ct))
+            return (false, "Pedido substituído por outro.");
+        if (_wsAtual is not { State: WebSocketState.Open } ws) return (false, "O modo econômico não está conectado agora.");
+        Game.ArmarGuarda();
+        await SendAsync(ws, new { t = "centro.ir" }, CancellationToken.None);
+        for (var i = 0; i < 20 && Game.HuntSlug is not null; i++) await Task.Delay(200);
+        return Game.HuntSlug is null ? (true, "Pronto: a conta voltou ao Centro Pokémon.") : (false, "O jogo não deixou sair da hunt agora (luta em andamento); tente de novo.");
+    }
+
+    /// <summary>Troca o Pokémon em campo ("team.active"), com a espera de 3 s do jogo entre duas trocas.</summary>
+    public async Task<(bool Ok, string Mensagem)> TrocarAtivoAsync(long id, Action<string>? aviso = null)
+    {
+        if (_wsAtual is not { State: WebSocketState.Open }) return (false, "O modo econômico não está conectado agora.");
+        var ct = NovoPedido();
+        if (!await EsperarAsync(() => Math.Max(0, 3250 - (DateTime.UtcNow - _ultimaTrocaAtivoUtc).TotalMilliseconds), aviso, "trocar o Pokémon em campo", ct))
+            return (false, "Pedido substituído por outro.");
+        if (_wsAtual is not { State: WebSocketState.Open } ws) return (false, "O modo econômico não está conectado agora.");
+        _ultimaTrocaAtivoUtc = DateTime.UtcNow;
+        await SendAsync(ws, new { t = "team.active", pokemonId = id }, CancellationToken.None);
+        return (true, "Pedido de troca enviado.");
     }
 
     private static async Task CloseQuietly(ClientWebSocket ws)

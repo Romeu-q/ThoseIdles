@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:ThoseIdles.ViewModels"
+             xmlns:local="clr-namespace:ThoseIdles.Views"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:AccountViewModel}"
              SizeChanged="OnSizeChanged">
     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
@@ -93,69 +94,6 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <!-- Menu "Mais": tudo o que é menos comum, escrito por extenso -->
-                    <Button ToolTip="Mais opções desta conta" Click="OnMoreClick">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                <Setter Property="Width" Value="Auto" />
-                                <Setter Property="Content">
-                                    <Setter.Value>
-                                        <StackPanel Orientation="Horizontal" Margin="6,0">
-                                            <TextBlock Text="&#xE712;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
-                                            <TextBlock Text="Mais" FontFamily="Segoe UI" FontSize="11.5" Margin="5,0,0,0" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Style>
-                        <Button.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Command="{Binding ToggleOpenCommand}">
-                                    <MenuItem.Style>
-                                        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                                            <Setter Property="Header" Value="Fechar esta conta" />
-                                            <Setter Property="Icon"><Setter.Value><TextBlock Text="&#xE7E8;" FontFamily="{StaticResource Icons}" /></Setter.Value></Setter>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsRunning}" Value="False">
-                                                    <Setter Property="Header" Value="Abrir esta conta" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </MenuItem.Style>
-                                </MenuItem>
-                                <MenuItem Header="Reiniciar esta conta" Command="{Binding RestartCommand}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE777;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Modo econômico (gasta quase nada de RAM)" Command="{Binding ToggleEconomyCommand}" IsChecked="{Binding IsEconomy, Mode=OneWay}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Extensão /hunt nesta conta" Command="{Binding ToggleHuntCommand}" IsChecked="{Binding HuntEnabled, Mode=OneWay}"
-                                          Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <Separator />
-                                <MenuItem Header="Aumentar o zoom" Command="{Binding ZoomInCommand}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE8A3;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Diminuir o zoom" Command="{Binding ZoomOutCommand}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE71F;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Zoom normal (100%)" Command="{Binding ResetZoomCommand}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE71E;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <Separator />
-                                <MenuItem Header="Mudar o nome" Command="{Binding BeginRenameCommand}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Ferramentas de desenvolvedor" Command="{Binding DevToolsCommand}">
-                                    <MenuItem.Icon><TextBlock Text="&#xE943;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Sair desta conta (apaga o login)" Command="{Binding RequestClearCommand}" Foreground="#FF8A8D">
-                                    <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="{StaticResource Icons}" /></MenuItem.Icon>
-                                </MenuItem>
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
                     <Button Command="{Binding FocusCommand}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
@@ -182,6 +120,69 @@
                 </StackPanel>
             </Grid>
 
+            <!-- TODAS as ações da conta à mostra (antes ficavam escondidas no menu "Mais"); quebram de linha se o painel é estreito -->
+            <Border DockPanel.Dock="Top" Background="#1A1A20" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="6,3,6,3"
+                    Visibility="{Binding IsCompact, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                <WrapPanel>
+                    <WrapPanel.Resources>
+                        <Style TargetType="Button" BasedOn="{StaticResource BarButton}">
+                            <Setter Property="MinHeight" Value="24" />
+                            <Setter Property="Padding" Value="8,1" />
+                            <Setter Property="Margin" Value="2" />
+                            <Setter Property="FontSize" Value="11.5" />
+                        </Style>
+                    </WrapPanel.Resources>
+                    <Button Command="{Binding ToggleOpenCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource BarButton}">
+                                <Setter Property="MinHeight" Value="24" /><Setter Property="Padding" Value="8,1" /><Setter Property="Margin" Value="2" /><Setter Property="FontSize" Value="11.5" />
+                                <Setter Property="Content" Value="⏻ Fechar esta conta" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRunning}" Value="False"><Setter Property="Content" Value="▶ Abrir esta conta" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="↻ Reiniciar esta conta" Command="{Binding RestartCommand}" ToolTip="Fecha e abre de novo só esta conta." />
+                    <Button Command="{Binding ToggleEconomyCommand}" ToolTip="Fecha a página do jogo e deixa a conta conectada com quase nada de RAM; dá para jogar pela tela mínima.">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource BarButton}">
+                                <Setter Property="MinHeight" Value="24" /><Setter Property="Padding" Value="8,1" /><Setter Property="Margin" Value="2" /><Setter Property="FontSize" Value="11.5" />
+                                <Setter Property="Content" Value="Modo econômico" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEconomy}" Value="True">
+                                        <Setter Property="Content" Value="✓ Modo econômico (ligado)" />
+                                        <Setter Property="Background" Value="#1F3A2A" /><Setter Property="Foreground" Value="{StaticResource Good}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Command="{Binding ToggleHuntCommand}" Visibility="{Binding ShowHuntToggle, Converter={StaticResource BoolToVis}}" ToolTip="A extensão /hunt (guia de hunts) nesta conta.">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource BarButton}">
+                                <Setter Property="MinHeight" Value="24" /><Setter Property="Padding" Value="8,1" /><Setter Property="Margin" Value="2" /><Setter Property="FontSize" Value="11.5" />
+                                <Setter Property="Content" Value="Extensão /hunt" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HuntEnabled}" Value="True">
+                                        <Setter Property="Content" Value="✓ Extensão /hunt (ligada)" />
+                                        <Setter Property="Background" Value="#2C2547" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Border Width="1" Height="18" Background="{StaticResource Border}" Margin="5,0" />
+                    <Button Content="− Zoom" Command="{Binding ZoomOutCommand}" ToolTip="Diminuir o zoom desta conta" />
+                    <Button Content="+ Zoom" Command="{Binding ZoomInCommand}" ToolTip="Aumentar o zoom desta conta" />
+                    <Button Content="Zoom 100%" Command="{Binding ResetZoomCommand}" ToolTip="Voltar o zoom ao normal" />
+                    <Border Width="1" Height="18" Background="{StaticResource Border}" Margin="5,0" />
+                    <Button Content="✎ Mudar o nome" Command="{Binding BeginRenameCommand}" />
+                    <Button Content="🛠 Ferramentas de desenvolvedor" Command="{Binding DevToolsCommand}" />
+                    <Button Content="⎋ Sair desta conta (apaga o login)" Command="{Binding RequestClearCommand}" Background="#3A1A1E" Foreground="#FF8A8D"
+                            ToolTip="Apaga o login, os cookies e os dados SÓ desta conta (pede confirmação)." />
+                </WrapPanel>
+            </Border>
             <!-- Faixa de estado (erro/offline/fechada). Fica ACIMA da página: o WebView2 é um HWND e
                  nada do WPF consegue ser desenhado por cima dele. -->
             <Border DockPanel.Dock="Top" Background="{StaticResource BannerBg}" Padding="10,5"
@@ -226,18 +227,9 @@
                         </Button>
                     </StackPanel>
                     <!-- Modo econômico: a página do jogo está fechada, mas a conta segue conectada -->
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="600" Margin="16"
-                                Visibility="{Binding ShowEconomyNotice, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" FontSize="28" Foreground="#3FC46E" HorizontalAlignment="Center" />
-                        <TextBlock Text="Modo econômico" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,6,0,8" />
-                        <!-- A prancheta da sessão: abates, shinies, drops raros e pokébolas -->
-                        <Border Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="14,10">
-                            <TextBlock Text="{Binding StatusDetail}" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" LineHeight="21" />
-                        </Border>
-                        <TextBlock Text="A conta segue conectada e caçando sem a página do jogo (poucos MB de RAM). As lives da Twitch desta conta continuam abertas."
-                                   FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,10" />
-                        <Button Style="{StaticResource BarButton}" Content="Abrir o jogo desta conta" HorizontalAlignment="Center" Command="{Binding ToggleEconomyCommand}" />
-                    </StackPanel>
+                    <!-- A versão mínima do jogo: caçar, time, Depot, Centro, bolas e registro (sem a página do jogo) -->
+                    <local:EconomyGameView Visibility="{Binding ShowEconomyNotice, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Visibility="Collapsed" Text="{Binding StatusDetail}" />
                     <ContentPresenter Content="{Binding Session.WebView}" />
                 </Grid>
 

@@ -58,11 +58,21 @@ public sealed partial class BrowserSession
         LoggingService.Log.Info($"[conta{Slot}] PokéIdle Hub: ir caçar em {slug}.");
         if (_eco is { } eco)
         {
-            var (ok, msg) = await eco.IrCacarAsync(slug);
+            var (ok, msg) = await eco.IrCacarAsync(slug, texto => AvisarHub(true, texto));
             AvisarHub(ok, msg);
             return;
         }
         if (_core is null) { AvisarHub(false, "A conta está fechada. Abra a conta para ir caçar."); return; }
+        // Com a página aberta, o script manda direto ao servidor: então as travas do jogo (3 s sem dano, porta de 10 s
+        // e a guarda de 4 s) são esperadas aqui, com o estado que a página repassa.
+        for (var i = 0; i < 70; i++)
+        {
+            var falta = Math.Max(_pageGame.EsperaCombateMs(), Math.Max(_pageGame.EsperaPortaMs(), _pageGame.EsperaGuardaMs()));
+            if (falta <= 0) break;
+            AvisarHub(true, $"Aguardando {falta / 1000:0.0} s para trocar de hunt (trava do jogo)…");
+            await Task.Delay((int)Math.Clamp(falta, 50, 250));
+        }
+        _pageGame.ArmarGuarda();
         // A página responde com { ti: 'cacou' } (OnGameWebMessage → AvisarHub).
         var tem = await _core.ExecuteScriptAsync($"(window.__tiHub && typeof window.__tiHub.cacar === 'function') ? (window.__tiHub.cacar({JsonSerializer.Serialize(slug)}), true) : false");
         if (tem != "true") AvisarHub(false, "O jogo desta conta ainda não carregou.");
@@ -76,11 +86,16 @@ public sealed partial class BrowserSession
         _ = core.ExecuteScriptAsync($"window.__tiCacou && window.__tiCacou({(ok ? "true" : "false")}, {JsonSerializer.Serialize(msg)})");
     }
 
+    /// <summary>Liga o canal página do jogo → app (uma vez por página/core): Hub e Resumo usam o mesmo.</summary>
+    private void EnableGameMessages(CoreWebView2 core)
+    {
+        core.Settings.IsWebMessageEnabled = true;
+        core.WebMessageReceived += OnGameWebMessage;
+    }
+
     private async Task EnableHubButtonsAsync(CoreWebView2 core)
     {
         if (HubScript.Value is not { Length: > 0 } script) return;
-        core.Settings.IsWebMessageEnabled = true;
-        core.WebMessageReceived += OnGameWebMessage;
         await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
     }
 
@@ -93,6 +108,12 @@ public sealed partial class BrowserSession
             if (!Uri.TryCreate(e.Source, UriKind.Absolute, out var src) || !string.Equals(src.Host, origem.Host, StringComparison.OrdinalIgnoreCase)) return;
             using var doc = JsonDocument.Parse(e.WebMessageAsJson);
             var r = doc.RootElement;
+            // "J" + a mensagem do servidor (welcome, estado ou batalha), repassada para o Resumo das contas.
+            if (r.ValueKind == JsonValueKind.String)
+            {
+                if (_settings.EnableResumo && r.GetString() is { Length: > 1 } s && s[0] == 'J') FeedPageMessage(s[1..]);
+                return;
+            }
             if (r.ValueKind != JsonValueKind.Object) return;
             // Resposta do "ir caçar": vai para a janela do Hub, como aviso.
             if (Str(r, "ti") == "cacou")

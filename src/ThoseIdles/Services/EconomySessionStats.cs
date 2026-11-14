@@ -47,6 +47,57 @@ public sealed class EconomySessionStats
     public long? AtivoNivel { get; private set; }
     private long? _ativoId;
 
+    // ---- a hunt de agora (as taxas por hora são desde que a conta entrou nela) ----
+    public string? HuntSlug { get; private set; }
+    public DateTime HuntDesde { get; private set; } = DateTime.UtcNow;
+    public int AbatesHunt { get; private set; }
+    public long XpHunt { get; private set; }
+    public long OuroHunt { get; private set; }
+    /// <summary>Quando chegou o último abate (a conta "parada" é a que passa muito tempo sem abate).</summary>
+    public DateTime? UltimoAbateUtc { get; private set; }
+
+    /// <summary>Uma captura recente (a lista "últimas capturas" do resumo).</summary>
+    public sealed record Recente(string Nome, long Nivel, bool Shiny, int Potencia, double Qualidade, double? Nota, DateTime Em);
+    private readonly List<Recente> _recentes = new();
+    public IReadOnlyList<Recente> Recentes { get { lock (_lock) return _recentes.ToList(); } }
+
+    /// <summary>Um shiny que apareceu (a bola revela). Capturado = o servidor confirmou a captura.</summary>
+    public sealed class Aparicao
+    {
+        public DateTime Em { get; init; }
+        public string Nome { get; set; } = "Shiny";
+        public bool Capturado { get; set; }
+    }
+    private readonly List<Aparicao> _aparicoes = new();
+    private Aparicao? _shinyAberto; // o shiny que está na tela agora: várias bolas nele contam UMA vez
+    public IReadOnlyList<Aparicao> Aparicoes { get { lock (_lock) return _aparicoes.Select(a => new Aparicao { Em = a.Em, Nome = a.Nome, Capturado = a.Capturado }).ToList(); } }
+
+    /// <summary>O que acabou de acontecer (abates, capturas, níveis…): o "registro" da tela mínima. O mais novo primeiro.</summary>
+    private readonly List<string> _registro = new();
+    public IReadOnlyList<string> Registro { get { lock (_lock) return _registro.ToList(); } }
+    public void Anotar(string texto)
+    {
+        lock (_lock)
+        {
+            _registro.Insert(0, $"{DateTime.Now:HH:mm:ss}  {texto}");
+            if (_registro.Count > 150) _registro.RemoveRange(150, _registro.Count - 150);
+        }
+    }
+
+    /// <summary>O que um lote de eventos somou (para o total de HOJE, que sobrevive a reiniciar o app).</summary>
+    public readonly record struct Soma(int Abates, int Capturas, long Xp, long Ouro, int ShiniesVistos, int ShiniesCapturados);
+    public event Action<Soma>? Somou;
+
+    /// <summary>Taxas por hora desde que a conta entrou na hunt de agora.</summary>
+    public (double Ouro, double Xp, double Abates) PorHoraNaHunt()
+    {
+        lock (_lock)
+        {
+            var h = Math.Max((DateTime.UtcNow - HuntDesde).TotalHours, 1 / 60d);
+            return (OuroHunt / h, XpHunt / h, AbatesHunt / h);
+        }
+    }
+
     /// <summary>Uma captura guardada para achar a de maior nota (a nota precisa do catálogo de espécies).</summary>
     private sealed record Captura(int SpeciesId, string Nome, long Nivel, bool Shiny, int Potencia, double Qualidade,
         IReadOnlyDictionary<string, int>? Ivs, int? IvSoma, DateTime Em);
@@ -83,6 +134,18 @@ public sealed class EconomySessionStats
         {
             if (Num(est, "level") is { } lv) { NivelTreinador = lv; mudou = true; }
             if (Num(est, "activeId") is { } aid) { _ativoId = aid; mudou = true; }
+            if (est.TryGetProperty("huntSlug", out var hs))
+            {
+                var slug = hs.ValueKind == JsonValueKind.String ? hs.GetString() : null;
+                if (slug != HuntSlug)
+                {
+                    // Hunt nova: as taxas por hora recomeçam daqui.
+                    HuntSlug = slug;
+                    HuntDesde = DateTime.UtcNow;
+                    AbatesHunt = 0; XpHunt = 0; OuroHunt = 0;
+                    mudou = true;
+                }
+            }
             if (est.TryGetProperty("pokemons", out var pks) && pks.ValueKind == JsonValueKind.Array && _ativoId is { } ativo)
                 foreach (var p in pks.EnumerateArray())
                     if (p.ValueKind == JsonValueKind.Object && Num(p, "id") == ativo)
@@ -113,28 +176,59 @@ public sealed class EconomySessionStats
     {
         if (!root.TryGetProperty("ev", out var ev) || ev.ValueKind != JsonValueKind.Array) return false;
         var mudou = false;
+        Soma soma;
         lock (_lock)
         {
+            var (abates0, caps0, xp0, ouro0, sv0, sc0) = (Abates, Capturas, XpTreinador, Ouro, ShiniesVistos, ShiniesCapturados);
             foreach (var e in ev.EnumerateArray())
             {
                 if (e.ValueKind != JsonValueKind.Object) continue;
                 switch (Str(e, "k"))
                 {
+                    case "spawn":
+                        _shinyAberto = null; // apareceu outro: o shiny anterior (se não foi capturado) fugiu
+                        break;
+                    case "fugiu":
+                        _shinyAberto = null;
+                        if (Str(e, "nome") is { } fn) Anotar($"{fn}{(Num(e, "level") is { } fl ? $" Nv {fl}" : "")} escapou");
+                        break;
                     case "morte" when Str(e, "quem") == "selvagem":
-                        Abates++;
-                        XpTreinador += Num(e, "xpTreinador") ?? Num(e, "xp") ?? 0;
-                        Ouro += Num(e, "ouro") ?? 0;
+                    {
+                        _shinyAberto = null;
+                        var xp = Num(e, "xpTreinador") ?? Num(e, "xp") ?? 0;
+                        var ouro = Num(e, "ouro") ?? 0;
+                        Abates++; AbatesHunt++;
+                        XpTreinador += xp; XpHunt += xp;
+                        Ouro += ouro; OuroHunt += ouro;
+                        UltimoAbateUtc = DateTime.UtcNow;
                         SomarDrops(e);
+                        if (Abates % 10 == 0 || xp > 0 && Abates < 10) Anotar($"abateu {Str(e, "nome") ?? "selvagem"}: +{xp:N0} XP · +{ouro:N0} ouro");
                         mudou = true;
                         break;
+                    }
                     case "bossMorto":
-                        XpTreinador += Num(e, "xpTreinador") ?? Num(e, "xp") ?? 0;
-                        Ouro += Num(e, "valor") ?? 0;
+                    {
+                        var xp = Num(e, "xpTreinador") ?? Num(e, "xp") ?? 0;
+                        var ouro = Num(e, "valor") ?? 0;
+                        XpTreinador += xp; XpHunt += xp;
+                        Ouro += ouro; OuroHunt += ouro;
                         SomarDrops(e);
+                        Anotar($"boss derrotado: +{xp:N0} XP · +{ouro:N0} ouro");
                         mudou = true;
                         break;
+                    }
                     case "bola":
-                        if (e.TryGetProperty("shiny", out var sh) && sh.ValueKind == JsonValueKind.True) ShiniesVistos++;
+                        if (e.TryGetProperty("shiny", out var sh) && sh.ValueKind == JsonValueKind.True && _shinyAberto is null)
+                        {
+                            // A bola revela o shiny: UMA aparição por shiny, por mais bolas que se joguem nele.
+                            ShiniesVistos++;
+                            _shinyAberto = new Aparicao { Em = DateTime.Now, Nome = Str(e, "nome") ?? "Shiny" };
+                            _aparicoes.Insert(0, _shinyAberto);
+                            if (_aparicoes.Count > 60) _aparicoes.RemoveAt(60);
+                            Anotar($"✨ apareceu um shiny{(Str(e, "nome") is { } sn ? $" ({sn})" : "")}!");
+                        }
+                        else if (e.TryGetProperty("shiny", out sh) && sh.ValueKind == JsonValueKind.True && _shinyAberto is { Nome: "Shiny" } semNome && Str(e, "nome") is { } nm2)
+                            semNome.Nome = nm2;
                         if (Num(e, "ballId") is { } bid and > 0)
                         {
                             var id = (int)bid;
@@ -148,8 +242,12 @@ public sealed class EconomySessionStats
                         if (Num(e, "level") is { } nv2)
                         {
                             if (Str(e, "quem") == "treinador") NivelTreinador = nv2; else AtivoNivel = nv2;
+                            Anotar(Str(e, "quem") == "treinador" ? $"treinador subiu para o Nv {nv2:N0}" : $"{AtivoNome ?? "pokémon"} subiu para o Nv {nv2:N0}");
                             mudou = true;
                         }
+                        break;
+                    case "evolucao":
+                        Anotar($"{Str(e, "de") ?? "pokémon"} evoluiu para {Str(e, "nome") ?? "?"}");
                         break;
                     case "capturado":
                         Capturas++;
@@ -163,12 +261,20 @@ public sealed class EconomySessionStats
                             var nivel = Num(pk, "level");
                             UltimosShinies.Insert(0, $"{nome}{(nivel is { } nv ? $" Nv {nv}" : "")} ({DateTime.Now:HH:mm})");
                             if (UltimosShinies.Count > 5) UltimosShinies.RemoveAt(5);
+                            if (_shinyAberto is { } ab) { ab.Capturado = true; ab.Nome = nome; }
+                            else _aparicoes.Insert(0, new Aparicao { Em = DateTime.Now, Nome = nome, Capturado = true });
+                            Anotar($"✨ SHINY capturado: {nome}{(nivel is { } nvs ? $" Nv {nvs}" : "")}!");
                         }
+                        else if (e.TryGetProperty("pokemon", out pk) && pk.ValueKind == JsonValueKind.Object)
+                            Anotar($"capturou {Str(pk, "nome") ?? "?"}{(Num(pk, "level") is { } nvc ? $" Nv {nvc}" : "")}");
+                        _shinyAberto = null;
                         mudou = true;
                         break;
                 }
             }
+            soma = new Soma(Abates - abates0, Capturas - caps0, XpTreinador - xp0, Ouro - ouro0, ShiniesVistos - sv0, ShiniesCapturados - sc0);
         }
+        if (soma != default) Somou?.Invoke(soma);
         return mudou;
     }
 
@@ -189,6 +295,11 @@ public sealed class EconomySessionStats
             pk.TryGetProperty("shiny", out var sh) && sh.ValueKind == JsonValueKind.True,
             (int)(Num(pk, "potencia") ?? 1), q, ivs, soma is { } s ? (int)s : null, DateTime.Now));
         if (_capturas.Count > 2000) _capturas.RemoveAt(0);
+        var c = _capturas[^1];
+        double? nota = SpeciesCatalog.Pronto && c.SpeciesId > 0 && (c.Ivs is not null || c.IvSoma is not null)
+            ? PokemonNota.NotaComLinhagem(c.SpeciesId, c.Ivs, c.IvSoma, c.Qualidade, c.Potencia, c.Shiny) : null;
+        _recentes.Insert(0, new Recente(c.Nome, c.Nivel, c.Shiny, c.Potencia, c.Qualidade, nota, c.Em));
+        if (_recentes.Count > 40) _recentes.RemoveAt(40);
     }
 
     /// <summary>A captura de maior nota da sessão (null se ainda não há catálogo ou captura com IVs).</summary>
@@ -208,6 +319,19 @@ public sealed class EconomySessionStats
             var pt = CultureInfo.GetCultureInfo("pt-BR");
             var c2 = m.C;
             return ($"{c2.Nome}{(c2.Shiny ? " ✨" : "")} Nv {c2.Nivel} · P{c2.Potencia} · qualidade {c2.Qualidade.ToString("0.000", pt)} · nota {m.Nota.ToString("0.000", pt)}{(m.Nota >= 3.5 ? " (pode RMT)" : "")} ({c2.Em:HH:mm})", m.Nota);
+        }
+    }
+
+    /// <summary>A melhor captura em poucas palavras ("Charizard ✨ 4,283") para a tabela do resumo; null se ainda não dá.</summary>
+    public string? MelhorCapturaCurta()
+    {
+        lock (_lock)
+        {
+            Recente? melhor = null;
+            foreach (var r in _recentes)
+                if (r.Nota is { } n && (melhor is null || n > melhor.Nota)) melhor = r;
+            if (melhor is null) return null;
+            return $"{melhor.Nome}{(melhor.Shiny ? " ✨" : "")} {melhor.Nota!.Value.ToString("0.000", CultureInfo.GetCultureInfo("pt-BR"))}";
         }
     }
 

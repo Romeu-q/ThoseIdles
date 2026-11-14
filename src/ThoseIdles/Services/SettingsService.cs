@@ -134,6 +134,12 @@ public sealed class AppSettings
     public bool LiveLowestQuality { get; set; } = true;
 
     /// <summary>
+    /// Resumo de todas as contas (janela com os números das quatro: ouro/h, XP/h, capturas, shinies…). Com a
+    /// página do jogo aberta, um script repassa ao app o que o servidor já manda (só leitura).
+    /// </summary>
+    public bool EnableResumo { get; set; } = true;
+
+    /// <summary>
     /// PokéIdle Hub (pokeidleguide.io): botões na ficha do Pokémon (Pokédex, Calcular XP, Vale a
     /// pena?) e no jogo (Guias…) que abrem o site numa janela do app, já com a ficha preenchida.
     /// </summary>

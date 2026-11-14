@@ -57,6 +57,13 @@
                             <TextBlock Text="{Binding LayoutButtonText}" />
                         </StackPanel>
                     </Button>
+                    <Button Style="{StaticResource BarButton}" Click="OnOpenSummary"
+                            ToolTip="Os números de todas as contas numa janela só: ouro/h, XP/h, abates, capturas, shinies e o total de hoje. Funciona com o jogo aberto ou no modo econômico.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE9D2;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Resumo" />
+                        </StackPanel>
+                    </Button>
                     <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="8,0" />
                     <Button Style="{StaticResource BarButton}" Command="{Binding ShowWelcomeCommand}" ToolTip="Mostra de novo o passo a passo">
                         <StackPanel Orientation="Horizontal">
@@ -122,7 +129,7 @@
                                 <Slider Minimum="50" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True"
                                         Value="{Binding GridZoomPercent}" VerticalAlignment="Center" />
                             </DockPanel>
-                            <TextBlock Style="{StaticResource Hint}" Text="Para uma conta só: botão &quot;Mais&quot; no topo dela → zoom." />
+                            <TextBlock Style="{StaticResource Hint}" Text="Para uma conta só: botões &quot;Zoom&quot; na faixa de ações no topo dela." />
                         </StackPanel>
                     </Border>
 
@@ -132,12 +139,14 @@
                             <TextBlock Style="{StaticResource CardTitle}" Text="Ferramentas no jogo" />
                             <CheckBox Content="Exportar shinies para TXT" IsChecked="{Binding EnableShinyExport}"
                                       Tag="Botão &quot;Exportar TXT&quot; na página Shinies: espécie, potência, qualidade, IVs e valor no RMT." />
+                            <CheckBox Content="Resumo de todas as contas (números)" IsChecked="{Binding EnableResumo}"
+                                      Tag="Alimenta o botão &quot;Resumo&quot; da barra de cima: ouro/h, XP/h, abates, capturas e shinies de cada conta. Com a página do jogo aberta, um script repassa ao app o que o servidor já manda (só leitura). No modo econômico não precisa." />
                             <CheckBox Content="PokéIdle Hub (Pokédex, XP, Vale a pena?, Mercado, Guias)" IsChecked="{Binding EnablePokeIdleHub}"
                                       Tag="Botões &quot;📘 Pokédex&quot;, &quot;📈 Calcular XP&quot; e &quot;⚖ Vale a pena?&quot; na ficha do Pokémon e &quot;📘 PokéIdle Hub&quot; no seu perfil, abaixo das moedas: abrem o pokeidleguide.io numa janela do app, já com a ficha colada." />
                             <CheckBox Content="Sniper do mercado (compra automática)" IsChecked="{Binding EnableSniper}"
                                       Tag="Botão &quot;🎯 Sniper&quot; no seu perfil, abaixo das moedas: compra sozinho o que bater com as suas regras (preço máximo e limite de compras obrigatórios). Sempre abre desligado." />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                       Text="Depois de mudar, use &quot;Mais → Reiniciar esta conta&quot; para valer." />
+                                       Text="Depois de mudar, use &quot;↻ Reiniciar esta conta&quot; (faixa de ações no topo da conta) para valer." />
                         </StackPanel>
                     </Border>
 
@@ -253,7 +262,7 @@
                         </Border>
                     </WrapPanel>
                     <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
-                               Text="Algo travou? Clique em &quot;Recarregar&quot; no topo da conta. Outras opções ficam em &quot;Mais&quot;." />
+                               Text="Algo travou? Clique em &quot;Recarregar&quot; no topo da conta. As outras opções (reiniciar, modo econômico, zoom…) estão na faixa logo abaixo." />
                 </StackPanel>
             </DockPanel>
         </Border>

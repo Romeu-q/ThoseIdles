@@ -45,6 +45,8 @@
     <EmbeddedResource Include="..\..\extensions\sniper\sniper.js" LogicalName="Sniper.js" />
     <!-- PokéIdle Hub: botões na ficha que abrem pokeidleguide.io numa janela do app (só do app). -->
     <EmbeddedResource Include="..\..\extensions\pokeidle-hub\pokeidle-hub.js" LogicalName="PokeIdleHub.js" />
+    <!-- Resumo das contas: repasse (só leitura) das mensagens do servidor para o app. -->
+    <EmbeddedResource Include="..\..\extensions\conta-relay\conta-relay.js" LogicalName="ContaRelay.js" />
     <!-- Na janela do Hub: o botão "▶ Caçar" em cada hunt da Calculadora de XP. -->
     <EmbeddedResource Include="..\..\extensions\pokeidle-hub\hub-site.js" LogicalName="PokeIdleHubSite.js" />
     <None Remove="Assets\pokeball.preview.png" />

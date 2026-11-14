@@ -136,6 +136,27 @@ public sealed class SelfTestServer : IDisposable
     /// <summary>Pedidos "market.comprar" recebidos (JSON bruto), na ordem.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> BuyRequests { get; } = new();
 
+    /// <summary>Os outros comandos da tela mínima (team.active, team.move, colecao.mover, shop.*, auto.set, centro.*), JSON bruto.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<string> Comandos { get; } = new();
+
+    /// <summary>O welcome de uma conta completa (usado pelo teste da tela mínima e do resumo).</summary>
+    public const string WelcomeRico = """
+        {"t":"welcome",
+         "hunts":[{"slug":"pidgey","nome":"Pidgey","nivel":1,"regiao":"kanto"},{"slug":"gyarados","nome":"Gyarados","nivel":150,"regiao":"kanto"},{"slug":"alto","nome":"Alto Nível","nivel":9999,"regiao":"outland"}],
+         "catalogoBolas":[{"id":1,"nome":"Poké Ball","preco":200},{"id":2,"nome":"Great Ball","preco":600}],
+         "estado":{"cheio":true,"nick":"ricoteste","level":1284,"gold":208750,"diamonds":2,"orbs":0,"xp":44769150,"xpNivel":10000000,"xpProximo":82240400,
+           "huntSlug":"pidgey","activeId":7,"loja":{"vip":true},
+           "automation":{"autoBallSemParar":false,"autoBallAteCapturar":false,"ballIds":[1],"autoRevive":true,"autoPotion":false,"autoVoltarHunt":false,"hpLimiar":50,"pokemonTravado":[12]},
+           "balls":{"1":500,"2":20},
+           "pokemons":[
+             {"id":7,"nome":"Charizard","level":900,"slot":0,"hp":900,"maxHp":1200,"potencia":4,"speciesId":6},
+             {"id":8,"nome":"Gyarados","level":700,"slot":1,"hp":300,"maxHp":1000,"potencia":2,"speciesId":130},
+             {"id":9,"nome":"Rattata","level":10,"potencia":1,"speciesId":19},
+             {"id":10,"nome":"Pidgey","level":5,"shiny":true,"potencia":1,"speciesId":16},
+             {"id":11,"nome":"Inicial","level":3,"starter":true,"potencia":1,"speciesId":1},
+             {"id":12,"nome":"Protegido","level":50,"potencia":3,"speciesId":25}]}}
+        """;
+
     /// <summary>Pedidos "hunt.select" recebidos (JSON bruto), na ordem.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> HuntSelects { get; } = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, bool> _sold = new();
@@ -217,6 +238,29 @@ public sealed class SelfTestServer : IDisposable
             await Send($"{{\"t\":\"shiny.lista\",\"pagina\":{pagina},\"total\":5,\"linhas\":{linhas}}}");
             return false;
         }
+        if (type is "team.active" or "team.move" or "colecao.mover" or "shop.sellPokemon" or "auto.set" or "centro.ir" or "centro.curar" or "centro.desistir" or "shop.buy")
+        {
+            // Os comandos da tela mínima do modo econômico: guarda o JSON bruto e responde o estado em delta, como o jogo.
+            Comandos.Enqueue(text);
+            using var d = System.Text.Json.JsonDocument.Parse(text);
+            var r = d.RootElement;
+            long pk = r.TryGetProperty("pokemonId", out var v) && v.ValueKind == System.Text.Json.JsonValueKind.Number ? v.GetInt64() : 0;
+            switch (type)
+            {
+                case "team.active": await Send($$$"""{"t":"estado","estado":{"activeId":{{{pk}}}}}"""); break;
+                case "shop.sellPokemon": await Send($$$"""{"t":"estado","estado":{"pkFora":[{{{pk}}}]}}"""); break;
+                case "centro.ir": await Send("""{"t":"estado","estado":{"huntSlug":null,"noCentro":true}}"""); break;
+                case "auto.set":
+                {
+                    // O jogo devolve o objeto de automações como ficou (a tela confere que o pedido levou TUDO).
+                    var o = new Dictionary<string, System.Text.Json.JsonElement>();
+                    foreach (var p in r.EnumerateObject()) if (p.Name != "t") o[p.Name] = p.Value.Clone();
+                    await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { automation = o } }));
+                    break;
+                }
+            }
+            return false;
+        }
         if (type == "ping")
         {
             Interlocked.Increment(ref _pings);
@@ -235,7 +279,8 @@ public sealed class SelfTestServer : IDisposable
             await Send("{\"t\":\"erro\",\"chave\":\"auth.tokenInvalido\"}");
             return false;
         }
-        await Send("{\"t\":\"welcome\",\"estado\":{\"cheio\":true}}");
+        // Token "rico…": um welcome com a conta completa (hunts, bolas, time, Depot, automações), como o do jogo.
+        await Send(token?.StartsWith("rico", StringComparison.Ordinal) == true ? WelcomeRico : "{\"t\":\"welcome\",\"estado\":{\"cheio\":true}}");
         if (token is not null && !token.EndsWith("-renovado", StringComparison.Ordinal))
             await Send($"{{\"t\":\"sessao.renovada\",\"token\":\"{token}-renovado\"}}");
         return false;

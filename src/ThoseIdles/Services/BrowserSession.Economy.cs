@@ -111,6 +111,7 @@ public sealed partial class BrowserSession
         var eco = new EconomyClient(Slot, endpoint, $"{start.Scheme}://{start.Authority}", userAgent, session);
         eco.StateChanged += OnEconomyStateChanged;
         eco.TokenRenewed += OnEconomyTokenRenewed;
+        LigarTotalDoDia(eco.Stats);
         _eco = eco;
         OnPropertyChanged(nameof(IsEconomy));
         OnPropertyChanged(nameof(IsRunning));

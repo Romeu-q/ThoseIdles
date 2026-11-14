@@ -412,6 +412,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool EnableResumo
+    {
+        get => _settings.EnableResumo;
+        set
+        {
+            _settings.EnableResumo = value;
+            OnPropertyChanged();
+            SaveSettings();
+            Notice = "O resumo das contas muda nas contas a partir de agora (“↻ Reiniciar esta conta”, na faixa do topo dela, aplica já).";
+        }
+    }
+
     public bool EnablePokeIdleHub
     {
         get => _settings.EnablePokeIdleHub;
@@ -420,7 +432,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _settings.EnablePokeIdleHub = value;
             OnPropertyChanged();
             SaveSettings();
-            Notice = "Os botões do PokéIdle Hub mudam nas contas a partir de agora (Mais → Reiniciar esta conta para aplicar já).";
+            Notice = "Os botões do PokéIdle Hub mudam nas contas a partir de agora (“↻ Reiniciar esta conta”, na faixa do topo dela, aplica já).";
         }
     }
 
