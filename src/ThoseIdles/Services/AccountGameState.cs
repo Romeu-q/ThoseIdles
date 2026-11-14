@@ -3,10 +3,16 @@ using System.Text.Json;
 namespace ThoseIdles.Services;
 
 /// <summary>Uma hunt do jogo (a lista vem no "welcome").</summary>
-public sealed record HuntInfo(string Slug, string Nome, int Nivel, string? Regiao);
+public sealed record HuntInfo(string Slug, string Nome, int Nivel, string? Regiao)
+{
+    /// <summary>A hunt é da Outland (a região "outland" do jogo)?</summary>
+    public bool Outland => string.Equals(Regiao, "outland", StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>Um Pokémon da conta (só o que as telas do app precisam).</summary>
-public sealed record PokemonInfo(long Id, string Nome, long Level, int? Slot, long? Hp, long? MaxHp, bool Shiny, int Potencia, int SpeciesId, bool Starter = false);
+/// <param name="Nome">O apelido, se tiver; senão a espécie.</param>
+/// <param name="Especie">A espécie (o campo "nome" do jogo), que o PokéIdle Hub reconhece.</param>
+public sealed record PokemonInfo(long Id, string Nome, long Level, int? Slot, long? Hp, long? MaxHp, bool Shiny, int Potencia, int SpeciesId, bool Starter = false, string? Especie = null, double? Qualidade = null);
 
 /// <summary>Uma pokébola do catálogo do jogo.</summary>
 public sealed record BallInfo(int Id, string Nome, long? Preco);
@@ -91,6 +97,36 @@ public sealed class AccountGameState
     private List<int> _ballIds = new();
     private HashSet<long> _travados = new();
     public bool Vip { get; private set; }
+
+    // ---- o que dá bônus de XP agora (a Calculadora de XP do Hub precisa disto) ----
+    private long _vipAte, _boostXp, _boostPokexp, _guildBoostAte, _twitchXp, _kickXp, _atrasadosAlvo, _eventoTermina, _guildRank;
+    private double _guildPct, _eventoPct;
+
+    /// <summary>
+    /// Os bônus de XP ligados AGORA, no formato das "escolhas" da Calculadora de XP do Hub (VIP, XP Boost, ranking e Boost da
+    /// guild, Twitch, Kick, evento, Atrasados). Os prazos são carimbos do relógio do servidor.
+    /// </summary>
+    public Dictionary<string, object> EscolhasXp()
+    {
+        lock (_lock)
+        {
+            var agora = AgoraServidorMs;
+            bool Vale(long t) => t > agora;
+            return new Dictionary<string, object>
+            {
+                ["vip"] = Vale(_vipAte),
+                ["xpBoost"] = Vale(_boostXp),
+                ["xpBoostPokemon"] = Vale(_boostPokexp),
+                ["guildPosicao"] = _guildPct > 0 && _guildRank > 0 ? (int)Math.Min(_guildRank, 10) : 0,
+                ["boostGuild"] = Vale(_guildBoostAte),
+                ["twitch"] = Vale(_twitchXp),
+                ["kick"] = Vale(_kickXp),
+                ["eventoPct"] = Vale(_eventoTermina) ? _eventoPct : 0d,
+                ["atrasados"] = _atrasadosAlvo > 0 && Level < _atrasadosAlvo,
+                ["atrasadosAlvo"] = _atrasadosAlvo > 0 ? _atrasadosAlvo : 0L,
+            };
+        }
+    }
 
     /// <summary>O Pokémon está na Coleção (protegido: a automação e a venda em lote não o tocam)?</summary>
     public bool Travado(long id) { lock (_lock) return _travados.Contains(id); }
@@ -210,8 +246,26 @@ public sealed class AccountGameState
         else if (Num(est, "centroLivreEm") is { } cl) _centroLivreEm = Math.Max(_centroLivreEm, cl);
         if (est.TryGetProperty("safari", out var sf)) NoSafari = sf.ValueKind == JsonValueKind.Object && sf.TryGetProperty("dentro", out var dn) && dn.ValueKind == JsonValueKind.True;
 
-        if (est.TryGetProperty("loja", out var lj) && lj.ValueKind == JsonValueKind.Object)
-            Vip = lj.TryGetProperty("vip", out var vp) && vp.ValueKind == JsonValueKind.True;
+        if (est.TryGetProperty("loja", out var lj))
+        {
+            var ok = lj.ValueKind == JsonValueKind.Object;
+            Vip = ok && lj.TryGetProperty("vip", out var vp) && vp.ValueKind == JsonValueKind.True;
+            _vipAte = ok ? Num(lj, "vipAte") ?? 0 : 0;
+            _boostXp = _boostPokexp = _atrasadosAlvo = 0;
+            if (ok && lj.TryGetProperty("boosts", out var bs) && bs.ValueKind == JsonValueKind.Object) { _boostXp = Num(bs, "xp") ?? 0; _boostPokexp = Num(bs, "pokexp") ?? 0; }
+            if (ok && lj.TryGetProperty("atrasados", out var at) && at.ValueKind == JsonValueKind.Object) _atrasadosAlvo = Num(at, "alvo") ?? 0;
+        }
+        if (est.TryGetProperty("guildBonusPct", out var gp)) _guildPct = gp.ValueKind == JsonValueKind.Number ? gp.GetDouble() : 0;
+        if (Num(est, "guildBonusRank") is { } gr) _guildRank = gr;
+        if (est.TryGetProperty("guild", out var gd)) _guildBoostAte = gd.ValueKind == JsonValueKind.Object ? Num(gd, "boostAte") ?? 0 : 0;
+        if (est.TryGetProperty("twitch", out var tw)) _twitchXp = tw.ValueKind == JsonValueKind.Object && tw.TryGetProperty("bonus", out var tb) && tb.ValueKind == JsonValueKind.Object ? Num(tb, "xp") ?? 0 : 0;
+        if (est.TryGetProperty("kick", out var kk)) _kickXp = kk.ValueKind == JsonValueKind.Object && kk.TryGetProperty("bonus", out var kb) && kb.ValueKind == JsonValueKind.Object ? Num(kb, "xp") ?? 0 : 0;
+        if (est.TryGetProperty("evento", out var ev))
+        {
+            var ok = ev.ValueKind == JsonValueKind.Object;
+            _eventoTermina = ok ? Num(ev, "terminaEm") ?? 0 : 0;
+            _eventoPct = ok ? (ev.TryGetProperty("xpTreinadorPct", out var xt) && xt.ValueKind == JsonValueKind.Number ? xt.GetDouble() : ev.TryGetProperty("xpPokemonPct", out var xq) && xq.ValueKind == JsonValueKind.Number ? xq.GetDouble() : 0) : 0;
+        }
 
         // O objeto "automation" chega INTEIRO quando muda (a remontagem do jogo troca a chave, não mescla).
         // O pedido "auto.set" do jogo manda tudo isso de volta com a mudança, então guardamos o objeto todo.
@@ -252,12 +306,15 @@ public sealed class AccountGameState
     private void Guardar(JsonElement p)
     {
         if (p.ValueKind != JsonValueKind.Object || Num(p, "id") is not { } id) return;
-        var nome = Str(p, "apelido") is { Length: > 0 } ap ? ap : Str(p, "nome") ?? "?";
+        var especie = Str(p, "nome") ?? "?";
+        var nome = Str(p, "apelido") is { Length: > 0 } ap ? ap : especie;
+        double? qual = p.TryGetProperty("quality", out var qv) && qv.ValueKind == JsonValueKind.Number ? qv.GetDouble()
+                     : p.TryGetProperty("qualidade", out qv) && qv.ValueKind == JsonValueKind.Number ? qv.GetDouble() : null;
         int? slot = p.TryGetProperty("slot", out var s) && s.ValueKind == JsonValueKind.Number ? (int)s.GetDouble() : null;
         _pokemons[id] = new PokemonInfo(id, nome, Num(p, "level") ?? 0, slot, Num(p, "hp"), Num(p, "maxHp"),
             p.TryGetProperty("shiny", out var sh) && sh.ValueKind == JsonValueKind.True,
             (int)(Num(p, "potencia") ?? 1), (int)(Num(p, "speciesId") ?? 0),
-            p.TryGetProperty("starter", out var st) && st.ValueKind == JsonValueKind.True);
+            p.TryGetProperty("starter", out var st) && st.ValueKind == JsonValueKind.True, especie, qual);
     }
 
     private static string? Str(JsonElement e, string k) => e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;

@@ -330,6 +330,7 @@ public sealed class SelfTestRunner
             await RunResumoTestAsync();
             await RunTravasTestAsync();
             await RunTelaMinimaTestAsync();
+            await RunRankingTestAsync();
             return;
         }
         if (Environment.GetEnvironmentVariable("TI_SELFTEST_ONLY") is "ferramentas" or "hub")
@@ -1291,7 +1292,7 @@ public sealed class SelfTestRunner
             var s = _manager[1];
             var core = s.Core!;
             // O servidor manda o estado da conta e a caça; o script do app repassa uma cópia e o app soma.
-            const string welcome = """{"t":"welcome","hunts":[{"slug":"pidgey","nome":"Pidgey","nivel":1,"regiao":"kanto"}],"catalogoBolas":[{"id":1,"nome":"Poké Ball"}],"estado":{"cheio":true,"nick":"conta1","level":1284,"huntSlug":"pidgey","activeId":7,"balls":{"1":50},"pokemons":[{"id":7,"nome":"Charizard","level":900,"slot":0,"potencia":4,"speciesId":6}]}}""";
+            const string welcome = """{"t":"welcome","hunts":[{"slug":"pidgey","nome":"Pidgey","nivel":1,"regiao":"kanto"},{"slug":"ancient_dragonite","nome":"Ancient Dragonite","nivel":150,"regiao":"outland"}],"catalogoBolas":[{"id":1,"nome":"Poké Ball"}],"estado":{"cheio":true,"nick":"conta1","level":1284,"huntSlug":"pidgey","activeId":7,"balls":{"1":50},"pokemons":[{"id":7,"nome":"Charizard","level":900,"slot":0,"potencia":4,"speciesId":6}]}}""";
             const string batalha = """{"t":"batalha","ev":[{"k":"spawn"},{"k":"morte","quem":"selvagem","nome":"Pidgey","xpTreinador":1000,"ouro":500},{"k":"morte","quem":"selvagem","nome":"Pidgey","xpTreinador":1000,"ouro":500},{"k":"morte","quem":"selvagem","nome":"Pidgey","xpTreinador":1000,"ouro":500},{"k":"bola","ballId":1,"shiny":true,"sucesso":false},{"k":"bola","ballId":1,"shiny":true,"sucesso":true},{"k":"capturado","pokemon":{"nome":"Pidgey","level":50,"shiny":true,"speciesId":16,"potencia":1,"quality":1.2}}]}""";
             foreach (var msg in new[] { welcome, batalha })
                 await core.ExecuteScriptAsync($"window.__ws.send(JSON.stringify({{ t: 'teste.eco', msg: {msg} }}))");
@@ -1303,17 +1304,52 @@ public sealed class SelfTestRunner
             await _window.Dispatcher.InvokeAsync(() => FotoDe((System.Windows.FrameworkElement)janela.Content, "foto-resumo.png"));
             var linha = snap.Linhas.FirstOrDefault(l => l.Slot == 1);
             var hoje = DailyTotals.Instance.Da(1);
+            // Depois a conta vai caçar na OUTLAND: o resumo mostra a área e conta a conta no cartão.
+            await core.ExecuteScriptAsync("window.__ws.send(JSON.stringify({ t: 'teste.eco', msg: {t:'estado',estado:{huntSlug:'ancient_dragonite'}} }))");
+            await WaitUntil(() => s.Game.HuntSlug == "ancient_dragonite", TimeSpan.FromSeconds(10));
+            SummarySnapshot snap2 = await _window.Dispatcher.InvokeAsync(() => janela.Atualizar());
+            var linha2 = snap2.Linhas.FirstOrDefault(l => l.Slot == 1);
             janela.Close();
+            var outlandOk = linha is { Area: "Kanto", Outland: false } && snap.Totais.Outland == "0 / 1"
+                            && linha2 is { Area: "🌌 Outland", Outland: true } && snap2.Totais.Outland == "1 / 1";
 
-            var ok = chegou && linha is not null
+            var ok = chegou && outlandOk && linha is not null
                      && linha.Hunt == "Pidgey" && linha.Status.StartsWith("Caçando") && linha.Status.Contains("Charizard")
                      && linha.Capturas == "1" && linha.Shiny == "1 / 1" && linha.OuroHNum > 0 && linha.XpHNum > 0
                      && snap.Totais.Capturas == "1" && snap.Totais.Shiny == "1 / 1"
                      && hoje.Abates == 3 && hoje.Ouro == 1500 && hoje.Xp == 3000 && hoje.Capturas == 1 && hoje.ShiniesVistos == 1 && hoje.ShiniesCapturados == 1
                      && snap.Shinies.Count == 1 && snap.Shinies[0].Capturado && snap.Capturas.Count == 1;
             return ok
-                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
-                : Fail($"chegou={chegou} linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
+                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); depois na Outland: área “{linha2!.Area}” e cartão {snap2.Totais.Outland}; total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
+                : Fail($"chegou={chegou} outland={outlandOk} (área1={linha?.Area}, área2={linha2?.Area}, cartão={snap2.Totais.Outland}) linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
+        });
+    }
+
+    private async Task RunRankingTestAsync()
+    {
+        await Test("melhor hunt de XP (motor do Hub): ranking para o Pokémon em campo, com os bônus da conta, mostrado na aba Caçar", async () =>
+        {
+            var s = _manager[4];
+            var g = s.Game;
+            // O que o app manda de bônus, lido do estado que o servidor mandou (VIP, XP Boost, guild 3º, Kick).
+            var esc = g.EscolhasXp();
+            var bonusOk = (bool)esc["vip"] && (bool)esc["xpBoost"] && !(bool)esc["xpBoostPokemon"] && (int)esc["guildPosicao"] == 3 && (bool)esc["kick"] && !(bool)esc["twitch"] && !(bool)esc["boostGuild"] && (double)esc["eventoPct"] == 0;
+            var ativo = g.Ativo;
+            var inicio = DateTime.UtcNow;
+            await await _window.Dispatcher.InvokeAsync(() => s.AtualizarRankingAsync(forcar: true));
+            var segundos = (DateTime.UtcNow - inicio).TotalSeconds;
+            var lista = s.MelhoresHunts;
+            var vista = Visuais<EconomyGameView>(_window).First(v => (v.DataContext as ThoseIdles.ViewModels.AccountViewModel)?.Slot == 4);
+            await _window.Dispatcher.InvokeAsync(() => { vista.AbaCacar.IsChecked = true; vista.Atualizar(); });
+            await Task.Delay(300);
+            await _window.Dispatcher.InvokeAsync(() => vista.Atualizar());
+            var cartao = await _window.Dispatcher.InvokeAsync(() => (vista.ListaMelhores.Items.Cast<EconomyGameView.MelhorLinha>().ToList(), vista.MelhoresInfo.Text, vista.CartaoMelhores.Visibility));
+            await _window.Dispatcher.InvokeAsync(() => FotoDe(vista.Raiz, "foto-minimo-melhores.png"));
+            var ok = bonusOk && s.RankingStatus == "" && lista.Count >= 3 && lista[0].Posicao == 1 && lista.All(m => m.Nome.Length > 0 && m.XpH.Length > 0)
+                     && s.RankingPara == $"{ativo!.Especie} Nv {ativo.Level:N0}" && cartao.Item1.Count == lista.Count && cartao.Item1[0].Titulo.StartsWith("★ 1.") && cartao.Item2.Contains(s.RankingPara);
+            return ok
+                ? Pass($"{s.RankingPara}: {lista.Count} hunts em {segundos:0.0} s — 1º {lista[0].Nome} ({lista[0].XpH} XP/h, ouro/h {lista[0].OuroH}), 2º {lista[1].Nome}, 3º {lista[2].Nome}; bônus lidos do servidor (VIP, XP Boost, guild 3º, Kick) e entregues ao Hub; a aba Caçar mostra o cartão")
+                : Fail($"bônus={bonusOk}({string.Join(",", esc.Select(kv => kv.Key + "=" + kv.Value))}) status=[{s.RankingStatus}] lista={lista.Count} ({string.Join(" | ", lista.Select(m => $"{m.Posicao}.{m.Nome}:{m.XpH}"))}) para={s.RankingPara} cartão={cartao.Item1.Count}/{cartao.Item2}");
         });
     }
 
@@ -1350,6 +1386,7 @@ public sealed class SelfTestRunner
             var s = _manager[4];
             var pedidos = new List<string>();
             EconomyGameView.ConfirmarParaTeste = texto => { pedidos.Add(texto); return true; };
+            BrowserSession.RankingAutomatico = false; // o ranking de XP (rede) tem o teste dele; aqui fica quieto
             try
             {
                 await SetGameSession(s, "ricoteste", "rico4", "disp-4444-abcd");
@@ -1398,7 +1435,7 @@ public sealed class SelfTestRunner
                 var centro = Tem("\"centro.ir\"") && await Ui(() => vista.Situacao.Text) == "No Centro Pokémon";
 
                 // TIME: troca o Pokémon em campo.
-                await Ui2(() => FotoDe(vista, "foto-minimo-cacar.png"));
+                await Ui2(() => FotoDe(vista.Raiz, "foto-minimo-cacar.png"));
                 // As ações da conta estão TODAS à mostra no topo (nada de menu "Mais" escondendo): conferimos os botões e a ausência do "Mais".
                 var faixaOk = await Ui(() =>
                 {
@@ -1423,7 +1460,7 @@ public sealed class SelfTestRunner
                 // DEPOT: shinies primeiro; inicial e Coleção protegidos; para o time (vaga livre = 2); vender com confirmação.
                 await Ui2(() => vista.AbaDepot.IsChecked = true);
                 await Pausa();
-                await Ui2(() => FotoDe(vista, "foto-minimo-depot.png"));
+                await Ui2(() => FotoDe(vista.Raiz, "foto-minimo-depot.png"));
                 var depot = await Ui(() => vista.ListaDepot.Items.Cast<EconomyGameView.DepotLinha>().ToList());
                 var ordemOk = depot.Count == 4 && depot[0].Titulo.StartsWith("Pidgey") && depot[0].Titulo.Contains("✨");
                 var protegidos = depot.First(x => x.Id == 11) is { PodeVender: false } && depot.First(x => x.Id == 12) is { PodeVender: false, BotaoColecao: "🔓 Soltar" } && depot.First(x => x.Id == 9).PodeVender;
@@ -1458,14 +1495,27 @@ public sealed class SelfTestRunner
                 await Pausa();
                 var curou = Tem("\"centro.curar\"");
 
-                var ok = cabOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && faixaOk && centro && avisouEspera && esperouGuarda && curou;
+                // VERSÃO RESUMIDA: no lugar das abas, só os números (status, taxas, shinies, melhor captura, drops raros, bolas).
+                await Ui2(() => s.SetEconomyCompact(true));
+                await Pausa(900);
+                var resumida = await Ui(() => (vista.PainelCompacto.Visibility, vista.BarraAbas.Visibility, vista.TextoCompacto.Text, vista.BtModo.Content as string));
+                var botaoResumida = await Ui(() => Visuais<System.Windows.Controls.Button>(_window).Any(b => b.Content as string == "✓ Econômica resumida (ligada)"));
+                await Ui2(() => vista.BtModo.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)));
+                await Pausa(900);
+                var completaDeNovo = await Ui(() => vista.BarraAbas.Visibility == System.Windows.Visibility.Visible && vista.PainelCompacto.Visibility == System.Windows.Visibility.Collapsed) && !s.Account.EconomyCompact;
+                var resumidaOk = resumida.Item1 == System.Windows.Visibility.Visible && resumida.Item2 == System.Windows.Visibility.Collapsed
+                                 && resumida.Item3.Contains("no Centro Pokémon") && resumida.Item3.Contains("Treinador Nv") && resumida.Item3.Contains("Pokébolas") && resumida.Item4 == "▴ Completa"
+                                 && botaoResumida && completaDeNovo;
+
+                var ok = cabOk && resumidaOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && faixaOk && centro && avisouEspera && esperouGuarda && curou;
                 return ok
-                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas: ligar e comprar 100 (confirmação mostrou 60.000) · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
-                    : Fail($"cab={cabOk}({cab}) faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
+                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas: ligar e comprar 100 (confirmação mostrou 60.000) · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · versão resumida: só os números no lugar das abas, e volta à completa · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
+                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk}({resumida.Item3.Replace("\n", " | ")}; botão={botaoResumida}; voltou={completaDeNovo}) faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
             }
             finally
             {
                 EconomyGameView.ConfirmarParaTeste = null;
+                BrowserSession.RankingAutomatico = true;
             }
         });
     }

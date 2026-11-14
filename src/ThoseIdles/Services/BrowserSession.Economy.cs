@@ -16,6 +16,17 @@ public sealed partial class BrowserSession
     private string? _pendingPageToken;
 
     public bool IsEconomy => _eco is not null;
+
+    /// <summary>Versão resumida do modo econômico (só os números), guardada por conta.</summary>
+    public bool EconomyCompact => Account.EconomyCompact;
+
+    public void SetEconomyCompact(bool compact)
+    {
+        if (Account.EconomyCompact == compact) return;
+        Account.EconomyCompact = compact;
+        OnPropertyChanged(nameof(EconomyCompact));
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
     public EconomyClient? Economy => _eco;
 
     /// <summary>A conta tem credenciais guardadas para o modo econômico.</summary>

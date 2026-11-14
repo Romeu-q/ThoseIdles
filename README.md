@@ -340,8 +340,14 @@ Com a conta em modo econômico, o painel dela vira uma **tela mínima do jogo** 
 nick, nível, barra de XP e as moedas no alto; o que a conta está fazendo (hunt, Pokémon em campo, ouro/h,
 XP/h, abates/h, capturas, shinies); e cinco abas:
 
-- **Caçar:** as hunts do jogo, com busca; **▶ Caçar** nas liberadas para o seu nível (as de nível maior
-  aparecem apagadas). A hunt de agora fica marcada.
+- **Caçar:** no topo, as **🏆 melhores hunts de XP agora** (as 5 primeiras) para o **Pokémon em campo**, com
+  **▶ Caçar** em cada uma; depois, todas as hunts do jogo, com busca (as de nível maior aparecem apagadas; a hunt
+  de agora fica marcada e a melhor leva "★ melhor XP agora"; as da Outland levam 🌌). O ranking é o da Calculadora
+  de XP do PokéIdle Hub — a mesma conta do jogo, com o nível, o Pokémon e os **bônus ligados na conta** (VIP, XP
+  Boost, guild, Twitch, Kick, evento, Atrasados) lidos do servidor e, depois de uns minutos na hunt, os abates/h que
+  a conta de fato faz. O app abre o Hub **escondido e sem login** (perfil temporário, que não guarda nada), lê a
+  tabela e fecha: leva alguns segundos, só roda com a aba à vista e renova a cada 5 min ou quando o Pokémon ou os
+  bônus mudam (**↻ Recalcular** força).
 - **Time:** o time (até 5) com vida; **Em campo** troca o Pokémon que luta; **Tirar** manda para o Depot.
 - **Depot:** os Pokémon guardados (shinies primeiro, depois do maior nível), com busca e páginas de 25;
   **→ Time** (na vaga livre), **🔒 Coleção / 🔓 Soltar** (a Coleção protege da venda e das automações) e
@@ -355,6 +361,11 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
 **✋ Desistir** do combate (pede confirmação). **Abrir o jogo completo** sai do modo econômico.
 
+**Econômica resumida:** ainda mais enxuta. No lugar das abas ficam só os **números da conta** (onde está —
+inclusive 🌌 Outland —, ouro/h, XP/h, abates/h, capturas, shinies, melhor captura, drops raros e pokébolas). Liga
+no botão **Econômica resumida** da faixa de ações da conta (liga o modo econômico já nessa versão) ou em
+**▾ Resumida / ▴ Completa** no alto da tela mínima; a escolha fica salva por conta.
+
 **As travas do jogo são respeitadas:** o app **espera** antes de mandar a troca de hunt ou a ida ao Centro —
 os 3 s sem dano (o carimbo que o servidor manda), a porta de 10 s desde a última entrada numa hunt e uma
 **guarda de 4 s** entre duas trocas de hunt/idas ao Centro. Enquanto espera, mostra "Aguardando 2,3 s…"; um
@@ -365,8 +376,8 @@ espera vale para o **▶ Caçar** do PokéIdle Hub. No Safari o app não sai soz
 ### Resumo de todas as contas
 
 O botão **Resumo** da barra de cima abre uma janela com os números das contas, no estilo do "Modo Simples" do
-PokeGrid: cartões com a soma de **ouro/h, XP/h, abates/h**, capturas, shinies (visto/capturado) e contas ativas;
-a tabela **por conta** (hunt, tempo na hunt, ouro/h, XP/h, abates/h, capturas, ✨, melhor e última captura e
+PokeGrid: cartões com a soma de **ouro/h, XP/h, abates/h**, capturas, shinies (visto/capturado), contas ativas e **quantas estão farmando em Outland**;
+a tabela **por conta** (hunt, **área — 🌌 Outland em destaque, ou a região**, tempo na hunt, ouro/h, XP/h, abates/h, capturas, ✨, melhor e última captura e
 o status — Caçando, Na cidade, ⚠ Parada há X min, Desconectada, Desligada…), em que **clicar no cabeçalho
 ordena** e **clicar na linha abre a conta**; as últimas capturas (com a nota), as aparições de shiny
 (capturado ou não) e o **total de hoje**, que fica salvo e continua depois de fechar o app. As taxas por hora

@@ -56,6 +56,7 @@ public partial class SummaryWindow : Window
         TotCaps.Text = s.Totais.Capturas;
         TotShiny.Text = s.Totais.Shiny;
         TotAtivas.Text = s.Totais.Ativas;
+        TotOutland.Text = s.Totais.Outland;
 
         var linhas = Ordenar(s.Linhas);
         Linhas.ItemsSource = linhas;

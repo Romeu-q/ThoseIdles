@@ -65,6 +65,18 @@ public sealed class AccountViewModel : ObservableObject
             var problem = await Session.EnterEconomyAsync();
             if (problem is not null) _main.Notice = $"{DisplayName}: {problem}";
         }, () => Session.IsRunning);
+        // "Econômico resumido": liga o modo econômico já na versão só-números, ou alterna entre a tela de jogo e os números.
+        ToggleEconomyCompactCommand = new AsyncCommand(async () =>
+        {
+            if (Session.IsEconomy)
+            {
+                Session.SetEconomyCompact(!Session.EconomyCompact);
+                return;
+            }
+            Session.SetEconomyCompact(true);
+            var problem = await Session.EnterEconomyAsync();
+            if (problem is not null) { Session.SetEconomyCompact(false); _main.Notice = $"{DisplayName}: {problem}"; }
+        }, () => Session.IsRunning);
         session.FileExported += (_, path) =>
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
                 _main.Notice = $"{DisplayName}: shinies exportados para {path}");
@@ -233,6 +245,10 @@ public sealed class AccountViewModel : ObservableObject
     // ------------------------------------------------------------------ modo econômico
 
     public ICommand ToggleEconomyCommand { get; }
+    public ICommand ToggleEconomyCompactCommand { get; }
+
+    /// <summary>Modo econômico ligado e na versão resumida (só os números).</summary>
+    public bool IsEconomyCompact => Session.IsEconomy && Session.EconomyCompact;
 
     public bool IsEconomy => Session.IsEconomy;
 
@@ -383,8 +399,12 @@ public sealed class AccountViewModel : ObservableObject
             case nameof(BrowserSession.StatusDetail):
                 OnPropertyChanged(nameof(StatusDetail));
                 break;
+            case nameof(BrowserSession.EconomyCompact):
+                OnPropertyChanged(nameof(IsEconomyCompact));
+                break;
             case nameof(BrowserSession.IsEconomy):
                 OnPropertyChanged(nameof(IsEconomy));
+                OnPropertyChanged(nameof(IsEconomyCompact));
                 OnPropertyChanged(nameof(ShowEconomyNotice));
                 OnPropertyChanged(nameof(EconomyTooltip));
                 CommandManager.InvalidateRequerySuggested();

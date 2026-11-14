@@ -23,6 +23,12 @@ public sealed class AccountSettings
     /// <summary>Modo econômico: a conta fica conectada por um cliente leve, sem a página do jogo.</summary>
     public bool EconomyMode { get; set; }
 
+    /// <summary>
+    /// Modo econômico RESUMIDO: no lugar da tela mínima de jogo, só os números da conta (status, taxas, capturas, melhor captura,
+    /// shinies, drops raros e pokébolas). Ainda mais leve para a vista; a conta segue conectada e caçando do mesmo jeito.
+    /// </summary>
+    public bool EconomyCompact { get; set; }
+
     /// <summary>Nick/token/aparelho do jogo para o modo econômico, criptografados com DPAPI (só este usuário do Windows lê).</summary>
     public string? EconomySessionProtected { get; set; }
 

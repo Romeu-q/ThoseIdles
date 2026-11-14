@@ -50,7 +50,8 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="10,8,10,8">
+    <ScrollViewer x:Name="Rolagem" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnTamanho">
+    <Grid x:Name="Raiz" Margin="10,8,10,8" MinHeight="440">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
@@ -58,6 +59,8 @@
 
         <!-- Treinador: nick, nível, barra de XP e moedas -->
         <DockPanel Grid.Row="0">
+            <Button x:Name="BtModo" DockPanel.Dock="Right" Style="{StaticResource Mini}" Margin="10,0,0,0" Content="▾ Resumida" Click="OnModo"
+                    ToolTip="Alterna entre a tela de jogo e a versão resumida (só os números da conta)." />
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock x:Name="Ouro" Text="🪙 —" FontSize="12" Margin="0,0,10,0" ToolTip="Ouro" />
                 <TextBlock x:Name="Diamantes" Text="💎 —" FontSize="12" Margin="0,0,10,0" ToolTip="Diamantes" />
@@ -81,7 +84,7 @@
         </Border>
 
         <!-- Abas -->
-        <DockPanel Grid.Row="3" Margin="0,0,0,6">
+        <DockPanel x:Name="BarraAbas" Grid.Row="3" Margin="0,0,0,6">
             <!-- Centro Pokémon e combate -->
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button x:Name="BtCentro" Style="{StaticResource Mini}" Content="🏥 Centro" Click="OnCentro"
@@ -99,8 +102,16 @@
         </DockPanel>
 
         <Grid Grid.Row="4">
+            <!-- Resumida: só os números da conta -->
+            <ScrollViewer x:Name="PainelCompacto" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <Border Style="{StaticResource Linha}" Padding="12,10">
+                    <TextBlock x:Name="TextoCompacto" FontSize="12.5" TextWrapping="Wrap" LineHeight="21" />
+                </Border>
+            </ScrollViewer>
+
             <!-- Caçar -->
             <DockPanel x:Name="PainelCacar">
+
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
                     <TextBox x:Name="Filtro" Padding="6,4" FontSize="12" Background="{StaticResource CardBg}" Foreground="{StaticResource Text}"
                              BorderBrush="{StaticResource Border}" CaretBrush="{StaticResource Text}" TextChanged="OnFiltro" />
@@ -114,6 +125,31 @@
                     </TextBlock>
                 </Grid>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                    <!-- A melhor hunt de XP agora, para o Pokémon em campo (a conta do PokéIdle Hub) -->
+                    <Border x:Name="CartaoMelhores" Style="{StaticResource Linha}" BorderBrush="#F0B429" Margin="0,0,0,8">
+                        <StackPanel>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="↻ Recalcular" Click="OnRecalcular"
+                                        ToolTip="Recalcula agora (leva alguns segundos; o app abre o Hub escondido, sem login)." />
+                                <TextBlock Text="🏆 MELHORES HUNTS DE XP AGORA" FontSize="11" FontWeight="SemiBold" Foreground="#F0B429" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock x:Name="MelhoresInfo" Style="{StaticResource Mudo}" TextWrapping="Wrap" Margin="0,3,0,4" />
+                            <ItemsControl x:Name="ListaMelhores">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding Botao}" Tag="{Binding Slug}" IsEnabled="{Binding PodeCacar}" Click="OnCacar" />
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Titulo}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                     <ItemsControl x:Name="ListaHunts">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -130,6 +166,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </StackPanel>
                 </ScrollViewer>
             </DockPanel>
 
@@ -249,4 +286,5 @@
             <TextBlock x:Name="Rodape" Style="{StaticResource Mudo}" VerticalAlignment="Center" TextWrapping="Wrap" />
         </DockPanel>
     </Grid>
+    </ScrollViewer>
 </UserControl>

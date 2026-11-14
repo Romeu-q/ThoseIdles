@@ -4,20 +4,20 @@ namespace ThoseIdles.Services;
 
 /// <summary>Uma linha da tabela "por conta" do resumo (texto pronto + a chave de ordenação).</summary>
 public sealed record SummaryRow(
-    int Slot, string Conta, string Cor, string Hunt, string Tempo,
+    int Slot, string Conta, string Cor, string Hunt, string Area, string AreaCor, bool Outland, string Tempo,
     string OuroH, string XpH, string AbatesH, string Capturas, string Shiny, string Melhor, string Ultima,
     string Status, string StatusCor, bool Ativa,
     double OuroHNum, double XpHNum, double AbatesHNum, int CapturasNum, double TempoNum)
 {
     public IReadOnlyDictionary<string, IComparable> Chaves => new Dictionary<string, IComparable>
     {
-        ["conta"] = Slot, ["hunt"] = Hunt, ["tempo"] = TempoNum, ["ouro"] = OuroHNum, ["xp"] = XpHNum,
+        ["conta"] = Slot, ["hunt"] = Hunt, ["area"] = Area, ["tempo"] = TempoNum, ["ouro"] = OuroHNum, ["xp"] = XpHNum,
         ["abates"] = AbatesHNum, ["capturas"] = CapturasNum, ["shiny"] = Shiny, ["melhor"] = Melhor, ["ultima"] = Ultima, ["status"] = Status,
     };
 }
 
 /// <summary>Os cartões do topo (somas das contas ativas).</summary>
-public sealed record SummaryTotals(string OuroH, string XpH, string AbatesH, string Capturas, string Shiny, string Ativas);
+public sealed record SummaryTotals(string OuroH, string XpH, string AbatesH, string Capturas, string Shiny, string Ativas, string Outland);
 
 public sealed record CapturaLinha(string Conta, string Cor, string Nome, string Detalhe, string Hora, DateTime Em);
 public sealed record ShinyLinha(string Conta, string Cor, string Nome, bool Capturado, string Hora, DateTime Em)
@@ -61,7 +61,7 @@ public static class SummaryBuilder
         var capturas = new List<CapturaLinha>();
         var shinies = new List<ShinyLinha>();
         double ouroH = 0, xpH = 0, abatesH = 0;
-        int caps = 0, sv = 0, sc = 0, ativas = 0, total = 0;
+        int caps = 0, sv = 0, sc = 0, ativas = 0, total = 0, outland = 0;
 
         foreach (var s in sessoes.Where(x => x.Slot <= visiveis).OrderBy(x => x.Slot))
         {
@@ -75,7 +75,15 @@ public static class SummaryBuilder
             if (ativa) ativas++;
 
             var (o, x, a) = ativa ? st.PorHoraNaHunt() : (0, 0, 0);
-            var hunt = game.HuntAtual?.Nome ?? game.HuntSlug ?? (game.NoSafari ? "Safari" : "—");
+            var huntInfo = game.HuntAtual;
+            var hunt = huntInfo?.Nome ?? game.HuntSlug ?? (game.NoSafari ? "Safari" : "—");
+            // A área: Outland (🌌, em destaque) ou a região da hunt (Kanto, Johto…). Só conta quem está de fato caçando.
+            var emOutland = ativa && huntInfo is { Outland: true };
+            if (emOutland) outland++;
+            var area = !ativa || huntInfo is null ? "—"
+                : emOutland ? "🌌 Outland"
+                : huntInfo.Regiao is { Length: > 0 } reg ? char.ToUpper(reg[0], Pt) + reg[1..] : "—";
+            var areaCor = emOutland ? "#B58CFF" : "#9A9AA6";
             var tempo = ativa && st.HuntSlug is not null ? now - st.HuntDesde : TimeSpan.Zero;
             var recentes = st.Recentes;
             var ultima = recentes.Count > 0 ? $"{recentes[0].Nome}{(recentes[0].Shiny ? " ✨" : "")} · {recentes[0].Em:HH:mm}" : "—";
@@ -83,7 +91,7 @@ public static class SummaryBuilder
             ouroH += o; xpH += x; abatesH += a;
             caps += st.Capturas; sv += st.ShiniesVistos; sc += st.ShiniesCapturados;
 
-            linhas.Add(new SummaryRow(s.Slot, nome, cor, hunt, tempo > TimeSpan.Zero ? Duracao(tempo) : "—",
+            linhas.Add(new SummaryRow(s.Slot, nome, cor, hunt, area, areaCor, emOutland, tempo > TimeSpan.Zero ? Duracao(tempo) : "—",
                 ativa ? Curto(o, true) : "—", ativa ? Curto(x) : "—", ativa ? Curto(a) : "—",
                 st.Capturas.ToString(Pt), $"{st.ShiniesVistos} / {st.ShiniesCapturados}", st.MelhorCapturaCurta() ?? "—", ultima,
                 status, statusCor, ativa, o, x, a, st.Capturas, tempo.TotalSeconds));
@@ -95,7 +103,7 @@ public static class SummaryBuilder
                 shinies.Add(new ShinyLinha(nome, cor, ap.Nome, ap.Capturado, ap.Em.ToString("HH:mm"), ap.Em));
         }
 
-        var totais = new SummaryTotals(Curto(ouroH, true), Curto(xpH), Curto(abatesH), caps.ToString("N0", Pt), $"{sv} / {sc}", $"{ativas} / {total}");
+        var totais = new SummaryTotals(Curto(ouroH, true), Curto(xpH), Curto(abatesH), caps.ToString("N0", Pt), $"{sv} / {sc}", $"{ativas} / {total}", $"{outland} / {ativas}");
 
         long hOuro = 0, hXp = 0; int hAb = 0, hCap = 0, hSv = 0, hSc = 0;
         foreach (var slot in Enumerable.Range(1, Math.Max(visiveis, 1)))
