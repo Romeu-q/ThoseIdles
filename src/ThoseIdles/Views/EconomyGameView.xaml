@@ -90,13 +90,14 @@
                 <Button Style="{StaticResource Mini}" Content="💊 Curar" Click="OnCurar" ToolTip="Cura o time. Só funciona dentro do Centro Pokémon." />
                 <Button Style="{StaticResource Mini}" Content="✋ Desistir" Click="OnDesistir" ToolTip="Desiste da luta atual (pede confirmação)." />
             </StackPanel>
-            <StackPanel Orientation="Horizontal">
+            <WrapPanel Orientation="Horizontal">
             <RadioButton x:Name="AbaCacar" Style="{StaticResource AbaBt}" Content="Caçar" IsChecked="True" Checked="OnAba" />
             <RadioButton x:Name="AbaTime" Style="{StaticResource AbaBt}" Content="Time" Checked="OnAba" />
             <RadioButton x:Name="AbaDepot" Style="{StaticResource AbaBt}" Content="Depot" Checked="OnAba" />
+            <RadioButton x:Name="AbaMarket" Style="{StaticResource AbaBt}" Content="Market" Checked="OnAba" />
             <RadioButton x:Name="AbaBolas" Style="{StaticResource AbaBt}" Content="Bolas e automação" Checked="OnAba" />
             <RadioButton x:Name="AbaRegistro" Style="{StaticResource AbaBt}" Content="Registro" Checked="OnAba" />
-            </StackPanel>
+            </WrapPanel>
         </DockPanel>
 
         <Grid Grid.Row="4">
@@ -232,6 +233,87 @@
                 </ScrollViewer>
             </DockPanel>
 
+            <!-- Market (loja NPC de ouro: pokébolas, poções, revives e ovos — sem RMT e sem loja de diamantes) -->
+            <ScrollViewer x:Name="PainelMarket" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Mudo}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Loja NPC (somente compras em ouro — sem mercado de jogadores/RMT e sem loja de diamantes). Toda compra pede confirmação." />
+                    <TextBlock Text="⚪ POKÉBOLAS" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <ItemsControl x:Name="ListaMarketBolas">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Linha}" Opacity="{Binding Opacidade}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar1000" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar100" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar10" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="🧪 POÇÕES" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,10,0,6" />
+                    <ItemsControl x:Name="ListaMarketPocoes">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Linha}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" Click="OnComprarItem10" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="💊 REVIVES" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,10,0,6" />
+                    <ItemsControl x:Name="ListaMarketRevives">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Linha}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" Click="OnComprarItem10" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="🥚 OVOS MISTERIOSOS (NPC)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,10,0,6" />
+                    <ItemsControl x:Name="ListaMarketOvos">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Linha}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1" Tag="{Binding Id}" Click="OnComprarItem1" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
             <!-- Bolas e automação -->
             <ScrollViewer x:Name="PainelBolas" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
@@ -252,6 +334,48 @@
                                             ToolTip="Comprar 100 desta bola na loja (pede confirmação)." />
                                     <Button Style="{StaticResource BarButton}" HorizontalContentAlignment="Stretch" Margin="0" BorderBrush="{Binding Borda}"
                                             Tag="{Binding Id}" Click="OnBola" ToolTip="Liga ou desliga esta bola na automação.">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Quantidade}" Foreground="{StaticResource Muted}" />
+                                            <TextBlock Text="{Binding Titulo}" />
+                                        </DockPanel>
+                                    </Button>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="POÇÕES USADAS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <ItemsControl x:Name="ListaAutoPocoes">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,4">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000"
+                                            ToolTip="Comprar 1.000 desta poção na loja (pede confirmação)." />
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100"
+                                            ToolTip="Comprar 100 desta poção na loja (pede confirmação)." />
+                                    <Button Style="{StaticResource BarButton}" HorizontalContentAlignment="Stretch" Margin="0" BorderBrush="{Binding Borda}"
+                                            Tag="{Binding Id}" Click="OnPocaoAuto" ToolTip="Liga ou desliga esta poção na automação.">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Quantidade}" Foreground="{StaticResource Muted}" />
+                                            <TextBlock Text="{Binding Titulo}" />
+                                        </DockPanel>
+                                    </Button>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="REVIVES USADOS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <ItemsControl x:Name="ListaAutoRevives">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,4">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000"
+                                            ToolTip="Comprar 1.000 deste revive na loja (pede confirmação)." />
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100"
+                                            ToolTip="Comprar 100 deste revive na loja (pede confirmação)." />
+                                    <Button Style="{StaticResource BarButton}" HorizontalContentAlignment="Stretch" Margin="0" BorderBrush="{Binding Borda}"
+                                            Tag="{Binding Id}" Click="OnReviveAuto" ToolTip="Liga ou desliga este revive na automação.">
                                         <DockPanel>
                                             <TextBlock DockPanel.Dock="Right" Text="{Binding Quantidade}" Foreground="{StaticResource Muted}" />
                                             <TextBlock Text="{Binding Titulo}" />

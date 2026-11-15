@@ -32,9 +32,23 @@ public sealed record OutlandLinha(string Conta, string Cor, string Hunt, bool Ag
 }
 public sealed record HojeResumo(string Data, string Ouro, string Xp, string Abates, string Capturas, string Shiny, string SeteDias);
 
+/// <summary>Uma linha do cartão de uma conta (“Pokébolas” → “Ultra Ball 1.240 · ~6h20”).</summary>
+public sealed record CartaoLinha(string Rotulo, string Valor, string Cor = "#E6E6EA");
+
+/// <summary>O cartão de UMA conta: nível do treinador (com a barra até o próximo) e o que importa para ela seguir farmando.</summary>
+public sealed record ContaCartao(int Slot, string Conta, string Cor, string Status, string StatusCor,
+    string Nivel, double NivelPct, string NivelDetalhe, IReadOnlyList<CartaoLinha> Linhas)
+{
+    public bool TemNivel => Nivel.Length > 0;
+}
+
+/// <summary>Um aviso do topo do Resumo: o que precisa de atenção agora (conta parada, sem bolas, bônus acabando…).</summary>
+public sealed record Alerta(int Slot, string Conta, string Cor, string Texto, string TextoCor);
+
 public sealed record SummarySnapshot(
     SummaryTotals Totais, IReadOnlyList<SummaryRow> Linhas,
-    IReadOnlyList<CapturaLinha> Capturas, IReadOnlyList<ShinyLinha> Shinies, HojeResumo Hoje, IReadOnlyList<OutlandLinha> Outland);
+    IReadOnlyList<CapturaLinha> Capturas, IReadOnlyList<ShinyLinha> Shinies, HojeResumo Hoje, IReadOnlyList<OutlandLinha> Outland,
+    IReadOnlyList<ContaCartao> Cartoes, IReadOnlyList<Alerta> Alertas, string TudoCerto);
 
 /// <summary>
 /// Monta o RESUMO de todas as contas (o que o "Modo Simples" do PokeGrid mostra): por conta, a hunt,
@@ -59,6 +73,159 @@ public static class SummaryBuilder
     public static string Duracao(TimeSpan t) =>
         t.TotalHours >= 1 ? $"{(int)t.TotalHours}h{t.Minutes:00}" : t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes}m {t.Seconds:00}s" : $"{(int)t.TotalSeconds}s";
 
+    /// <summary>Um prazo curto: “3d 4h”, “2h10”, “7 min”.</summary>
+    public static string Prazo(TimeSpan t)
+    {
+        if (t <= TimeSpan.Zero) return "0 min";
+        if (t.TotalDays >= 1) return t.Hours > 0 && t.TotalDays < 10 ? $"{(int)t.TotalDays}d {t.Hours}h" : $"{(int)t.TotalDays}d";
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h{t.Minutes:00}";
+        return $"{Math.Max(1, (int)Math.Ceiling(t.TotalMinutes))} min";
+    }
+
+    private const string Verde = "#3FC46E", Ambar = "#F0B429", Vermelho = "#E5484D", Cinza = "#9A9AA6", Texto = "#E6E6EA";
+
+    /// <summary>Um bônus de XP com menos que isto para acabar entra nos avisos.</summary>
+    private static readonly TimeSpan BonusAcabando = TimeSpan.FromMinutes(15);
+    /// <summary>Pokébolas que acabam antes disto (no ritmo da sessão) entram nos avisos.</summary>
+    private static readonly TimeSpan BolasAcabando = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// O cartão de uma conta e os avisos dela: nível do treinador e quanto falta para o próximo (no ritmo da hunt de agora),
+    /// o Pokémon em campo, o saldo, o que a sessão rendeu, as pokébolas (e quando acabam), os bônus de XP (e quando acabam),
+    /// a melhor hunt de XP (se o /hunt já calculou) e os drops raros.
+    /// </summary>
+    private static ContaCartao Cartao(BrowserSession s, string nome, string cor, string status, string statusCor, bool ativa,
+        double xpH, DateTime now, List<Alerta> alertas)
+    {
+        var st = s.Stats;
+        var game = s.Game;
+        var linhas = new List<CartaoLinha>();
+        void Avisar(string texto, string corTexto) => alertas.Add(new Alerta(s.Slot, nome, cor, texto, corTexto));
+
+        // Status que pede atenção (desconectada, parada, na cidade…) vira aviso.
+        if (s.IsRunning && statusCor is Vermelho or Ambar) Avisar(status, statusCor);
+
+        // ---- nível do treinador ----
+        string nivel = "", nivelDet = "";
+        double pct = 0;
+        var lv = game.Level > 0 ? game.Level : st.NivelTreinador ?? 0;
+        if (lv > 0)
+        {
+            nivel = $"Treinador Nv {lv.ToString("N0", Pt)}";
+            if (game.XpProximo > game.XpNivel && game.XpProximo > 0)
+            {
+                var faixa = game.XpProximo - game.XpNivel;
+                var dentro = Math.Clamp(game.Xp - game.XpNivel, 0, faixa);
+                pct = (double)dentro / faixa;
+                var falta = faixa - dentro;
+                nivel += $" · {(pct * 100).ToString("0", Pt)}%";
+                nivelDet = $"faltam {Curto(falta)} XP";
+                if (ativa && xpH > 0) nivelDet += $" · próximo nível em ~{Prazo(TimeSpan.FromHours(falta / xpH))}";
+            }
+        }
+
+        // ---- Pokémon em campo ----
+        if (game.Ativo is { } p)
+        {
+            var hpTxt = "";
+            var corPk = Texto;
+            if (p.MaxHp is > 0 && p.Hp is { } hp)
+            {
+                var hpPct = Math.Clamp((double)hp / p.MaxHp.Value, 0, 1);
+                hpTxt = $" · HP {(hpPct * 100).ToString("0", Pt)}%";
+                if (hpPct < 0.3) corPk = Ambar;
+            }
+            linhas.Add(new CartaoLinha("Pokémon", $"{p.Nome}{(p.Shiny ? " ✨" : "")} Nv {p.Level.ToString("N0", Pt)} · P{p.Potencia}{hpTxt}", corPk));
+        }
+        else if (st.AtivoNome is { } an)
+            linhas.Add(new CartaoLinha("Pokémon", $"{an}{(st.AtivoNivel is { } al ? $" Nv {al.ToString("N0", Pt)}" : "")}"));
+
+        // ---- saldo ----
+        if (game.Recebeu)
+        {
+            var saldo = $"{Curto(game.Gold)} ouro";
+            if (game.Diamonds > 0) saldo += $" · 💎 {game.Diamonds.ToString("N0", Pt)}";
+            if (game.Orbs > 0) saldo += $" · ◆ {game.Orbs.ToString("N0", Pt)}";
+            linhas.Add(new CartaoLinha("Saldo", saldo));
+        }
+
+        // ---- o que a sessão rendeu (desde que o app abriu) ----
+        if (st.Abates > 0 || st.Ouro > 0 || st.XpTreinador > 0)
+            linhas.Add(new CartaoLinha("Sessão",
+                $"{Duracao(now - st.Inicio)} · {Curto(st.Ouro, true)} ouro · +{Curto(st.XpTreinador)} XP · {st.Abates.ToString("N0", Pt)} abates"));
+
+        // ---- pokébolas: as que a automação usa (ou todas, se nenhuma marcada) e quando acabam no ritmo da sessão ----
+        var catalogo = game.CatalogoBolas;
+        if (catalogo.Count > 0 || game.BallIds.Count > 0)
+        {
+            var marcadas = game.BallIds;
+            var ids = marcadas.Count > 0 ? marcadas.ToList() : catalogo.Select(b => b.Id).Where(id => game.Balls(id) > 0).ToList();
+            var restantes = ids.Sum(id => game.Balls(id));
+            string NomeBola(int id) => catalogo.FirstOrDefault(b => b.Id == id)?.Nome ?? $"Bola #{id}";
+            var partes = ids.Select(id => $"{NomeBola(id)} {game.Balls(id).ToString("N0", Pt)}").ToList();
+            var (gastas, porHora) = st.RitmoDeBolas();
+            var texto = partes.Count == 0 ? "nenhuma" : string.Join(" · ", partes);
+            var corBola = Texto;
+            if (marcadas.Count > 0 && restantes <= 0)
+            {
+                corBola = Vermelho;
+                texto += " — acabaram";
+                if (ativa) Avisar("Sem pokébolas: não vai capturar nada", Vermelho);
+            }
+            else if (gastas >= 3 && porHora > 0 && restantes > 0)
+            {
+                var dura = TimeSpan.FromHours(restantes / porHora);
+                texto += $" · ~{Prazo(dura)} no ritmo atual";
+                if (dura < BolasAcabando) { corBola = Ambar; if (ativa) Avisar($"Pokébolas acabam em ~{Prazo(dura)}", Ambar); }
+            }
+            linhas.Add(new CartaoLinha("Pokébolas", texto, corBola));
+        }
+
+        // ---- poções e revives na bolsa ----
+        var itensCura = game.CatalogoMarket
+            .Where(m => m.Categoria is "potion" or "revive" && (game.Items(m.Id) > 0 || game.PotionIds.Contains(m.Id) || game.ReviveIds.Contains(m.Id)))
+            .ToList();
+        if (itensCura.Count > 0)
+            linhas.Add(new CartaoLinha("Cura", string.Join(" · ", itensCura.Select(m => $"{m.Nome} {game.Items(m.Id).ToString("N0", Pt)}"))));
+
+        // ---- bônus de XP ligados e quanto falta ----
+        if (game.Recebeu)
+        {
+            var bonus = game.BonusAtivos();
+            if (bonus.Count == 0) linhas.Add(new CartaoLinha("Bônus XP", "nenhum ligado", Cinza));
+            else
+            {
+                var acabando = bonus.Where(b => b.Resta is { } r && r < BonusAcabando).ToList();
+                linhas.Add(new CartaoLinha("Bônus XP",
+                    string.Join(" · ", bonus.Select(b => b.Resta is { } r ? $"{b.Nome} {Prazo(r)}" : b.Nome)),
+                    acabando.Count > 0 ? Ambar : Verde));
+                foreach (var b in acabando) Avisar($"{b.Nome} acaba em {Prazo(b.Resta!.Value)}", Ambar);
+            }
+        }
+
+        // ---- melhor hunt de XP (o mesmo ranking do /hunt; só aparece se já foi calculado) ----
+        var ranking = s.MelhoresHunts;
+        if (ranking.Count > 0 && game.HuntSlug is { } slugAtual)
+        {
+            var top = ranking[0];
+            if (top.Slug == slugAtual)
+                linhas.Add(new CartaoLinha("Melhor hunt", $"✓ já está na melhor ({top.XpH} XP/h)", Verde));
+            else
+            {
+                var pos = ranking.ToList().FindIndex(h => h.Slug == slugAtual);
+                linhas.Add(new CartaoLinha("Melhor hunt",
+                    $"{top.Nome} · {top.XpH} XP/h ({(pos >= 0 ? $"a atual é a {pos + 1}ª" : "a atual está fora do top 5")})", Ambar));
+            }
+        }
+
+        // ---- drops raros da sessão ----
+        var raros = st.RarosDaSessao();
+        if (raros.Count > 0)
+            linhas.Add(new CartaoLinha("Drops raros", string.Join(" · ", raros.Select(r => $"{r.Nome} ×{r.Qtd.ToString("N0", Pt)}")), "#B58CFF"));
+
+        return new ContaCartao(s.Slot, nome, cor, status, statusCor, nivel, pct, nivelDet, linhas);
+    }
+
     public static SummarySnapshot Build(IEnumerable<BrowserSession> sessoes, DailyTotals dia, int visiveis, DateTime? agora = null)
     {
         var now = agora ?? DateTime.UtcNow;
@@ -66,6 +233,8 @@ public static class SummaryBuilder
         var capturas = new List<CapturaLinha>();
         var shinies = new List<ShinyLinha>();
         var outlandLinhas = new List<OutlandLinha>();
+        var cartoes = new List<ContaCartao>();
+        var alertas = new List<Alerta>();
         double ouroH = 0, xpH = 0, abatesH = 0;
         int caps = 0, sv = 0, sc = 0, ativas = 0, total = 0, outland = 0;
 
@@ -102,6 +271,8 @@ public static class SummaryBuilder
                 st.Capturas.ToString(Pt), $"{st.ShiniesVistos} / {st.ShiniesCapturados}", st.MelhorCapturaCurta() ?? "—", ultima,
                 status, statusCor, ativa, o, x, a, st.Capturas, tempo.TotalSeconds));
 
+            cartoes.Add(Cartao(s, nome, cor, status, statusCor, ativa, x, now, alertas));
+
             // Quem está na Outland (ou já dropou algo lá nesta sessão) mostra os DROPS: raros primeiro, tudo à mostra.
             var dropsOutland = st.Drops(soOutland: true);
             if (emOutland || dropsOutland.Count > 0)
@@ -126,9 +297,14 @@ public static class SummaryBuilder
         }
         var hoje = new HojeResumo(dia.Data, Curto(hOuro, true), Curto(hXp), hAb.ToString("N0", Pt), hCap.ToString("N0", Pt), $"{hSv} / {hSc}", "");
 
+        var tudoCerto = total == 0 ? "Nenhuma conta aberta."
+            : ativas == total ? $"✓ Tudo certo — {(total == 1 ? "a conta está farmando" : $"as {total} contas estão farmando")}."
+            : $"✓ Nada urgente — {ativas} de {total} contas farmando.";
+
         return new SummarySnapshot(totais, linhas,
             capturas.OrderByDescending(c => c.Em).Take(14).ToList(),
-            shinies.OrderByDescending(c => c.Em).Take(14).ToList(), hoje, outlandLinhas);
+            shinies.OrderByDescending(c => c.Em).Take(14).ToList(), hoje, outlandLinhas,
+            cartoes, alertas, tudoCerto);
     }
 
     /// <summary>"Caçando · Charizard Nv337", "Na cidade", "⚠ Parada há 12 min", "Desconectada"… e a cor (verde farmando, âmbar atenção, vermelho parou).</summary>

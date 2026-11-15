@@ -58,7 +58,7 @@
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource BarButton}" Command="{Binding ToggleSummaryCommand}"
-                            ToolTip="Troca a grade de jogos pelo RESUMO: os números das quatro contas de uma vez (ouro/h, XP/h, abates, capturas, shinies, Outland e drops, total de hoje). As contas seguem rodando; funciona com o jogo aberto ou no modo econômico.">
+                            ToolTip="Troca a grade de jogos pelo RESUMO: os números das quatro contas de uma vez (ouro/h, XP/h, abates, capturas, shinies, Outland e drops). As contas seguem rodando; funciona com o jogo aberto ou no modo econômico.">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE9D2;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding SummaryButtonText}" />

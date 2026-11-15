@@ -21,7 +21,7 @@ public partial class EconomyGameView : UserControl
     private const int PorPagina = 25;
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(700) };
-    private string _sigHunts = "", _sigTime = "", _sigDepot = "", _sigBolas = "", _sigMelhores = "";
+    private string _sigHunts = "", _sigTime = "", _sigDepot = "", _sigBolas = "", _sigMarket = "", _sigMelhores = "";
     private int _paginaDepot;
     private string _avisoTexto = "";
     private DateTime _avisoAte = DateTime.MinValue;
@@ -44,6 +44,7 @@ public partial class EconomyGameView : UserControl
     public sealed record TimeLinha(long Id, string Titulo, string Detalhe, string Botao, bool PodeColocar, string Borda, double HpFrac, string HpCor, Visibility HpVisivel);
     public sealed record DepotLinha(long Id, string Titulo, string Detalhe, string BotaoColecao, bool PodeVender, string DicaVender);
     public sealed record BolaLinha(int Id, string Titulo, string Quantidade, string Borda);
+    public sealed record MarketLinha(int Id, string Nome, string Detalhe, bool PodeComprar = true, double Opacidade = 1);
 
     // ------------------------------------------------------------------ atualização
 
@@ -112,6 +113,7 @@ public partial class EconomyGameView : UserControl
         if (PainelCacar.Visibility == Visibility.Visible) { AtualizarMelhores(g); AtualizarHunts(g); }
         if (PainelTime.Visibility == Visibility.Visible) AtualizarTime(g);
         if (PainelDepot.Visibility == Visibility.Visible) AtualizarDepot(g);
+        if (PainelMarket.Visibility == Visibility.Visible) AtualizarMarket(g);
         if (PainelBolas.Visibility == Visibility.Visible) AtualizarBolas(g);
         if (PainelRegistro.Visibility == Visibility.Visible) TextoRegistro.Text = string.Join("\n", st.Registro);
 
@@ -222,7 +224,13 @@ public partial class EconomyGameView : UserControl
         AutoVoltar.IsChecked = g.Auto("autoVoltarHunt");
 
         var ids = g.BallIds;
-        var sig = string.Join(",", g.CatalogoBolas.Select(b => $"{b.Id}:{g.Balls(b.Id)}")) + "|" + string.Join(",", ids);
+        var potIds = g.PotionIds;
+        var revIds = g.ReviveIds;
+        var pocoes = g.CatalogoMarket.Where(m => m.Categoria == "potion").ToList();
+        var revives = g.CatalogoMarket.Where(m => m.Categoria == "revive").ToList();
+        var sig = string.Join(",", g.CatalogoBolas.Select(b => $"{b.Id}:{g.Balls(b.Id)}")) + "|" + string.Join(",", ids)
+                + "|" + string.Join(",", pocoes.Select(p => $"{p.Id}:{g.Items(p.Id)}")) + "|" + string.Join(",", potIds)
+                + "|" + string.Join(",", revives.Select(r => $"{r.Id}:{g.Items(r.Id)}")) + "|" + string.Join(",", revIds);
         if (sig == _sigBolas) return;
         _sigBolas = sig;
         ListaBolas.ItemsSource = g.CatalogoBolas.Select(b =>
@@ -230,6 +238,46 @@ public partial class EconomyGameView : UserControl
             var on = ids.Contains(b.Id);
             return new BolaLinha(b.Id, $"{(on ? "✓ " : "")}{b.Nome}", g.Balls(b.Id).ToString("N0", Pt), on ? "#3FC46E" : "#2C2C35");
         }).ToList();
+        ListaAutoPocoes.ItemsSource = pocoes.Select(p =>
+        {
+            var on = potIds.Contains(p.Id);
+            return new BolaLinha(p.Id, $"{(on ? "✓ " : "")}{p.Nome} ({p.Descricao})", g.Items(p.Id).ToString("N0", Pt), on ? "#3FC46E" : "#2C2C35");
+        }).ToList();
+        ListaAutoRevives.ItemsSource = revives.Select(r =>
+        {
+            var on = revIds.Contains(r.Id);
+            return new BolaLinha(r.Id, $"{(on ? "✓ " : "")}{r.Nome} ({r.Descricao})", g.Items(r.Id).ToString("N0", Pt), on ? "#3FC46E" : "#2C2C35");
+        }).ToList();
+    }
+
+    private void AtualizarMarket(AccountGameState g)
+    {
+        var bolas = g.CatalogoBolas;
+        var catalogo = g.CatalogoMarket;
+        var sig = string.Join(",", bolas.Select(b => $"{b.Id}:{g.Balls(b.Id)}:{b.Preco}:{b.Compravel}"))
+                + "|" + string.Join(",", catalogo.Select(m => $"{m.Id}:{g.Items(m.Id)}:{m.Preco}"));
+        if (sig == _sigMarket) return;
+        _sigMarket = sig;
+
+        ListaMarketBolas.ItemsSource = bolas.Select(b =>
+        {
+            var pode = b.Compravel && (b.Preco is null or > 0);
+            var mult = b.CatchRate is { } cr and > 0 ? $"Taxa ×{cr.ToString("0.##", Pt)} · " : "";
+            var preco = !b.Compravel ? "Só na loja de diamantes" : b.Preco is { } p and > 0 ? $"🪙 {p.ToString("N0", Pt)} ouro" : "Loja NPC";
+            return new MarketLinha(b.Id, b.Nome, $"{mult}{preco} · na bolsa: {g.Balls(b.Id).ToString("N0", Pt)}", pode, pode ? 1 : 0.5);
+        }).ToList();
+
+        ListaMarketPocoes.ItemsSource = catalogo.Where(m => m.Categoria == "potion")
+            .Select(m => new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}"))
+            .ToList();
+
+        ListaMarketRevives.ItemsSource = catalogo.Where(m => m.Categoria == "revive")
+            .Select(m => new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}"))
+            .ToList();
+
+        ListaMarketOvos.ItemsSource = catalogo.Where(m => m.Categoria == "egg")
+            .Select(m => new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}"))
+            .ToList();
     }
 
     // ------------------------------------------------------------------ abas e filtros
@@ -238,7 +286,7 @@ public partial class EconomyGameView : UserControl
     {
         if (PainelCacar is null) return; // ainda montando
         MostrarPaineis();
-        _sigHunts = _sigTime = _sigDepot = _sigBolas = _sigMelhores = "";
+        _sigHunts = _sigTime = _sigDepot = _sigBolas = _sigMarket = _sigMelhores = "";
         Atualizar();
     }
 
@@ -247,6 +295,7 @@ public partial class EconomyGameView : UserControl
         PainelCacar.Visibility = AbaCacar.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PainelTime.Visibility = AbaTime.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PainelDepot.Visibility = AbaDepot.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PainelMarket.Visibility = AbaMarket.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PainelBolas.Visibility = AbaBolas.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PainelRegistro.Visibility = AbaRegistro.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -389,16 +438,50 @@ public partial class EconomyGameView : UserControl
         await MandarAutomacao(new() { ["ballIds"] = ids });
     }
 
+    private async void OnPocaoAuto(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
+        var ids = eco.Game.PotionIds.ToList();
+        if (!ids.Remove(id)) ids.Add(id);
+        await MandarAutomacao(new() { ["potionIds"] = ids });
+    }
+
+    private async void OnReviveAuto(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
+        var ids = eco.Game.ReviveIds.ToList();
+        if (!ids.Remove(id)) ids.Add(id);
+        await MandarAutomacao(new() { ["reviveIds"] = ids });
+    }
+
+    private void OnComprar10(object sender, RoutedEventArgs e) => Comprar(sender, 10);
     private void OnComprar100(object sender, RoutedEventArgs e) => Comprar(sender, 100);
     private void OnComprar1000(object sender, RoutedEventArgs e) => Comprar(sender, 1000);
+
+    private void OnComprarItem1(object sender, RoutedEventArgs e) => ComprarItem(sender, 1);
+    private void OnComprarItem10(object sender, RoutedEventArgs e) => ComprarItem(sender, 10);
+    private void OnComprarItem100(object sender, RoutedEventArgs e) => ComprarItem(sender, 100);
+    private void OnComprarItem1000(object sender, RoutedEventArgs e) => ComprarItem(sender, 1000);
 
     private async void Comprar(object sender, int qtd)
     {
         if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
         var bola = eco.Game.CatalogoBolas.FirstOrDefault(b => b.Id == id);
+        if (bola is { Compravel: false }) { Mensagem("Esta bola não é vendida por ouro no NPC."); return; }
         var preco = bola?.Preco is { } p ? $"\nTotal: {(p * qtd).ToString("N0", Pt)} de ouro (se o preço for o do catálogo)." : "";
         if (!Confirma($"Comprar {qtd:N0} × {bola?.Nome ?? $"bola #{id}"} na loja?{preco}\n\nO servidor confere o seu saldo.", "Comprar bolas", MessageBoxImage.Question)) return;
         await Enviar(new { t = "shop.buy", kind = "ball", id, qty = qtd }, $"comprou {qtd:N0} × {bola?.Nome ?? $"bola #{id}"}");
-        _sigBolas = "";
+        _sigBolas = _sigMarket = "";
+    }
+
+    private async void ComprarItem(object sender, int qtd)
+    {
+        if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
+        var item = eco.Game.CatalogoMarket.FirstOrDefault(m => m.Id == id);
+        var nome = item?.Nome ?? $"item #{id}";
+        var preco = item is { Preco: > 0 } m ? $"\nTotal: {(m.Preco * qtd).ToString("N0", Pt)} de ouro." : "";
+        if (!Confirma($"Comprar {qtd:N0} × {nome} na loja NPC?{preco}\n\nO servidor confere o seu saldo.", "Comprar no Market", MessageBoxImage.Question)) return;
+        await Enviar(new { t = "shop.buy", kind = "item", id, qty = qtd }, $"comprou {qtd:N0} × {nome}");
+        _sigBolas = _sigMarket = "";
     }
 }

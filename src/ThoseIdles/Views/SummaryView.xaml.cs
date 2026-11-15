@@ -43,15 +43,14 @@ public partial class SummaryView : UserControl
 
     private void Mostrar(SummarySnapshot s)
     {
-        TotOuro.Text = s.Totais.OuroH;
-        TotXp.Text = s.Totais.XpH;
-        TotAbates.Text = s.Totais.AbatesH;
-        TotCaps.Text = s.Totais.Capturas;
-        TotShiny.Text = s.Totais.Shiny;
-        TotAtivas.Text = s.Totais.Ativas;
-        TotOutland.Text = s.Totais.Outland;
+        Avisos.ItemsSource = s.Alertas;
+        CartaoAvisos.Visibility = s.Alertas.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        CartaoTudoCerto.Visibility = s.Alertas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        TudoCerto.Text = s.TudoCerto;
 
         Linhas.ItemsSource = Ordenar(s.Linhas);
+        Cartoes.Tag = Math.Clamp(s.Cartoes.Count, 1, 2);
+        Cartoes.ItemsSource = s.Cartoes;
         ListaOutland.ItemsSource = s.Outland;
         CartaoOutland.Visibility = s.Outland.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         Capturas.ItemsSource = s.Capturas;
@@ -59,12 +58,6 @@ public partial class SummaryView : UserControl
         Shinies.ItemsSource = s.Shinies;
         SemShinies.Visibility = s.Shinies.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        HojeTitulo.Text = $"HOJE · {s.Hoje.Data}";
-        HojeOuro.Text = s.Hoje.Ouro;
-        HojeXp.Text = s.Hoje.Xp;
-        HojeAbates.Text = s.Hoje.Abates;
-        HojeCaps.Text = s.Hoje.Capturas;
-        HojeShiny.Text = s.Hoje.Shiny;
         Atualizado.Text = $"atualizado {DateTime.Now:HH:mm:ss}";
     }
 

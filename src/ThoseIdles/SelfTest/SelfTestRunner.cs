@@ -1337,15 +1337,21 @@ public sealed class SelfTestRunner
             var outlandOk = linha is { Area: "Kanto", Outland: false } && snap.Totais.Outland == "0 / 1"
                             && linha2 is { Area: "🌌 Outland", Outland: true } && snap2.Totais.Outland == "1 / 1";
 
-            var ok = chegou && gradeVisivelAntes && gradeSumiu && gradeVolta && dropsOk && dropsDepois && outlandOk && linha is not null
+            var cartao2 = snap2.Cartoes.FirstOrDefault(c => c.Slot == 1);
+            var cartaoOk = cartao2 is not null && cartao2.Nivel.Contains("1.284")
+                           && cartao2.Linhas.Any(l => l.Rotulo == "Pokémon" && l.Valor.Contains("Charizard"))
+                           && cartao2.Linhas.Any(l => l.Rotulo == "Pokébolas" && l.Valor.Contains("Poké Ball"))
+                           && cartao2.Linhas.Any(l => l.Rotulo == "Drops raros" && l.Valor.Contains("Frag. Shiny Stone ×2"));
+
+            var ok = chegou && gradeVisivelAntes && gradeSumiu && gradeVolta && dropsOk && dropsDepois && outlandOk && cartaoOk && linha is not null
                      && linha.Hunt == "Pidgey" && linha.Status.StartsWith("Caçando") && linha.Status.Contains("Charizard")
                      && linha.Capturas == "1" && linha.Shiny == "1 / 1" && linha.OuroHNum > 0 && linha.XpHNum > 0
                      && snap.Totais.Capturas == "1" && snap.Totais.Shiny == "1 / 1"
                      && hoje.Abates == 3 && hoje.Ouro == 1500 && hoje.Xp == 3000 && hoje.Capturas == 1 && hoje.ShiniesVistos == 1 && hoje.ShiniesCapturados == 1
                      && snap.Shinies.Count == 1 && snap.Shinies[0].Capturado && snap.Capturas.Count == 1;
             return ok
-                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); o Resumo é a aba da janela (troca a grade e volta); depois na Outland: área “{linha2!.Area}”, cartão {snap2.Totais.Outland} e os drops “{drop!.Itens}”; total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
-                : Fail($"chegou={chegou} aba(grade antes={gradeVisivelAntes}, sumiu={gradeSumiu}, volta={gradeVolta}) drops={dropsOk}({drop?.Itens}) depois={dropsDepois} outland={outlandOk} (área1={linha?.Area}, área2={linha2?.Area}, cartão={snap2.Totais.Outland}) linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
+                ? Pass($"conta 1 (página aberta): {linha!.Hunt}, {linha.Status}; 3 abates → {linha.OuroH} ouro/h e {linha.XpH} XP/h; 1 captura e shiny {linha.Shiny} (2 bolas no mesmo shiny contam UMA aparição); cartão da conta com {cartao2!.Nivel}, Pokémon, pokébolas e drops raros; depois na Outland: área “{linha2!.Area}” e os drops “{drop!.Itens}”; total de hoje: {hoje.Abates} abates, {hoje.Ouro} ouro, {hoje.Xp} XP")
+                : Fail($"chegou={chegou} aba(grade antes={gradeVisivelAntes}, sumiu={gradeSumiu}, volta={gradeVolta}) cartao={cartaoOk} drops={dropsOk}({drop?.Itens}) depois={dropsDepois} outland={outlandOk} (área1={linha?.Area}, área2={linha2?.Area}, cartão={snap2.Totais.Outland}) linha={linha} totais={snap.Totais} hoje=({hoje.Abates},{hoje.Ouro},{hoje.Xp},{hoje.Capturas},{hoje.ShiniesVistos}/{hoje.ShiniesCapturados}) shinies={snap.Shinies.Count}");
         });
     }
 
@@ -1594,6 +1600,15 @@ public sealed class SelfTestRunner
                 await Clica(b => b.Tag is int i && i == 2 && b.Content as string == "+100", "comprar 100 Great Ball");
                 await Pausa();
                 var comprou = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"ball\"") && c.Contains("\"id\":2") && c.Contains("\"qty\":100")) && pedidos.Any(p => p.Contains("Great Ball") && p.Contains("60.000"));
+                await Ui2(() => vista.AbaMarket.IsChecked = true);
+                await Pausa();
+                await Clica(b => b.Tag is int i && i == 203 && b.Content as string == "+100", "comprar 100 Hyper Potion");
+                await Pausa();
+                await Clica(b => b.Tag is int i && i == 205 && b.Content as string == "+10", "comprar 10 Revive");
+                await Pausa();
+                var comprouMarket = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":203") && c.Contains("\"qty\":100"))
+                                    && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":205") && c.Contains("\"qty\":10"))
+                                    && pedidos.Any(p => p.Contains("Hyper Potion") && p.Contains("80.000"));
                 await Clica(b => b.Content as string == "💊 Curar", "curar");
                 await Pausa();
                 var curou = Tem("\"centro.curar\"");
@@ -1601,10 +1616,10 @@ public sealed class SelfTestRunner
                 // Não existe mais "resumida por conta": o Resumo é o da janela principal (o botão "Econômica resumida" fica na barra de cima).
                 var semBotaoPorConta = !(await Ui(() => Visuais<System.Windows.Controls.Button>(_window).Any(b => (b.Content as string)?.StartsWith("Econômica resumida") == true && b.Command is null)));
                 var resumidaOk = semBotaoPorConta;
-                var ok = cabOk && resumidaOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && faixaOk && centro && avisouEspera && esperouGuarda && curou;
+                var ok = cabOk && resumidaOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && comprouMarket && faixaOk && centro && avisouEspera && esperouGuarda && curou;
                 return ok
-                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas: ligar e comprar 100 (confirmação mostrou 60.000) · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
-                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk} faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
+                    ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas e Market: ligar e comprar bolas, poções e revives · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
+                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk} faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} market={comprouMarket} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
             }
             finally
             {

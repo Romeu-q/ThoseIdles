@@ -302,6 +302,23 @@ public sealed class EconomySessionStats
         if (_recentes.Count > 40) _recentes.RemoveAt(40);
     }
 
+    /// <summary>Quantas pokébolas a conta jogou nesta sessão e o ritmo por hora (para prever quando acabam).</summary>
+    public (int Gastas, double PorHora) RitmoDeBolas()
+    {
+        lock (_lock)
+        {
+            var gastas = _bolasGastas.Values.Sum();
+            var h = Math.Max((DateTime.UtcNow - Inicio).TotalHours, 1 / 60d);
+            return (gastas, gastas / h);
+        }
+    }
+
+    /// <summary>Os drops raros da sessão (“Frag. Shiny Stone” ×2…), do mais para o menos.</summary>
+    public IReadOnlyList<(string Nome, int Qtd)> RarosDaSessao()
+    {
+        lock (_lock) return _raros.OrderByDescending(k => k.Value).Select(k => (k.Key, k.Value)).ToList();
+    }
+
     /// <summary>A captura de maior nota da sessão (null se ainda não há catálogo ou captura com IVs).</summary>
     public (string Texto, double Nota)? MelhorCaptura()
     {

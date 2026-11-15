@@ -15,7 +15,10 @@ public sealed record HuntInfo(string Slug, string Nome, int Nivel, string? Regia
 public sealed record PokemonInfo(long Id, string Nome, long Level, int? Slot, long? Hp, long? MaxHp, bool Shiny, int Potencia, int SpeciesId, bool Starter = false, string? Especie = null, double? Qualidade = null);
 
 /// <summary>Uma pokébola do catálogo do jogo.</summary>
-public sealed record BallInfo(int Id, string Nome, long? Preco);
+public sealed record BallInfo(int Id, string Nome, long? Preco, bool Compravel = true, double? CatchRate = null);
+
+/// <summary>Um item comprável por ouro no Market (NPC) do jogo: poções, revives e ovos.</summary>
+public sealed record ShopItemInfo(int Id, string Nome, string Categoria, string Descricao, long Preco);
 
 /// <summary>
 /// O estado de UMA conta, remontado a partir do que o servidor manda ("welcome" e "estado" em delta: só
@@ -153,6 +156,8 @@ public sealed class AccountGameState
     private readonly Dictionary<string, bool> _auto = new();
     private readonly Dictionary<string, JsonElement> _autoBruta = new();
     private List<int> _ballIds = new();
+    private List<int> _potionIds = new();
+    private List<int> _reviveIds = new();
     private HashSet<long> _travados = new();
     public bool Vip { get; private set; }
 
@@ -183,6 +188,37 @@ public sealed class AccountGameState
                 ["atrasados"] = _atrasadosAlvo > 0 && Level < _atrasadosAlvo,
                 ["atrasadosAlvo"] = _atrasadosAlvo > 0 ? _atrasadosAlvo : 0L,
             };
+        }
+    }
+
+    /// <summary>Um bônus de XP ligado agora e quanto falta para acabar (null = sem prazo, como o ranking da guild).</summary>
+    public sealed record BonusAtivo(string Nome, TimeSpan? Resta);
+
+    /// <summary>
+    /// Os bônus de XP ligados AGORA, com o tempo que falta (VIP, XP Boost, XP Boost de Pokémon, Boost e ranking da guild,
+    /// Twitch, Kick, evento e Atrasados). O Resumo das contas mostra e avisa quando um está acabando.
+    /// </summary>
+    public IReadOnlyList<BonusAtivo> BonusAtivos()
+    {
+        lock (_lock)
+        {
+            var agora = AgoraServidorMs;
+            var lista = new List<BonusAtivo>();
+            TimeSpan Resta(long t) => TimeSpan.FromMilliseconds(t - agora);
+            void Prazo(string nome, long ate) { if (ate > agora) lista.Add(new BonusAtivo(nome, Resta(ate))); }
+
+            if (_vipAte > agora) lista.Add(new BonusAtivo("VIP", Resta(_vipAte)));
+            else if (Vip) lista.Add(new BonusAtivo("VIP", null));
+            Prazo("XP Boost", _boostXp);
+            Prazo("Boost Pokémon", _boostPokexp);
+            Prazo("Boost da guild", _guildBoostAte);
+            Prazo("Twitch", _twitchXp);
+            Prazo("Kick", _kickXp);
+            if (_eventoTermina > agora)
+                lista.Add(new BonusAtivo(_eventoPct > 0 ? $"Evento +{_eventoPct:0.#}%" : "Evento", Resta(_eventoTermina)));
+            if (_guildPct > 0 && _guildRank is > 0 and <= 10) lista.Add(new BonusAtivo($"Guild {_guildRank}º (+{_guildPct:0.#}%)", null));
+            if (_atrasadosAlvo > 0 && Level > 0 && Level < _atrasadosAlvo) lista.Add(new BonusAtivo("Atrasados", null));
+            return lista;
         }
     }
 
@@ -221,9 +257,25 @@ public sealed class AccountGameState
             return pedido;
         }
     }
+    private static readonly ShopItemInfo[] ItensMarketPadrao =
+    {
+        new(200, "Small Potion", "potion", "Cura 60 HP", 50),
+        new(201, "Great Potion", "potion", "Cura 150 HP", 150),
+        new(202, "Ultra Potion", "potion", "Cura 400 HP", 400),
+        new(203, "Hyper Potion", "potion", "Cura 1.000 HP", 800),
+        new(204, "Ultimate Potion", "potion", "Cura 3.000 HP", 1500),
+        new(205, "Revive", "revive", "Revive com 10% do HP", 600),
+        new(206, "Max Revive", "revive", "Revive com 100% do HP", 5000),
+        new(70091, "Mystery Egg P2", "egg", "Potência P2 · choca em 6h", 20_000_000),
+        new(70092, "Mystery Egg P3", "egg", "Potência P3 · choca em 12h", 120_000_000),
+        new(70093, "Mystery Egg P4", "egg", "Potência P4 · choca em 24h", 250_000_000),
+    };
+
     private readonly Dictionary<int, long> _balls = new();
+    private readonly Dictionary<int, long> _items = new();
     private List<HuntInfo> _hunts = new();
     private List<BallInfo> _catalogoBolas = new();
+    private List<ShopItemInfo> _catalogoMarket = ItensMarketPadrao.ToList();
     private readonly Dictionary<long, PokemonInfo> _pokemons = new();
 
     /// <summary>Mudou alguma coisa (disparado na thread de quem leu a mensagem; a tela volta à UI).</summary>
@@ -231,9 +283,13 @@ public sealed class AccountGameState
 
     public IReadOnlyList<HuntInfo> Hunts { get { lock (_lock) return _hunts.ToList(); } }
     public IReadOnlyList<BallInfo> CatalogoBolas { get { lock (_lock) return _catalogoBolas.ToList(); } }
+    public IReadOnlyList<ShopItemInfo> CatalogoMarket { get { lock (_lock) return _catalogoMarket.ToList(); } }
     public IReadOnlyList<PokemonInfo> Pokemons { get { lock (_lock) return _pokemons.Values.ToList(); } }
     public IReadOnlyList<int> BallIds { get { lock (_lock) return _ballIds.ToList(); } }
+    public IReadOnlyList<int> PotionIds { get { lock (_lock) return _potionIds.ToList(); } }
+    public IReadOnlyList<int> ReviveIds { get { lock (_lock) return _reviveIds.ToList(); } }
     public long Balls(int id) { lock (_lock) return _balls.GetValueOrDefault(id); }
+    public long Items(int id) { lock (_lock) return _items.GetValueOrDefault(id); }
     public bool Auto(string chave) { lock (_lock) return _auto.GetValueOrDefault(chave); }
     public IReadOnlyDictionary<string, bool> AutoTudo { get { lock (_lock) return new Dictionary<string, bool>(_auto); } }
 
@@ -257,6 +313,7 @@ public sealed class AccountGameState
                 }
             if (root.TryGetProperty("hunts", out var hs) && hs.ValueKind == JsonValueKind.Array) LerHunts(hs);
             if (root.TryGetProperty("catalogoBolas", out var cb) && cb.ValueKind == JsonValueKind.Array) LerCatalogoBolas(cb);
+            if (root.TryGetProperty("itensCompraveis", out var ic) && ic.ValueKind == JsonValueKind.Array) LerItensCompraveis(ic);
             var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
             LerEstado(est);
             Recebeu = true;
@@ -283,9 +340,22 @@ public sealed class AccountGameState
         foreach (var b in cb.EnumerateArray())
         {
             if (b.ValueKind != JsonValueKind.Object || Num(b, "id") is not { } id) continue;
-            lista.Add(new BallInfo((int)id, Str(b, "nome") ?? $"Bola #{id}", Num(b, "preco") ?? Num(b, "custo") ?? Num(b, "price")));
+            var preco = Num(b, "priceGold") ?? Num(b, "preco") ?? Num(b, "custo") ?? Num(b, "price");
+            var compravel = !b.TryGetProperty("compravel", out var cp) || cp.ValueKind != JsonValueKind.False;
+            double? catchRate = b.TryGetProperty("catchRate", out var cr) && cr.ValueKind == JsonValueKind.Number ? cr.GetDouble() : null;
+            lista.Add(new BallInfo((int)id, Str(b, "nome") ?? $"Bola #{id}", preco, compravel, catchRate));
         }
         if (lista.Count > 0) _catalogoBolas = lista.OrderBy(b => b.Id).ToList();
+    }
+
+    private void LerItensCompraveis(JsonElement ic)
+    {
+        var precos = new Dictionary<int, long>();
+        foreach (var x in ic.EnumerateArray())
+            if (x.ValueKind == JsonValueKind.Object && Num(x, "itemId") is { } id && Num(x, "preco") is { } p and > 0)
+                precos[(int)id] = p;
+        if (precos.Count > 0)
+            _catalogoMarket = _catalogoMarket.Select(m => precos.TryGetValue(m.Id, out var p) ? m with { Preco = p } : m).ToList();
     }
 
     private void LerEstado(JsonElement est)
@@ -338,6 +408,8 @@ public sealed class AccountGameState
             _auto.Clear();
             _autoBruta.Clear();
             _ballIds = new();
+            _potionIds = new();
+            _reviveIds = new();
             _travados = new();
             foreach (var p in au.EnumerateObject())
             {
@@ -347,11 +419,18 @@ public sealed class AccountGameState
                     _travados = p.Value.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => (long)x.GetDouble()).ToHashSet();
                 else if (p.NameEquals("ballIds") && p.Value.ValueKind == JsonValueKind.Array)
                     _ballIds = p.Value.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => (int)x.GetDouble()).ToList();
+                else if (p.NameEquals("potionIds") && p.Value.ValueKind == JsonValueKind.Array)
+                    _potionIds = p.Value.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => (int)x.GetDouble()).ToList();
+                else if (p.NameEquals("reviveIds") && p.Value.ValueKind == JsonValueKind.Array)
+                    _reviveIds = p.Value.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => (int)x.GetDouble()).ToList();
             }
         }
         if (est.TryGetProperty("balls", out var bl) && bl.ValueKind == JsonValueKind.Object)
             foreach (var p in bl.EnumerateObject())
                 if (int.TryParse(p.Name, out var id) && p.Value.ValueKind == JsonValueKind.Number) _balls[id] = (long)p.Value.GetDouble();
+        if (est.TryGetProperty("items", out var it) && it.ValueKind == JsonValueKind.Object)
+            foreach (var p in it.EnumerateObject())
+                if (int.TryParse(p.Name, out var id) && p.Value.ValueKind == JsonValueKind.Number) _items[id] = (long)p.Value.GetDouble();
 
         var cheio = est.TryGetProperty("cheio", out var ch) && ch.ValueKind == JsonValueKind.True;
         if (cheio) { _pokemons.Clear(); _camposBrutos.Clear(); _pokBrutos.Clear(); }
