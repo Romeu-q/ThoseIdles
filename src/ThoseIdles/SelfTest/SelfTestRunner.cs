@@ -1606,9 +1606,15 @@ public sealed class SelfTestRunner
                 await Pausa();
                 await Clica(b => b.Tag is int i && i == 205 && b.Content as string == "+10", "comprar 10 Revive");
                 await Pausa();
+                await Task.Delay(1300); // guarda de 1,2 s entre auto-compras
+                await Clica(b => b.Tag is int i && i == 201 && (b.Content as string)?.Contains("Auto") == true, "ligar auto-compra Great Potion");
+                await Pausa(700);
+                var autoComprouBola = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"ball\"") && c.Contains("\"id\":2") && c.Contains("\"qty\":340"));
+                var autoComprouItem = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":201") && c.Contains("\"qty\":100"));
                 var comprouMarket = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":203") && c.Contains("\"qty\":100"))
                                     && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":205") && c.Contains("\"qty\":10"))
-                                    && pedidos.Any(p => p.Contains("Hyper Potion") && p.Contains("80.000"));
+                                    && pedidos.Any(p => p.Contains("Hyper Potion") && p.Contains("80.000"))
+                                    && autoComprouBola && autoComprouItem;
                 await Clica(b => b.Content as string == "💊 Curar", "curar");
                 await Pausa();
                 var curou = Tem("\"centro.curar\"");

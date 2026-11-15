@@ -196,6 +196,7 @@ public sealed class EconomyClient : IAsyncDisposable
                         LoggingService.Log.Info($"[conta{_slot}] Modo econômico conectado (bola automática: {AutoBall?.ToString() ?? "?"}, VIP: {IsVip?.ToString() ?? "?"}).");
                         // O mesmo aviso do Modo Economia do jogo: sem tela, o servidor não precisa mandar o mapa.
                         await SendAsync(ws, new { t = "cliente.economia", ativo = true }, stop);
+                        await VerificarAutoCompraAsync();
                     }
                     else if (type == "batalha")
                     {
@@ -205,6 +206,7 @@ public sealed class EconomyClient : IAsyncDisposable
                         if (Stats.ShiniesCapturados > shiniesAntes)
                             LoggingService.Log.Info($"[conta{_slot}] Modo econômico: SHINY capturado — {Stats.UltimosShinies.FirstOrDefault()}.");
                         if (mudou) AtualizarResumo(Stats.ShiniesCapturados > shiniesAntes);
+                        await VerificarAutoCompraAsync();
                     }
                     else if (welcomed && type == "estado")
                     {
@@ -212,6 +214,7 @@ public sealed class EconomyClient : IAsyncDisposable
                         var leu = false;
                         Parse(message, root => { leu = Stats.LerEstado(root) | Stats.LerBolas(root); Game.Apply(root); });
                         if (leu) AtualizarResumo();
+                        await VerificarAutoCompraAsync();
                     }
                     else if (welcomed && type == "erro")
                     {
@@ -222,11 +225,12 @@ public sealed class EconomyClient : IAsyncDisposable
                         UltimoErroEm = DateTime.UtcNow;
                         ErroRecebido?.Invoke(this, key);
                     }
-                    else if (welcomed && Contains(message, "\"balls\""))
+                    else if (welcomed && (Contains(message, "\"balls\"") || Contains(message, "\"items\"")))
                     {
                         var leu = false;
-                        Parse(message, root => leu = Stats.LerBolas(root));
+                        Parse(message, root => { leu = Stats.LerBolas(root); Game.Apply(root); });
                         if (leu) AtualizarResumo();
+                        await VerificarAutoCompraAsync();
                     }
                     else if (type == "sessao.renovada")
                     {
@@ -362,6 +366,128 @@ public sealed class EconomyClient : IAsyncDisposable
 
     /// <summary>O estado da conta (nível, moedas, hunts, time, automações, bolas) remontado das mensagens do servidor.</summary>
     public AccountGameState Game { get; } = new();
+
+    /// <summary>Configurações persistentes da conta (para a compra automática no Market quando o estoque estiver acabando).</summary>
+    public AccountSettings? Account { get; set; }
+
+    private readonly Dictionary<int, DateTime> _ultimaAutoCompraUtc = new();
+    private DateTime _ultimaAutoCompraGeralUtc = DateTime.MinValue;
+
+    /// <summary>A pokébola está marcada para reposição automática quando acabar?</summary>
+    public bool EstaEmAutoCompraBola(int id)
+    {
+        if (Account is not { AutoBuyBalls: true } acc) return false;
+        if (acc.AutoBuyDisabledIds.Contains(id)) return false;
+        var b = Game.CatalogoBolas.FirstOrDefault(x => x.Id == id);
+        if (b is null || !b.Compravel || b.Preco is null or <= 0) return false;
+        return acc.AutoBuyExtraIds.Contains(id) || Game.BallIds.Contains(id);
+    }
+
+    /// <summary>O item (poção ou revive) está marcado para reposição automática quando acabar?</summary>
+    public bool EstaEmAutoCompraItem(int id)
+    {
+        if (Account is not { } acc || acc.AutoBuyDisabledIds.Contains(id)) return false;
+        var m = Game.CatalogoMarket.FirstOrDefault(x => x.Id == id);
+        if (m is null || m.Preco <= 0) return false;
+        return m.Categoria switch
+        {
+            "potion" => acc.AutoBuyPotions && (acc.AutoBuyExtraIds.Contains(id) || Game.PotionIds.Contains(id)),
+            "revive" => acc.AutoBuyRevives && (acc.AutoBuyExtraIds.Contains(id) || Game.ReviveIds.Contains(id)),
+            _ => false,
+        };
+    }
+
+    /// <summary>Liga ou desliga a reposição automática de uma bola, poção ou revive específico.</summary>
+    public void AlternarAutoCompra(int id, bool ehBola)
+    {
+        if (Account is not { } acc) return;
+        var ativo = ehBola ? EstaEmAutoCompraBola(id) : EstaEmAutoCompraItem(id);
+        if (ativo)
+        {
+            acc.AutoBuyExtraIds.Remove(id);
+            if (!acc.AutoBuyDisabledIds.Contains(id)) acc.AutoBuyDisabledIds.Add(id);
+        }
+        else
+        {
+            acc.AutoBuyDisabledIds.Remove(id);
+            if (!acc.AutoBuyExtraIds.Contains(id)) acc.AutoBuyExtraIds.Add(id);
+            if (ehBola) acc.AutoBuyBalls = true;
+            else
+            {
+                var cat = Game.CatalogoMarket.FirstOrDefault(x => x.Id == id)?.Categoria;
+                if (cat == "potion") acc.AutoBuyPotions = true;
+                else if (cat == "revive") acc.AutoBuyRevives = true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Confere se alguma pokébola, poção ou revive marcado para auto-compra caiu abaixo do estoque mínimo e compra no NPC em ouro.
+    /// Tem guarda de 15 s por item para não repetir o pedido enquanto o servidor processa.
+    /// </summary>
+    public async Task VerificarAutoCompraAsync()
+    {
+        if (_wsAtual is not { State: WebSocketState.Open } ws || !Game.Recebeu || Account is not { } acc) return;
+        var agora = DateTime.UtcNow;
+        if ((agora - _ultimaAutoCompraGeralUtc).TotalSeconds < 1.2) return;
+
+        var ouro = Game.Gold;
+        if (ouro <= 0) return;
+
+        if (acc.AutoBuyBalls)
+        {
+            var min = Math.Max(1, acc.AutoBuyBallsMin);
+            var lote = Math.Max(10, acc.AutoBuyBallsQty);
+            foreach (var b in Game.CatalogoBolas)
+            {
+                if (!EstaEmAutoCompraBola(b.Id) || b.Preco is not { } preco || preco <= 0) continue;
+                var tem = Game.Balls(b.Id);
+                if (tem >= min) { _ultimaAutoCompraUtc.Remove(b.Id); continue; }
+                if (_ultimaAutoCompraUtc.TryGetValue(b.Id, out var ult) && (agora - ult).TotalSeconds < 15) continue;
+
+                var qtd = CalcularQtdCompra(lote, ouro, preco);
+                if (qtd <= 0) continue;
+
+                _ultimaAutoCompraUtc[b.Id] = agora;
+                _ultimaAutoCompraGeralUtc = agora;
+                await SendAsync(ws, new { t = "shop.buy", kind = "ball", id = b.Id, qty = qtd }, CancellationToken.None);
+                Stats.Anotar($"🔄 auto-compra: +{qtd:N0} × {b.Nome} (estoque estava em {tem:N0} < {min:N0})");
+                LoggingService.Log.Info($"[conta{_slot}] Auto-compra: +{qtd} × {b.Nome} (estoque={tem}, mín={min}).");
+                return;
+            }
+        }
+
+        if (acc.AutoBuyPotions || acc.AutoBuyRevives)
+        {
+            var min = Math.Max(1, acc.AutoBuyItemsMin);
+            var lote = Math.Max(10, acc.AutoBuyItemsQty);
+            foreach (var m in Game.CatalogoMarket)
+            {
+                if (m.Categoria is not ("potion" or "revive") || !EstaEmAutoCompraItem(m.Id) || m.Preco <= 0) continue;
+                var tem = Game.Items(m.Id);
+                if (tem >= min) { _ultimaAutoCompraUtc.Remove(m.Id); continue; }
+                if (_ultimaAutoCompraUtc.TryGetValue(m.Id, out var ult) && (agora - ult).TotalSeconds < 15) continue;
+
+                var qtd = CalcularQtdCompra(lote, ouro, m.Preco);
+                if (qtd <= 0) continue;
+
+                _ultimaAutoCompraUtc[m.Id] = agora;
+                _ultimaAutoCompraGeralUtc = agora;
+                await SendAsync(ws, new { t = "shop.buy", kind = "item", id = m.Id, qty = qtd }, CancellationToken.None);
+                Stats.Anotar($"🔄 auto-compra: +{qtd:N0} × {m.Nome} (estoque estava em {tem:N0} < {min:N0})");
+                LoggingService.Log.Info($"[conta{_slot}] Auto-compra: +{qtd} × {m.Nome} (estoque={tem}, mín={min}).");
+                return;
+            }
+        }
+    }
+
+    private static int CalcularQtdCompra(int loteDesejado, long ouroDisponivel, long precoUnitario)
+    {
+        if (precoUnitario <= 0 || ouroDisponivel < precoUnitario * 10) return 0;
+        var max = (int)Math.Min(loteDesejado, ouroDisponivel / precoUnitario);
+        if (max >= loteDesejado) return loteDesejado;
+        return (max / 10) * 10;
+    }
 
     /// <summary>A última recusa do servidor depois de entrar ("erro" com a chave) e o aviso dela.</summary>
     public string? UltimoErro { get; private set; }

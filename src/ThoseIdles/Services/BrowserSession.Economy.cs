@@ -17,6 +17,7 @@ public sealed partial class BrowserSession
 
     public bool IsEconomy => _eco is not null;
     public EconomyClient? Economy => _eco;
+    public void NotifySettingsChanged() => SettingsChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>A conta tem credenciais guardadas para o modo econômico.</summary>
     public bool HasEconomySession => Account.EconomySessionProtected is not null;
@@ -108,7 +109,7 @@ public sealed partial class BrowserSession
     {
         var start = new Uri(_settings.StartUrl);
         var endpoint = new UriBuilder(start.Scheme == Uri.UriSchemeHttps ? "wss" : "ws", start.Host, start.Port, "/").Uri;
-        var eco = new EconomyClient(Slot, endpoint, $"{start.Scheme}://{start.Authority}", userAgent, session);
+        var eco = new EconomyClient(Slot, endpoint, $"{start.Scheme}://{start.Authority}", userAgent, session) { Account = Account };
         eco.StateChanged += OnEconomyStateChanged;
         eco.TokenRenewed += OnEconomyTokenRenewed;
         LigarTotalDoDia(eco.Stats);

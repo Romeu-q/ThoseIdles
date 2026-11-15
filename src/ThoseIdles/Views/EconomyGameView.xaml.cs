@@ -44,7 +44,7 @@ public partial class EconomyGameView : UserControl
     public sealed record TimeLinha(long Id, string Titulo, string Detalhe, string Botao, bool PodeColocar, string Borda, double HpFrac, string HpCor, Visibility HpVisivel);
     public sealed record DepotLinha(long Id, string Titulo, string Detalhe, string BotaoColecao, bool PodeVender, string DicaVender);
     public sealed record BolaLinha(int Id, string Titulo, string Quantidade, string Borda);
-    public sealed record MarketLinha(int Id, string Nome, string Detalhe, bool PodeComprar = true, double Opacidade = 1);
+    public sealed record MarketLinha(int Id, string Nome, string Detalhe, bool PodeComprar = true, double Opacidade = 1, string AutoTexto = "🔄 Auto", string AutoBorda = "#2C2C35");
 
     // ------------------------------------------------------------------ atualização
 
@@ -212,8 +212,21 @@ public partial class EconomyGameView : UserControl
         }).ToList();
     }
 
+    private void SincronizarControlesAutoCompra()
+    {
+        if (Sessao?.Account is not { } acc) return;
+        AutoCompraBolas.IsChecked = AutoCompraBolasMarket.IsChecked = acc.AutoBuyBalls;
+        AutoCompraPocoes.IsChecked = AutoCompraPocoesMarket.IsChecked = acc.AutoBuyPotions;
+        AutoCompraRevives.IsChecked = AutoCompraRevivesMarket.IsChecked = acc.AutoBuyRevives;
+        var txtBolas = $"⚪ < {acc.AutoBuyBallsMin:N0} → +{acc.AutoBuyBallsQty:N0}";
+        var txtItens = $"💊 < {acc.AutoBuyItemsMin:N0} → +{acc.AutoBuyItemsQty:N0}";
+        BtRegraBolas.Content = BtRegraBolasMarket.Content = txtBolas;
+        BtRegraItens.Content = BtRegraItensMarket.Content = txtItens;
+    }
+
     private void AtualizarBolas(AccountGameState g)
     {
+        SincronizarControlesAutoCompra();
         AutoNota.Text = !g.Recebeu ? "Aguardando as automações do jogo…"
             : g.Vip ? "Conta VIP: as duas bolas automáticas estão liberadas."
             : "Sem VIP: as bolas automáticas são do VIP. Reviver, poção e voltar à hunt funcionam sem.";
@@ -252,27 +265,46 @@ public partial class EconomyGameView : UserControl
 
     private void AtualizarMarket(AccountGameState g)
     {
+        SincronizarControlesAutoCompra();
+        var eco = Eco;
+        var acc = Sessao?.Account;
         var bolas = g.CatalogoBolas;
         var catalogo = g.CatalogoMarket;
-        var sig = string.Join(",", bolas.Select(b => $"{b.Id}:{g.Balls(b.Id)}:{b.Preco}:{b.Compravel}"))
-                + "|" + string.Join(",", catalogo.Select(m => $"{m.Id}:{g.Items(m.Id)}:{m.Preco}"));
+        var sig = string.Join(",", bolas.Select(b => $"{b.Id}:{g.Balls(b.Id)}:{b.Preco}:{b.Compravel}:{eco?.EstaEmAutoCompraBola(b.Id)}"))
+                + "|" + string.Join(",", catalogo.Select(m => $"{m.Id}:{g.Items(m.Id)}:{m.Preco}:{eco?.EstaEmAutoCompraItem(m.Id)}"))
+                + $"|{acc?.AutoBuyBallsMin}:{acc?.AutoBuyBallsQty}:{acc?.AutoBuyItemsMin}:{acc?.AutoBuyItemsQty}";
         if (sig == _sigMarket) return;
         _sigMarket = sig;
 
         ListaMarketBolas.ItemsSource = bolas.Select(b =>
         {
             var pode = b.Compravel && (b.Preco is null or > 0);
+            var auto = eco?.EstaEmAutoCompraBola(b.Id) == true;
             var mult = b.CatchRate is { } cr and > 0 ? $"Taxa ×{cr.ToString("0.##", Pt)} · " : "";
             var preco = !b.Compravel ? "Só na loja de diamantes" : b.Preco is { } p and > 0 ? $"🪙 {p.ToString("N0", Pt)} ouro" : "Loja NPC";
-            return new MarketLinha(b.Id, b.Nome, $"{mult}{preco} · na bolsa: {g.Balls(b.Id).ToString("N0", Pt)}", pode, pode ? 1 : 0.5);
+            var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyBallsMin:N0} (+{acc.AutoBuyBallsQty:N0})" : "";
+            return new MarketLinha(b.Id, b.Nome, $"{mult}{preco} · na bolsa: {g.Balls(b.Id).ToString("N0", Pt)}{infoAuto}", pode, pode ? 1 : 0.5,
+                auto ? "✓ Auto" : "🔄 Auto", auto ? "#3FC46E" : "#2C2C35");
         }).ToList();
 
         ListaMarketPocoes.ItemsSource = catalogo.Where(m => m.Categoria == "potion")
-            .Select(m => new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}"))
+            .Select(m =>
+            {
+                var auto = eco?.EstaEmAutoCompraItem(m.Id) == true;
+                var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyItemsMin:N0} (+{acc.AutoBuyItemsQty:N0})" : "";
+                return new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}{infoAuto}",
+                    true, 1, auto ? "✓ Auto" : "🔄 Auto", auto ? "#3FC46E" : "#2C2C35");
+            })
             .ToList();
 
         ListaMarketRevives.ItemsSource = catalogo.Where(m => m.Categoria == "revive")
-            .Select(m => new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}"))
+            .Select(m =>
+            {
+                var auto = eco?.EstaEmAutoCompraItem(m.Id) == true;
+                var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyItemsMin:N0} (+{acc.AutoBuyItemsQty:N0})" : "";
+                return new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}{infoAuto}",
+                    true, 1, auto ? "✓ Auto" : "🔄 Auto", auto ? "#3FC46E" : "#2C2C35");
+            })
             .ToList();
 
         ListaMarketOvos.ItemsSource = catalogo.Where(m => m.Categoria == "egg")
@@ -434,24 +466,81 @@ public partial class EconomyGameView : UserControl
     {
         if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
         var ids = eco.Game.BallIds.ToList();
-        if (!ids.Remove(id)) ids.Add(id);
+        if (!ids.Remove(id)) { ids.Add(id); Sessao?.Account.AutoBuyDisabledIds.Remove(id); }
         await MandarAutomacao(new() { ["ballIds"] = ids });
+        _sigMarket = "";
     }
 
     private async void OnPocaoAuto(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
         var ids = eco.Game.PotionIds.ToList();
-        if (!ids.Remove(id)) ids.Add(id);
+        if (!ids.Remove(id)) { ids.Add(id); Sessao?.Account.AutoBuyDisabledIds.Remove(id); }
         await MandarAutomacao(new() { ["potionIds"] = ids });
+        _sigMarket = "";
     }
 
     private async void OnReviveAuto(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco) return;
         var ids = eco.Game.ReviveIds.ToList();
-        if (!ids.Remove(id)) ids.Add(id);
+        if (!ids.Remove(id)) { ids.Add(id); Sessao?.Account.AutoBuyDisabledIds.Remove(id); }
         await MandarAutomacao(new() { ["reviveIds"] = ids });
+        _sigMarket = "";
+    }
+
+    private void OnAutoCompraCategoria(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox cb || Sessao is not { } s) return;
+        var ligado = cb.IsChecked == true;
+        if (ReferenceEquals(cb, AutoCompraBolas) || ReferenceEquals(cb, AutoCompraBolasMarket)) s.Account.AutoBuyBalls = ligado;
+        else if (ReferenceEquals(cb, AutoCompraPocoes) || ReferenceEquals(cb, AutoCompraPocoesMarket)) s.Account.AutoBuyPotions = ligado;
+        else if (ReferenceEquals(cb, AutoCompraRevives) || ReferenceEquals(cb, AutoCompraRevivesMarket)) s.Account.AutoBuyRevives = ligado;
+        s.NotifySettingsChanged();
+        _sigMarket = _sigBolas = "";
+        Atualizar();
+        if (Eco is { } eco) _ = eco.VerificarAutoCompraAsync();
+    }
+
+    private void OnCiclarRegraBolas(object sender, RoutedEventArgs e)
+    {
+        if (Sessao is not { } s) return;
+        (int Min, int Qty)[] faixas = { (50, 200), (100, 500), (250, 1000), (500, 2000) };
+        var idx = Array.FindIndex(faixas, f => f.Min == s.Account.AutoBuyBallsMin && f.Qty == s.Account.AutoBuyBallsQty);
+        var prox = faixas[(idx + 1) % faixas.Length];
+        s.Account.AutoBuyBallsMin = prox.Min;
+        s.Account.AutoBuyBallsQty = prox.Qty;
+        s.NotifySettingsChanged();
+        _sigMarket = _sigBolas = "";
+        Atualizar();
+        if (Eco is { } eco) _ = eco.VerificarAutoCompraAsync();
+    }
+
+    private void OnCiclarRegraItens(object sender, RoutedEventArgs e)
+    {
+        if (Sessao is not { } s) return;
+        (int Min, int Qty)[] faixas = { (15, 50), (30, 100), (50, 250), (100, 500) };
+        var idx = Array.FindIndex(faixas, f => f.Min == s.Account.AutoBuyItemsMin && f.Qty == s.Account.AutoBuyItemsQty);
+        var prox = faixas[(idx + 1) % faixas.Length];
+        s.Account.AutoBuyItemsMin = prox.Min;
+        s.Account.AutoBuyItemsQty = prox.Qty;
+        s.NotifySettingsChanged();
+        _sigMarket = _sigBolas = "";
+        Atualizar();
+        if (Eco is { } eco) _ = eco.VerificarAutoCompraAsync();
+    }
+
+    private void OnAlternarAutoBola(object sender, RoutedEventArgs e) => AlternarAutoItemOuBola(sender, ehBola: true);
+    private void OnAlternarAutoItem(object sender, RoutedEventArgs e) => AlternarAutoItemOuBola(sender, ehBola: false);
+
+    private void AlternarAutoItemOuBola(object sender, bool ehBola)
+    {
+        if ((sender as FrameworkElement)?.Tag is not int id || Eco is not { } eco || Sessao is not { } s) return;
+        eco.AlternarAutoCompra(id, ehBola);
+        s.NotifySettingsChanged();
+        _sigMarket = _sigBolas = "";
+        Atualizar();
+        _ = eco.VerificarAutoCompraAsync();
     }
 
     private void OnComprar10(object sender, RoutedEventArgs e) => Comprar(sender, 10);

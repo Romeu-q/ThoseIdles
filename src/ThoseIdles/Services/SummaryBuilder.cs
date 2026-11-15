@@ -178,15 +178,20 @@ public static class SummaryBuilder
                 texto += $" · ~{Prazo(dura)} no ritmo atual";
                 if (dura < BolasAcabando) { corBola = Ambar; if (ativa) Avisar($"Pokébolas acabam em ~{Prazo(dura)}", Ambar); }
             }
+            if (s.Economy is { } ecoB && ids.Any(ecoB.EstaEmAutoCompraBola)) texto += " · 🔄 auto-compra";
             linhas.Add(new CartaoLinha("Pokébolas", texto, corBola));
         }
 
         // ---- poções e revives na bolsa ----
         var itensCura = game.CatalogoMarket
-            .Where(m => m.Categoria is "potion" or "revive" && (game.Items(m.Id) > 0 || game.PotionIds.Contains(m.Id) || game.ReviveIds.Contains(m.Id)))
+            .Where(m => m.Categoria is "potion" or "revive" && (game.Items(m.Id) > 0 || game.PotionIds.Contains(m.Id) || game.ReviveIds.Contains(m.Id) || s.Economy?.EstaEmAutoCompraItem(m.Id) == true))
             .ToList();
         if (itensCura.Count > 0)
-            linhas.Add(new CartaoLinha("Cura", string.Join(" · ", itensCura.Select(m => $"{m.Nome} {game.Items(m.Id).ToString("N0", Pt)}"))));
+        {
+            var txtCura = string.Join(" · ", itensCura.Select(m => $"{m.Nome} {game.Items(m.Id).ToString("N0", Pt)}"));
+            if (s.Economy is { } ecoC && itensCura.Any(m => ecoC.EstaEmAutoCompraItem(m.Id))) txtCura += " · 🔄 auto-compra";
+            linhas.Add(new CartaoLinha("Cura", txtCura));
+        }
 
         // ---- bônus de XP ligados e quanto falta ----
         if (game.Recebeu)

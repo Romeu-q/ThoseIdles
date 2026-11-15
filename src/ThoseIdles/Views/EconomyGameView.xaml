@@ -236,17 +236,37 @@
             <!-- Market (loja NPC de ouro: pokébolas, poções, revives e ovos — sem RMT e sem loja de diamantes) -->
             <ScrollViewer x:Name="PainelMarket" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource Mudo}" TextWrapping="Wrap" Margin="0,0,0,8"
-                               Text="Loja NPC (somente compras em ouro — sem mercado de jogadores/RMT e sem loja de diamantes). Toda compra pede confirmação." />
+                    <Border Style="{StaticResource Linha}" BorderBrush="#3FC46E" Margin="0,0,0,8">
+                        <StackPanel>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button x:Name="BtRegraBolasMarket" Style="{StaticResource Mini}" Content="⚪ &lt; 100 → +500" Click="OnCiclarRegraBolas"
+                                            ToolTip="Clique para mudar o estoque mínimo e o lote de reposição das Pokébolas." />
+                                    <Button x:Name="BtRegraItensMarket" Style="{StaticResource Mini}" Content="💊 &lt; 30 → +100" Click="OnCiclarRegraItens"
+                                            ToolTip="Clique para mudar o estoque mínimo e o lote de reposição de Poções e Revives." />
+                                </StackPanel>
+                                <TextBlock Text="🔄 COMPRA AUTOMÁTICA (QUANDO ESTIVER ACABANDO)" FontSize="11" FontWeight="SemiBold" Foreground="#3FC46E" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <WrapPanel Orientation="Horizontal" Margin="0,5,0,3">
+                                <CheckBox x:Name="AutoCompraBolasMarket" Content="Repor Pokébolas" Margin="0,0,14,0" Click="OnAutoCompraCategoria" />
+                                <CheckBox x:Name="AutoCompraPocoesMarket" Content="Repor Poções" Margin="0,0,14,0" Click="OnAutoCompraCategoria" />
+                                <CheckBox x:Name="AutoCompraRevivesMarket" Content="Repor Revives" Click="OnAutoCompraCategoria" />
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Mudo}" TextWrapping="Wrap"
+                                       Text="Repõe sozinho (em ouro, sem pedir confirmação) os itens com “✓ Auto” abaixo ou marcados na aba Bolas e automação quando o estoque cair abaixo do mínimo." />
+                        </StackPanel>
+                    </Border>
                     <TextBlock Text="⚪ POKÉBOLAS" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,0,0,6" />
                     <ItemsControl x:Name="ListaMarketBolas">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Style="{StaticResource Linha}" Opacity="{Binding Opacidade}">
+                                <Border Style="{StaticResource Linha}" BorderBrush="{Binding AutoBorda}" Opacity="{Binding Opacidade}">
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar1000" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar100" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar10" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}"
+                                                IsEnabled="{Binding PodeComprar}" Click="OnAlternarAutoBola" ToolTip="Liga ou desliga a compra automática desta bola quando estiver acabando." />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
@@ -261,11 +281,13 @@
                     <ItemsControl x:Name="ListaMarketPocoes">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Style="{StaticResource Linha}">
+                                <Border Style="{StaticResource Linha}" BorderBrush="{Binding AutoBorda}">
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" Click="OnComprarItem10" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}"
+                                                Click="OnAlternarAutoItem" ToolTip="Liga ou desliga a compra automática desta poção quando estiver acabando." />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
@@ -280,11 +302,13 @@
                     <ItemsControl x:Name="ListaMarketRevives">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Style="{StaticResource Linha}">
+                                <Border Style="{StaticResource Linha}" BorderBrush="{Binding AutoBorda}">
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" Click="OnComprarItem10" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}"
+                                                Click="OnAlternarAutoItem" ToolTip="Liga ou desliga a compra automática deste revive quando estiver acabando." />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
@@ -323,6 +347,24 @@
                     <CheckBox x:Name="AutoRevive" Content="Reviver sozinho" Click="OnAutoSimples" />
                     <CheckBox x:Name="AutoPotion" Content="Usar poção sozinho" Click="OnAutoSimples" />
                     <CheckBox x:Name="AutoVoltar" Content="Voltar para a hunt depois de curar" Click="OnAutoSimples" />
+                    <Border Style="{StaticResource Linha}" BorderBrush="#3FC46E" Margin="0,8,0,0">
+                        <StackPanel>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button x:Name="BtRegraBolas" Style="{StaticResource Mini}" Content="⚪ &lt; 100 → +500" Click="OnCiclarRegraBolas"
+                                            ToolTip="Clique para mudar o estoque mínimo e o lote de reposição das Pokébolas." />
+                                    <Button x:Name="BtRegraItens" Style="{StaticResource Mini}" Content="💊 &lt; 30 → +100" Click="OnCiclarRegraItens"
+                                            ToolTip="Clique para mudar o estoque mínimo e o lote de reposição de Poções e Revives." />
+                                </StackPanel>
+                                <TextBlock Text="🔄 COMPRAR AUTOMÁTICO QUANDO ESTIVER ACABANDO" FontSize="11" FontWeight="SemiBold" Foreground="#3FC46E" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                <CheckBox x:Name="AutoCompraBolas" Content="Repor Pokébolas marcadas" Margin="0,0,14,0" Click="OnAutoCompraCategoria" />
+                                <CheckBox x:Name="AutoCompraPocoes" Content="Repor Poções marcadas" Margin="0,0,14,0" Click="OnAutoCompraCategoria" />
+                                <CheckBox x:Name="AutoCompraRevives" Content="Repor Revives marcados" Click="OnAutoCompraCategoria" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
                     <TextBlock Text="BOLAS USADAS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,12,0,6" />
                     <ItemsControl x:Name="ListaBolas">
                         <ItemsControl.ItemTemplate>

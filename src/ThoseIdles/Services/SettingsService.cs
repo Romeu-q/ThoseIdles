@@ -46,6 +46,25 @@ public sealed class AccountSettings
     public string? HuntExtensionId { get; set; }
     public string? HuntExtensionFolder { get; set; }
 
+    /// <summary>Compra automaticamente no Market NPC (em ouro) pokébolas, poções e revives quando o estoque estiver acabando.</summary>
+    public bool AutoBuyBalls { get; set; } = true;
+    public bool AutoBuyPotions { get; set; } = true;
+    public bool AutoBuyRevives { get; set; } = true;
+
+    /// <summary>Quando uma pokébola marcada tiver menos que isso na bolsa, compra <see cref="AutoBuyBallsQty"/>.</summary>
+    public int AutoBuyBallsMin { get; set; } = 100;
+    public int AutoBuyBallsQty { get; set; } = 500;
+
+    /// <summary>Quando uma poção ou revive marcado tiver menos que isso na bolsa, compra <see cref="AutoBuyItemsQty"/>.</summary>
+    public int AutoBuyItemsMin { get; set; } = 30;
+    public int AutoBuyItemsQty { get; set; } = 100;
+
+    /// <summary>IDs de bolas/poções/revives marcados diretamente para auto-compra no Market (além dos marcados na automação).</summary>
+    public List<int> AutoBuyExtraIds { get; set; } = new();
+
+    /// <summary>IDs de bolas/poções/revives que o usuário desligou da auto-compra mesmo estando na automação.</summary>
+    public List<int> AutoBuyDisabledIds { get; set; } = new();
+
     [JsonIgnore]
     public string ProfileName => ProfileManager.ProfileNameForSlot(Slot);
 }
@@ -247,6 +266,12 @@ public sealed class AppSettings
             a.LiveChannels = a.LiveChannels
                 .Where(BrowserSession.IsValidLiveId)
                 .Select(c => c.ToLowerInvariant()).Distinct().Take(BrowserSession.MaxLivesPerAccount).ToList();
+            a.AutoBuyBallsMin = Math.Clamp(a.AutoBuyBallsMin > 0 ? a.AutoBuyBallsMin : 100, 10, 50_000);
+            a.AutoBuyBallsQty = Math.Clamp(a.AutoBuyBallsQty > 0 ? a.AutoBuyBallsQty : 500, 10, 50_000);
+            a.AutoBuyItemsMin = Math.Clamp(a.AutoBuyItemsMin > 0 ? a.AutoBuyItemsMin : 30, 5, 10_000);
+            a.AutoBuyItemsQty = Math.Clamp(a.AutoBuyItemsQty > 0 ? a.AutoBuyItemsQty : 100, 10, 10_000);
+            a.AutoBuyExtraIds = (a.AutoBuyExtraIds ?? new()).Distinct().ToList();
+            a.AutoBuyDisabledIds = (a.AutoBuyDisabledIds ?? new()).Distinct().ToList();
         }
     }
 }

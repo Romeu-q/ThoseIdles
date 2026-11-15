@@ -258,6 +258,18 @@ public sealed class SelfTestServer : IDisposable
                     await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { automation = o } }));
                     break;
                 }
+                case "shop.buy":
+                {
+                    var kind = r.TryGetProperty("kind", out var kv) ? kv.GetString() : "ball";
+                    var id = r.TryGetProperty("id", out var iv) ? iv.GetInt32() : 0;
+                    var qty = r.TryGetProperty("qty", out var qv) ? qv.GetInt32() : 0;
+                    var dict = new Dictionary<string, int> { [id.ToString()] = qty + 50 };
+                    if (kind == "ball")
+                        await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { balls = dict } }));
+                    else
+                        await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { items = dict } }));
+                    break;
+                }
             }
             return false;
         }

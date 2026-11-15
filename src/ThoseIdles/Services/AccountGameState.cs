@@ -76,6 +76,20 @@ public sealed class AccountGameState
                     case "ataque" when HuntSlug is not null && !NoCentro:
                         _centroLivreEm = AgoraServidorMs + 3000;
                         break;
+                    case "bola":
+                        if (Num(e, "ballId") is { } bid and > 0 && _balls.TryGetValue((int)bid, out var qb) && qb > 0)
+                            _balls[(int)bid] = qb - 1;
+                        break;
+                    case "pocao" or "revive" or "cura":
+                        if (Num(e, "itemId") is { } iid and > 0 && _items.TryGetValue((int)iid, out var qi) && qi > 0)
+                            _items[(int)iid] = qi - 1;
+                        break;
+                    case "morte" when Str(e, "quem") == "selvagem":
+                        if (Num(e, "ouro") is { } ouro and > 0) Gold += ouro;
+                        break;
+                    case "bossMorto":
+                        if (Num(e, "valor") is { } val and > 0) Gold += val;
+                        break;
                 }
             }
         }
