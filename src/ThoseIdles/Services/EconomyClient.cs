@@ -373,10 +373,18 @@ public sealed class EconomyClient : IAsyncDisposable
     private readonly Dictionary<int, DateTime> _ultimaAutoCompraUtc = new();
     private DateTime _ultimaAutoCompraGeralUtc = DateTime.MinValue;
 
+    /// <summary>A auto-compra só repõe Ultra Ball, Max Revive e Golden Potion (e sempre na quantidade máxima).</summary>
+    public static bool PermitidoNaAutoCompra(string? nome)
+    {
+        var n = new string((nome ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        return n is "ultraball" or "maxrevive" or "goldenpotion";
+    }
+
     /// <summary>A pokébola está marcada para reposição automática quando acabar?</summary>
     public bool EstaEmAutoCompraBola(int id)
     {
         if (Account is not { AutoBuyBalls: true } acc) return false;
+        if (!PermitidoNaAutoCompra(Game.CatalogoBolas.FirstOrDefault(x => x.Id == id)?.Nome)) return false;
         if (acc.AutoBuyDisabledIds.Contains(id)) return false;
         var b = Game.CatalogoBolas.FirstOrDefault(x => x.Id == id);
         if (b is null || !b.Compravel || b.Preco is null or <= 0) return false;
@@ -388,7 +396,7 @@ public sealed class EconomyClient : IAsyncDisposable
     {
         if (Account is not { } acc || acc.AutoBuyDisabledIds.Contains(id)) return false;
         var m = Game.CatalogoMarket.FirstOrDefault(x => x.Id == id);
-        if (m is null || m.Preco <= 0) return false;
+        if (m is null || m.Preco <= 0 || !PermitidoNaAutoCompra(m.Nome)) return false;
         return m.Categoria switch
         {
             "potion" => acc.AutoBuyPotions && (acc.AutoBuyExtraIds.Contains(id) || Game.PotionIds.Contains(id)),
@@ -401,6 +409,8 @@ public sealed class EconomyClient : IAsyncDisposable
     public void AlternarAutoCompra(int id, bool ehBola)
     {
         if (Account is not { } acc) return;
+        var nome = ehBola ? Game.CatalogoBolas.FirstOrDefault(x => x.Id == id)?.Nome : Game.CatalogoMarket.FirstOrDefault(x => x.Id == id)?.Nome;
+        if (!PermitidoNaAutoCompra(nome)) return;
         var ativo = ehBola ? EstaEmAutoCompraBola(id) : EstaEmAutoCompraItem(id);
         if (ativo)
         {
@@ -483,10 +493,9 @@ public sealed class EconomyClient : IAsyncDisposable
 
     private static int CalcularQtdCompra(int loteDesejado, long ouroDisponivel, long precoUnitario)
     {
-        if (precoUnitario <= 0 || ouroDisponivel < precoUnitario * 10) return 0;
-        var max = (int)Math.Min(loteDesejado, ouroDisponivel / precoUnitario);
-        if (max >= loteDesejado) return loteDesejado;
-        return (max / 10) * 10;
+        // Sempre a quantidade MÁXIMA (o "Máx" da loja: até 9.999, o que o ouro paga).
+        if (precoUnitario <= 0) return 0;
+        return (int)Math.Min(9999, ouroDisponivel / precoUnitario);
     }
 
     /// <summary>A última recusa do servidor depois de entrar ("erro" com a chave) e o aviso dela.</summary>

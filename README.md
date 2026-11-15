@@ -359,6 +359,8 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
   confirmação). O pedido leva as automações **inteiras**, como o jogo faz (o limiar de HP e a Coleção seguem).
 - **Registro:** abates, capturas, shinies, níveis e as recusas do servidor.
 
+**Auto-compra (Market NPC):** repõe **somente Ultra Ball, Max Revive e Golden Potion**, sempre na **quantidade máxima** (o "Máx" da loja: até 9.999, limitado pelo ouro), quando o estoque cai abaixo do mínimo. Os outros itens continuam à venda pelos botões manuais, com confirmação.
+
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
 **✋ Desistir** do combate (pede confirmação). **Abrir o jogo completo** sai do modo econômico.
 
