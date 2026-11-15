@@ -327,7 +327,7 @@ public sealed class AccountGameState
                 }
             if (root.TryGetProperty("hunts", out var hs) && hs.ValueKind == JsonValueKind.Array) LerHunts(hs);
             if (root.TryGetProperty("catalogoBolas", out var cb) && cb.ValueKind == JsonValueKind.Array) LerCatalogoBolas(cb);
-            if (root.TryGetProperty("itensCompraveis", out var ic) && ic.ValueKind == JsonValueKind.Array) LerItensCompraveis(ic);
+            if (root.TryGetProperty("itensCompraveis", out var ic) && ic.ValueKind == JsonValueKind.Array) LerItensCompraveis(ic, root.TryGetProperty("itensNossos", out var inn) && inn.ValueKind == JsonValueKind.Array ? inn : null);
             var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
             LerEstado(est);
             Recebeu = true;
@@ -362,14 +362,30 @@ public sealed class AccountGameState
         if (lista.Count > 0) _catalogoBolas = lista.OrderBy(b => b.Id).ToList();
     }
 
-    private void LerItensCompraveis(JsonElement ic)
+    private void LerItensCompraveis(JsonElement ic, JsonElement? itensNossos = null)
     {
+        // Nomes dos itens próprios do servidor (o Golden Potion e afins não estão no items.json público).
+        var nomes = new Dictionary<int, (string Nome, string Cat)>();
+        if (itensNossos is { } inn)
+            foreach (var i in inn.EnumerateArray())
+                if (i.ValueKind == JsonValueKind.Object && Num(i, "id") is { } iid && (Str(i, "name") ?? Str(i, "nome")) is { Length: > 0 } nm)
+                    nomes[(int)iid] = (nm, Str(i, "category") ?? Str(i, "categoria") ?? "");
         var precos = new Dictionary<int, long>();
+        var novos = new List<ShopItemInfo>();
         foreach (var x in ic.EnumerateArray())
-            if (x.ValueKind == JsonValueKind.Object && Num(x, "itemId") is { } id && Num(x, "preco") is { } p and > 0)
-                precos[(int)id] = p;
-        if (precos.Count > 0)
-            _catalogoMarket = _catalogoMarket.Select(m => precos.TryGetValue(m.Id, out var p) ? m with { Preco = p } : m).ToList();
+        {
+            if (x.ValueKind != JsonValueKind.Object || Num(x, "itemId") is not { } id || Num(x, "preco") is not { } p || p <= 0) continue;
+            precos[(int)id] = p;
+            if (_catalogoMarket.Any(m => m.Id == (int)id)) continue;
+            var nome = Str(x, "nome") ?? Str(x, "name") ?? (nomes.TryGetValue((int)id, out var n) ? n.Nome : null);
+            if (nome is null) { LoggingService.Log.Info($"Market: item sem nome no welcome (itemId {id}, preço {p})."); continue; }
+            var cat = Str(x, "categoria") ?? Str(x, "category") ?? (nomes.TryGetValue((int)id, out var n2) ? n2.Cat : "");
+            if (cat.Length == 0) cat = nome.Contains("revive", StringComparison.OrdinalIgnoreCase) ? "revive" : nome.Contains("potion", StringComparison.OrdinalIgnoreCase) ? "potion" : "item";
+            novos.Add(new ShopItemInfo((int)id, nome, cat, Str(x, "descricao") ?? "", p));
+        }
+        if (precos.Count == 0) return;
+        _catalogoMarket = _catalogoMarket.Select(m => precos.TryGetValue(m.Id, out var p) ? m with { Preco = p } : m).Concat(novos).ToList();
+        if (novos.Count > 0) LoggingService.Log.Info("Market: itens novos lidos do jogo: " + string.Join(", ", novos.Select(n => $"{n.Nome} (id {n.Id}, {n.Categoria}, {n.Preco})")));
     }
 
     private void LerEstado(JsonElement est)
