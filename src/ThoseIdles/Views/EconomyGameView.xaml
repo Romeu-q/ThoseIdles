@@ -1,19 +1,19 @@
 <UserControl x:Class="ThoseIdles.Views.EconomyGameView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Foreground="{StaticResource Text}" FontFamily="Segoe UI">
+             Foreground="{StaticResource Text}" FontFamily="{StaticResource PixelFont}">
     <UserControl.Resources>
         <!-- Abas (uma só marcada por vez: os RadioButtons dividem o mesmo painel pai) -->
         <Style x:Key="AbaBt" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="bd" Background="Transparent" CornerRadius="5" Padding="12,4" Margin="0,0,4,0">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="3" Padding="12,4" Margin="0,0,4,0">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -34,19 +34,19 @@
             <Setter Property="MinHeight" Value="24" />
             <Setter Property="Padding" Value="9,2" />
             <Setter Property="Margin" Value="8,0,0,0" />
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
         </Style>
         <Style x:Key="Linha" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBg}" />
             <Setter Property="BorderBrush" Value="{StaticResource Border}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="CornerRadius" Value="3" />
             <Setter Property="Padding" Value="10,6" />
             <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
         <Style x:Key="Mudo" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="12" />
         </Style>
     </UserControl.Resources>
 
@@ -60,24 +60,24 @@
         <!-- Treinador: nick, nível, barra de XP e moedas -->
         <DockPanel Grid.Row="0">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock x:Name="Ouro" Text="🪙 —" FontSize="12" Margin="0,0,10,0" ToolTip="Ouro" />
-                <TextBlock x:Name="Diamantes" Text="💎 —" FontSize="12" Margin="0,0,10,0" ToolTip="Diamantes" />
-                <TextBlock x:Name="Gemas" Text="◆ —" FontSize="12" Foreground="#F26DB0" ToolTip="Gemas" />
+                <TextBlock x:Name="Ouro" Text="🪙 —" FontSize="13" Margin="0,0,10,0" ToolTip="Ouro" />
+                <TextBlock x:Name="Diamantes" Text="💎 —" FontSize="13" Margin="0,0,10,0" ToolTip="Diamantes" />
+                <TextBlock x:Name="Gemas" Text="◆ —" FontSize="13" Foreground="#F26DB0" ToolTip="Gemas" />
             </StackPanel>
-            <TextBlock x:Name="Nick" Text="—" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <TextBlock x:Name="Nivel" Text="" FontSize="12" Foreground="{StaticResource Muted}" Margin="8,0,0,0" VerticalAlignment="Center" />
+            <TextBlock x:Name="Nick" Text="—" FontSize="15" FontWeight="Normal" VerticalAlignment="Center" />
+            <TextBlock x:Name="Nivel" Text="" FontSize="13" Foreground="{StaticResource Muted}" Margin="8,0,0,0" VerticalAlignment="Center" />
         </DockPanel>
         <Grid Grid.Row="1" Margin="0,5,0,0" Height="14">
             <ProgressBar x:Name="BarraXp" Minimum="0" Maximum="1" Value="0" Foreground="#4C8DFF" Background="{StaticResource CardBg}" BorderThickness="0" />
-            <TextBlock x:Name="TextoXp" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" />
+            <TextBlock x:Name="TextoXp" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" />
         </Grid>
 
         <!-- O que está acontecendo -->
         <Border Grid.Row="2" Style="{StaticResource Linha}" Margin="0,6,0,6" Padding="10,4">
             <StackPanel>
-                <TextBlock x:Name="Situacao" Text="Conectando…" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="Situacao" Text="Conectando…" FontSize="13.5" FontWeight="Normal" TextWrapping="Wrap" />
                 <TextBlock x:Name="Detalhe" Style="{StaticResource Mudo}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                <TextBlock x:Name="Aviso" FontSize="11.5" Foreground="#F0B429" TextWrapping="Wrap" Margin="0,3,0,0" Visibility="Collapsed" />
+                <TextBlock x:Name="Aviso" FontSize="12.5" Foreground="#F0B429" TextWrapping="Wrap" Margin="0,3,0,0" Visibility="Collapsed" />
             </StackPanel>
         </Border>
 
@@ -105,9 +105,9 @@
             <DockPanel x:Name="PainelCacar">
 
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
-                    <TextBox x:Name="Filtro" Padding="6,4" FontSize="12" Background="{StaticResource CardBg}" Foreground="{StaticResource Text}"
+                    <TextBox x:Name="Filtro" Padding="6,4" FontSize="13" Background="{StaticResource CardBg}" Foreground="{StaticResource Text}"
                              BorderBrush="{StaticResource Border}" CaretBrush="{StaticResource Text}" TextChanged="OnFiltro" />
-                    <TextBlock Text="🔎 Buscar hunt ou região…" IsHitTestVisible="False" Foreground="{StaticResource Muted}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="🔎 Buscar hunt ou região…" IsHitTestVisible="False" Foreground="{StaticResource Muted}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -124,7 +124,7 @@
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="↻ Recalcular" Click="OnRecalcular"
                                         ToolTip="Recalcula agora (leva alguns segundos; o app abre o Hub escondido, sem login)." />
-                                <TextBlock Text="🏆 MELHORES HUNTS DE XP AGORA" FontSize="11" FontWeight="SemiBold" Foreground="#F0B429" VerticalAlignment="Center" />
+                                <TextBlock Text="🏆 MELHORES HUNTS DE XP AGORA" FontSize="12" FontWeight="Normal" Foreground="#F0B429" VerticalAlignment="Center" />
                             </DockPanel>
                             <TextBlock x:Name="MelhoresInfo" Style="{StaticResource Mudo}" TextWrapping="Wrap" Margin="0,3,0,4" />
                             <ItemsControl x:Name="ListaMelhores">
@@ -133,7 +133,7 @@
                                         <DockPanel Margin="0,0,0,4">
                                             <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding Botao}" Tag="{Binding Slug}" IsEnabled="{Binding PodeCacar}" Click="OnCacar" />
                                             <StackPanel>
-                                                <TextBlock Text="{Binding Titulo}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Titulo}" FontSize="13.5" FontWeight="Normal" TextWrapping="Wrap" />
                                                 <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </DockPanel>
@@ -150,7 +150,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding Botao}" Tag="{Binding Slug}"
                                                 IsEnabled="{Binding PodeCacar}" Click="OnCacar" />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Nome}" FontSize="13.5" FontWeight="Normal" TextWrapping="Wrap" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" />
                                         </StackPanel>
                                     </DockPanel>
@@ -176,7 +176,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding Botao}" Tag="{Binding Id}"
                                                 IsEnabled="{Binding PodeColocar}" Click="OnAtivo" />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Titulo}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Titulo}" FontSize="13.5" FontWeight="Normal" TextWrapping="Wrap" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" />
                                             <ProgressBar Minimum="0" Maximum="1" Value="{Binding HpFrac, Mode=OneWay}" Height="4" Margin="0,4,0,0"
                                                          Foreground="{Binding HpCor}" Background="#2A2A33" BorderThickness="0" Visibility="{Binding HpVisivel}" />
@@ -196,9 +196,9 @@
                     <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="‹" Click="OnDepotAnterior" ToolTip="Página anterior" />
                     <TextBlock x:Name="DepotPagina" DockPanel.Dock="Right" Style="{StaticResource Mudo}" VerticalAlignment="Center" Margin="8,0,0,0" />
                     <Grid>
-                        <TextBox x:Name="FiltroDepot" Padding="6,4" FontSize="12" Background="{StaticResource CardBg}" Foreground="{StaticResource Text}"
+                        <TextBox x:Name="FiltroDepot" Padding="6,4" FontSize="13" Background="{StaticResource CardBg}" Foreground="{StaticResource Text}"
                                  BorderBrush="{StaticResource Border}" CaretBrush="{StaticResource Text}" TextChanged="OnFiltroDepot" />
-                        <TextBlock Text="🔎 Buscar no Depot…" IsHitTestVisible="False" Foreground="{StaticResource Muted}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="🔎 Buscar no Depot…" IsHitTestVisible="False" Foreground="{StaticResource Muted}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -222,7 +222,7 @@
                                                 ToolTip="Coleção: protege o Pokémon da venda e das automações." />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="→ Time" Tag="{Binding Id}" Click="OnParaTime" />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Titulo}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Titulo}" FontSize="13.5" FontWeight="Normal" TextWrapping="Wrap" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" />
                                         </StackPanel>
                                     </DockPanel>
@@ -245,7 +245,7 @@
                                     <Button x:Name="BtRegraItensMarket" Style="{StaticResource Mini}" Content="💊 &lt; 30 → +100" Click="OnCiclarRegraItens"
                                             ToolTip="Clique para mudar o estoque mínimo e o lote de reposição de Poções e Revives." />
                                 </StackPanel>
-                                <TextBlock Text="🔄 COMPRA AUTOMÁTICA (QUANDO ESTIVER ACABANDO)" FontSize="11" FontWeight="SemiBold" Foreground="#3FC46E" VerticalAlignment="Center" />
+                                <TextBlock Text="🔄 COMPRA AUTOMÁTICA (QUANDO ESTIVER ACABANDO)" FontSize="12" FontWeight="Normal" Foreground="#3FC46E" VerticalAlignment="Center" />
                             </DockPanel>
                             <WrapPanel Orientation="Horizontal" Margin="0,5,0,3">
                                 <CheckBox x:Name="AutoCompraBolasMarket" Content="Repor Pokébolas" Margin="0,0,14,0" Click="OnAutoCompraCategoria" />
@@ -256,7 +256,7 @@
                                        Text="Repõe sozinho (em ouro, sem pedir confirmação) os itens com “✓ Auto” abaixo ou marcados na aba Bolas e automação quando o estoque cair abaixo do mínimo." />
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="⚪ POKÉBOLAS" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock Text="⚪ POKÉBOLAS" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,0,0,6" />
                     <ItemsControl x:Name="ListaMarketBolas">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -268,7 +268,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}" Visibility="{Binding AutoVisivel}"
                                                 IsEnabled="{Binding PodeComprar}" Click="OnAlternarAutoBola" ToolTip="Liga ou desliga a compra automática desta bola quando estiver acabando." />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Nome}" FontSize="13.5" FontWeight="Normal" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DockPanel>
@@ -277,7 +277,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="🧪 POÇÕES" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,10,0,6" />
+                    <TextBlock Text="🧪 POÇÕES" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,10,0,6" />
                     <ItemsControl x:Name="ListaMarketPocoes">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -289,7 +289,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}" Visibility="{Binding AutoVisivel}"
                                                 Click="OnAlternarAutoItem" ToolTip="Liga ou desliga a compra automática desta poção quando estiver acabando." />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Nome}" FontSize="13.5" FontWeight="Normal" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DockPanel>
@@ -298,7 +298,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="💊 REVIVES" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,10,0,6" />
+                    <TextBlock Text="💊 REVIVES" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,10,0,6" />
                     <ItemsControl x:Name="ListaMarketRevives">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -310,7 +310,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}" Visibility="{Binding AutoVisivel}"
                                                 Click="OnAlternarAutoItem" ToolTip="Liga ou desliga a compra automática deste revive quando estiver acabando." />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Nome}" FontSize="13.5" FontWeight="Normal" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DockPanel>
@@ -319,7 +319,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="🥚 OVOS MISTERIOSOS (NPC)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,10,0,6" />
+                    <TextBlock Text="🥚 OVOS MISTERIOSOS (NPC)" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,10,0,6" />
                     <ItemsControl x:Name="ListaMarketOvos">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -327,7 +327,7 @@
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1" Tag="{Binding Id}" Click="OnComprarItem1" />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Nome}" FontSize="13.5" FontWeight="Normal" />
                                             <TextBlock Text="{Binding Detalhe}" Style="{StaticResource Mudo}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DockPanel>
@@ -356,7 +356,7 @@
                                     <Button x:Name="BtRegraItens" Style="{StaticResource Mini}" Content="💊 &lt; 30 → +100" Click="OnCiclarRegraItens"
                                             ToolTip="Clique para mudar o estoque mínimo e o lote de reposição de Poções e Revives." />
                                 </StackPanel>
-                                <TextBlock Text="🔄 COMPRAR AUTOMÁTICO QUANDO ESTIVER ACABANDO" FontSize="11" FontWeight="SemiBold" Foreground="#3FC46E" VerticalAlignment="Center" />
+                                <TextBlock Text="🔄 COMPRAR AUTOMÁTICO QUANDO ESTIVER ACABANDO" FontSize="12" FontWeight="Normal" Foreground="#3FC46E" VerticalAlignment="Center" />
                             </DockPanel>
                             <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <CheckBox x:Name="AutoCompraBolas" Content="Repor Pokébolas marcadas" Margin="0,0,14,0" Click="OnAutoCompraCategoria" />
@@ -365,7 +365,7 @@
                             </WrapPanel>
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="BOLAS USADAS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <TextBlock Text="BOLAS USADAS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,12,0,6" />
                     <ItemsControl x:Name="ListaBolas">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -386,7 +386,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="POÇÕES USADAS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <TextBlock Text="POÇÕES USADAS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,12,0,6" />
                     <ItemsControl x:Name="ListaAutoPocoes">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -407,7 +407,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="REVIVES USADOS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <TextBlock Text="REVIVES USADOS PELA AUTOMAÇÃO (toque para ligar/desligar)" Style="{StaticResource Mudo}" FontWeight="Normal" Margin="0,12,0,6" />
                     <ItemsControl x:Name="ListaAutoRevives">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -432,7 +432,7 @@
 
             <!-- Registro -->
             <ScrollViewer x:Name="PainelRegistro" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                <TextBlock x:Name="TextoRegistro" FontFamily="Consolas" FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" LineHeight="17" />
+                <TextBlock x:Name="TextoRegistro" FontFamily="{StaticResource PixelFont}" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" LineHeight="17" />
             </ScrollViewer>
         </Grid>
 

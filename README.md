@@ -363,6 +363,8 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
 
 **Ouro da sessão:** soma o ouro dos abates **e o valor de venda (estimado) dos Pokémon capturados**, com a conta do jogo: valor da espécie × (1 + Nv/50, até o Nv 100) × qualidade × 10 se shiny. O Resumo mostra quanto disso veio das capturas.
 
+**Visual:** a interface do app (não a página do jogo) tem cara de Pokémon Gen 3 no modo escuro: fonte pixel (Pixelify Sans, licença OFL), caixas com borda de 2 px e cantos em degrau, sombra dura e o cursor ▶ vermelho nos botões.
+
 **Melhor hunt:** o Resumo mostra sempre a **melhor hunt de XP** e a **melhor da Outland**, com o tier da conta (Outland 1 a 8, liberados pelo nível do treinador; o tier multiplica os drops). A aba Caçar lista o top 5 de XP e, se a melhor da Outland ficar fora dele, ela vem junto.
 
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e

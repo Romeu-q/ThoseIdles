@@ -1311,6 +1311,7 @@ public sealed class SelfTestRunner
             SummarySnapshot snap = (await _window.Dispatcher.InvokeAsync(() => vista.Atualizar()))!;
             await Task.Delay(400);
             await _window.Dispatcher.InvokeAsync(() => FotoDe(vista, "foto-resumo.png"));
+            await _window.Dispatcher.InvokeAsync(() => FotoDe((System.Windows.FrameworkElement)_window.Content, "foto-janela.png"));
             var linha = snap.Linhas.FirstOrDefault(l => l.Slot == 1);
             var hoje = DailyTotals.Instance.Da(1);
             // Depois a conta vai caçar na OUTLAND: o resumo mostra a área e conta a conta no cartão.

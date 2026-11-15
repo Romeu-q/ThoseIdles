@@ -1,34 +1,34 @@
 <UserControl x:Class="ThoseIdles.Views.SummaryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="{StaticResource WindowBg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI">
+             Background="{StaticResource WindowBg}" Foreground="{StaticResource Text}" FontFamily="{StaticResource PixelFont}">
     <UserControl.Resources>
         <!-- Cartão de número grande -->
         <Style x:Key="CartaoNum" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBg}" />
             <Setter Property="BorderBrush" Value="{StaticResource Border}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="CornerRadius" Value="3" />
             <Setter Property="Padding" Value="16,12" />
             <Setter Property="Margin" Value="0,0,10,0" />
         </Style>
         <Style x:Key="Grande" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontWeight" Value="Normal" />
         </Style>
         <Style x:Key="Legenda" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontSize" Value="11.5" />
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
         <Style x:Key="Secao" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10.5" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
         <Style x:Key="Cel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontSize" Value="13.5" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,0,12,0" />
         </Style>
@@ -36,8 +36,8 @@
         <Style x:Key="Cabecalho" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
-            <Setter Property="FontSize" Value="10.5" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -90,7 +90,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="bd" Background="{TemplateBinding Background}" BorderBrush="{StaticResource Border}" BorderThickness="1"
-                                CornerRadius="8" Padding="16,12">
+                                CornerRadius="3" Padding="16,12">
                             <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Top" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -145,12 +145,12 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
         <StackPanel Margin="18,14,18,18">
             <DockPanel Margin="0,0,0,12">
-                <TextBlock DockPanel.Dock="Right" x:Name="Atualizado" Foreground="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" />
-                <TextBlock Text="RESUMO DAS CONTAS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                <TextBlock DockPanel.Dock="Right" x:Name="Atualizado" Foreground="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" />
+                <TextBlock Text="RESUMO DAS CONTAS" FontSize="13" FontWeight="Normal" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
             </DockPanel>
 
             <!-- O que precisa de atenção agora (ou "tudo certo") -->
-            <Border x:Name="CartaoAvisos" Background="#241E14" BorderBrush="#6B5320" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,14" Visibility="Collapsed">
+            <Border x:Name="CartaoAvisos" Background="#241E14" BorderBrush="#6B5320" BorderThickness="1" CornerRadius="3" Padding="12,10" Margin="0,0,0,14" Visibility="Collapsed">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Secao}" Foreground="#F0B429" Text="⚠ PRECISA DE ATENÇÃO · CLIQUE PARA ABRIR A CONTA" Margin="6,0,0,4" />
                     <ItemsControl x:Name="Avisos">
@@ -159,8 +159,8 @@
                                 <Button Style="{StaticResource AvisoBt}" Tag="{Binding Slot}" Click="OnOpenAccount">
                                     <StackPanel Orientation="Horizontal">
                                         <Ellipse Width="9" Height="9" Fill="{Binding Cor}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Conta}" FontWeight="SemiBold" FontSize="12.5" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Texto}" Foreground="{Binding TextoCor}" FontSize="12.5" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Conta}" FontWeight="Normal" FontSize="13.5" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Texto}" Foreground="{Binding TextoCor}" FontSize="13.5" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </DataTemplate>
@@ -168,12 +168,12 @@
                     </ItemsControl>
                 </StackPanel>
             </Border>
-            <Border x:Name="CartaoTudoCerto" Background="#14231A" BorderBrush="#24583A" BorderThickness="1" CornerRadius="8" Padding="16,10" Margin="0,0,0,14">
-                <TextBlock x:Name="TudoCerto" Foreground="{StaticResource Good}" FontSize="12.5" FontWeight="SemiBold" />
+            <Border x:Name="CartaoTudoCerto" Background="#14231A" BorderBrush="#24583A" BorderThickness="1" CornerRadius="3" Padding="16,10" Margin="0,0,0,14">
+                <TextBlock x:Name="TudoCerto" Foreground="{StaticResource Good}" FontSize="13.5" FontWeight="Normal" />
             </Border>
 
             <!-- Por conta -->
-            <Border Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="16,12,16,6" Margin="0,0,0,14">
+            <Border Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="16,12,16,6" Margin="0,0,0,14">
                 <StackPanel Grid.IsSharedSizeScope="True">
                     <TextBlock Style="{StaticResource Secao}" Text="POR CONTA · CLIQUE NO CABEÇALHO PARA ORDENAR, NA LINHA PARA ABRIR A CONTA" />
                     <Grid x:Name="Cabecalhos">
@@ -209,10 +209,10 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                                             <Ellipse Width="10" Height="10" Fill="{Binding Cor}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding Conta}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Conta}" FontSize="13.5" FontWeight="Normal" VerticalAlignment="Center" />
                                         </StackPanel>
                                         <TextBlock Grid.Column="1" Style="{StaticResource Cel}" Text="{Binding Hunt}" />
-                                        <TextBlock Grid.Column="2" Style="{StaticResource Cel}" Text="{Binding Area}" Foreground="{Binding AreaCor}" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource Cel}" Text="{Binding Area}" Foreground="{Binding AreaCor}" FontWeight="Normal" />
                                         <TextBlock Grid.Column="3" Style="{StaticResource Cel}" Text="{Binding Tempo}" Foreground="{StaticResource Muted}" />
                                         <TextBlock Grid.Column="4" Style="{StaticResource Cel}" Text="{Binding OuroH}" Foreground="{StaticResource Good}" />
                                         <TextBlock Grid.Column="5" Style="{StaticResource Cel}" Text="{Binding XpH}" Foreground="#4C8DFF" />
@@ -243,14 +243,14 @@
                             <StackPanel>
                                 <DockPanel>
                                     <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Fill="{Binding Cor}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Conta}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Status}" Foreground="{Binding StatusCor}" FontSize="11.5" TextAlignment="Right"
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Conta}" FontSize="14" FontWeight="Normal" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Status}" Foreground="{Binding StatusCor}" FontSize="12.5" TextAlignment="Right"
                                                TextTrimming="CharacterEllipsis" Margin="10,0,0,0" VerticalAlignment="Center" />
                                 </DockPanel>
                                 <StackPanel Margin="0,10,0,0" Visibility="{Binding TemNivel, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{Binding Nivel}" FontSize="12.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Nivel}" FontSize="13.5" FontWeight="Normal" />
                                     <ProgressBar Style="{StaticResource Barra}" Value="{Binding NivelPct, Mode=OneWay}" Foreground="{Binding Cor}" Margin="0,5,0,4" />
-                                    <TextBlock Text="{Binding NivelDetalhe}" Foreground="{StaticResource Muted}" FontSize="11.5" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding NivelDetalhe}" Foreground="{StaticResource Muted}" FontSize="12.5" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <ItemsControl ItemsSource="{Binding Linhas}" Margin="0,8,0,0" Grid.IsSharedSizeScope="True">
                                     <ItemsControl.ItemTemplate>
@@ -259,8 +259,8 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition SharedSizeGroup="rot" /><ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Rotulo}" Foreground="{StaticResource Muted}" FontSize="11.5" Margin="0,0,12,0" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Valor}" Foreground="{Binding Cor}" FontSize="12" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Rotulo}" Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,12,0" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Valor}" Foreground="{Binding Cor}" FontSize="13" TextWrapping="Wrap" />
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -272,7 +272,7 @@
             </ItemsControl>
 
             <!-- Quem está na Outland mostra os drops -->
-            <Border x:Name="CartaoOutland" Background="{StaticResource CardBg}" BorderBrush="#5B4B8A" BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,14" Visibility="Collapsed">
+            <Border x:Name="CartaoOutland" Background="{StaticResource CardBg}" BorderBrush="#5B4B8A" BorderThickness="1" CornerRadius="3" Padding="16,12" Margin="0,0,0,14" Visibility="Collapsed">
                 <StackPanel>
                     <TextBlock Style="{StaticResource Secao}" Foreground="#B58CFF" Text="🌌 DROPS DA OUTLAND · CONTAS QUE FARMAM (OU FARMARAM) LÁ NESTA SESSÃO" />
                     <ItemsControl x:Name="ListaOutland">
@@ -282,11 +282,11 @@
                                     <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="0,0,14,0" MinWidth="230">
                                         <Ellipse Width="10" Height="10" Fill="{Binding Cor}" Margin="0,3,8,0" VerticalAlignment="Top" />
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Conta}" FontWeight="SemiBold" FontSize="12.5" />
-                                            <TextBlock Text="{Binding Local}" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Conta}" FontWeight="Normal" FontSize="13.5" />
+                                            <TextBlock Text="{Binding Local}" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </StackPanel>
-                                    <TextBlock Text="{Binding Itens}" TextWrapping="Wrap" FontSize="12.5" Foreground="#E6E6EA" LineHeight="20" />
+                                    <TextBlock Text="{Binding Itens}" TextWrapping="Wrap" FontSize="13.5" Foreground="#E6E6EA" LineHeight="20" />
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -298,36 +298,36 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="2*" />
                 </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="16,12" MinHeight="150">
+                <Border Grid.Column="0" Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="16,12" MinHeight="150">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Secao}" Text="ÚLTIMAS CAPTURAS · TODAS AS CONTAS" />
-                        <TextBlock x:Name="SemCapturas" Text="Nenhuma captura nesta sessão ainda." Foreground="{StaticResource Muted}" FontSize="12" />
+                        <TextBlock x:Name="SemCapturas" Text="Nenhuma captura nesta sessão ainda." Foreground="{StaticResource Muted}" FontSize="13" />
                         <ItemsControl x:Name="Capturas">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <DockPanel Margin="0,3">
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Hora}" Foreground="{StaticResource Muted}" FontSize="11.5" Margin="12,0,0,0" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Hora}" Foreground="{StaticResource Muted}" FontSize="12.5" Margin="12,0,0,0" />
                                         <Ellipse DockPanel.Dock="Left" Width="9" Height="9" Fill="{Binding Cor}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Nome}" FontWeight="SemiBold" FontSize="12.5" Margin="0,0,12,0" />
-                                        <TextBlock Text="{Binding Detalhe}" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Nome}" FontWeight="Normal" FontSize="13.5" Margin="0,0,12,0" />
+                                        <TextBlock Text="{Binding Detalhe}" Foreground="{StaticResource Muted}" FontSize="13" TextWrapping="Wrap" />
                                     </DockPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="2" Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="16,12" MinHeight="150">
+                <Border Grid.Column="2" Background="{StaticResource CardBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="16,12" MinHeight="150">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Secao}" Text="✨ APARIÇÕES DE SHINY" />
-                        <TextBlock x:Name="SemShinies" Text="Nenhum shiny apareceu nesta sessão." Foreground="{StaticResource Muted}" FontSize="12" />
+                        <TextBlock x:Name="SemShinies" Text="Nenhum shiny apareceu nesta sessão." Foreground="{StaticResource Muted}" FontSize="13" />
                         <ItemsControl x:Name="Shinies">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <DockPanel Margin="0,3">
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Hora}" Foreground="{StaticResource Muted}" FontSize="11.5" Margin="12,0,0,0" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Hora}" Foreground="{StaticResource Muted}" FontSize="12.5" Margin="12,0,0,0" />
                                         <Ellipse DockPanel.Dock="Left" Width="9" Height="9" Fill="{Binding Cor}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Resultado}" Foreground="{Binding ResultadoCor}" FontSize="12" FontWeight="SemiBold" Margin="12,0,0,0" />
-                                        <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" FontSize="12.5" TextWrapping="Wrap" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Resultado}" Foreground="{Binding ResultadoCor}" FontSize="13" FontWeight="Normal" Margin="12,0,0,0" />
+                                        <TextBlock Text="{Binding Nome}" FontWeight="Normal" FontSize="13.5" TextWrapping="Wrap" />
                                     </DockPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

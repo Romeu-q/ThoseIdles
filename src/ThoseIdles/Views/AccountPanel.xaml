@@ -7,7 +7,7 @@
              xmlns:local="clr-namespace:ThoseIdles.Views"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:AccountViewModel}"
              SizeChanged="OnSizeChanged">
-    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" ClipToBounds="True">
         <DockPanel>
             <!-- Cabeçalho -->
             <Grid DockPanel.Dock="Top" Height="32" Background="{StaticResource HeaderBg}">
@@ -22,7 +22,7 @@
                          ToolTip="{Binding StatusDetail}" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" ClipToBounds="True">
-                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}" FontWeight="SemiBold" FontSize="12.5"
+                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}" FontWeight="Normal" FontSize="12.5"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="180"
                                Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                                ToolTip="{Binding ProfileName, StringFormat=Perfil isolado: {0}}" />
@@ -48,9 +48,9 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,4,0"
                             Visibility="{Binding IsConfirmingClear, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                     <!-- Selo do modo econômico (só aparece quando ligado) -->
-                    <Border Background="#1F3A2A" CornerRadius="9" Padding="8,1" Margin="0,0,6,0" VerticalAlignment="Center"
+                    <Border Background="#1F3A2A" CornerRadius="3" Padding="8,1" Margin="0,0,6,0" VerticalAlignment="Center"
                             Visibility="{Binding IsEconomy, Converter={StaticResource BoolToVis}}" ToolTip="{Binding EconomyTooltip}">
-                        <TextBlock Text="Modo econômico" Foreground="{StaticResource Good}" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock Text="Modo econômico" Foreground="{StaticResource Good}" FontSize="11" FontWeight="Normal" />
                     </Border>
                     <!-- Lives da Twitch desta conta -->
                     <Button Command="{Binding ToggleLiveCommand}" ToolTip="{Binding LiveToggleTooltip}"
@@ -63,7 +63,7 @@
                                     <Setter.Value>
                                         <StackPanel Orientation="Horizontal" Margin="4,0">
                                             <TextBlock Text="&#xE714;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding LiveCountText, StringFormat={}{0} live(s)}" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding LiveCountText, StringFormat={}{0} live(s)}" FontFamily="{StaticResource PixelFont}" FontSize="11" FontWeight="Normal"
                                                        Margin="4,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Setter.Value>
@@ -87,7 +87,7 @@
                                     <Setter.Value>
                                         <StackPanel Orientation="Horizontal" Margin="6,0">
                                             <TextBlock Text="&#xE72C;" FontFamily="{StaticResource Icons}" VerticalAlignment="Center" />
-                                            <TextBlock Text="Recarregar" FontFamily="Segoe UI" FontSize="11.5" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Recarregar" FontFamily="{StaticResource PixelFont}" FontSize="11.5" Margin="5,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Setter.Value>
                                 </Setter>
@@ -216,7 +216,7 @@
                     <!-- Conta fechada: um botão grande e óbvio -->
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
                                 Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
-                        <TextBlock Text="Esta conta está fechada" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Text}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Esta conta está fechada" FontSize="15" FontWeight="Normal" Foreground="{StaticResource Text}" HorizontalAlignment="Center" />
                         <TextBlock Text="Clique no botão para entrar no jogo com ela." FontSize="12" Foreground="{StaticResource Muted}"
                                    HorizontalAlignment="Center" Margin="0,4,0,12" />
                         <Button Style="{StaticResource PrimaryButton}" Command="{Binding ToggleOpenCommand}" HorizontalAlignment="Center" Padding="22,8" FontSize="14">

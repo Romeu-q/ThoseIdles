@@ -8,7 +8,8 @@
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:MainViewModel}"
         Title="ThoseIdles" Icon="pack://application:,,,/Assets/pokeball.ico" Width="1400" Height="900" MinWidth="800" MinHeight="500"
         Background="{StaticResource WindowBg}" Foreground="{StaticResource Text}"
-        FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True">
+        FontFamily="{StaticResource PixelFont}" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Ideal" RenderOptions.BitmapScalingMode="NearestNeighbor">
     <DockPanel>
         <!-- Barra superior: estado à esquerda, ações à direita -->
         <Border DockPanel.Dock="Top" Background="{StaticResource BarBg}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="12,0">
@@ -16,7 +17,7 @@
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="pack://application:,,,/Assets/pokeball.ico" Width="20" Height="20" Margin="0,0,8,0"
                            RenderOptions.BitmapScalingMode="HighQuality" />
-                    <TextBlock Text="ThoseIdles" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="ThoseIdles" FontWeight="Normal" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <Border Style="{StaticResource Pill}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="8" Height="8" Fill="{StaticResource Good}" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -35,7 +36,7 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Quantas contas usar -->
                     <TextBlock Text="Quantas contas?" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <Border Background="#24242C" CornerRadius="6" Padding="2" Margin="0,0,12,0"
+                    <Border Background="#24242C" CornerRadius="3" Padding="2" Margin="0,0,12,0"
                             ToolTip="Quantas contas usar. As que saem são fechadas, mas o login fica salvo: ao voltar, a conta abre logada.">
                         <ItemsControl ItemsSource="{Binding AccountCountChoices}">
                             <ItemsControl.ItemsPanel>
@@ -109,7 +110,7 @@
                 <StackPanel>
                 <DockPanel Margin="2,0,10,8">
                     <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Content="Fechar configurações" Command="{Binding ToggleSettingsCommand}" />
-                    <TextBlock Text="Configurações — o básico" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="Configurações — o básico" FontSize="14" FontWeight="Normal" VerticalAlignment="Center" />
                 </DockPanel>
                 <WrapPanel>
                     <!-- Geral -->
@@ -256,16 +257,16 @@
                 <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Entendi" Command="{Binding DismissWelcomeCommand}"
                         VerticalAlignment="Center" Padding="18,6" />
                 <StackPanel>
-                    <TextBlock Text="Como usar — é só 3 passos" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock Text="Como usar — é só 3 passos" FontSize="14" FontWeight="Normal" Margin="0,0,0,6" />
                     <WrapPanel>
-                        <Border Background="#2C2547" CornerRadius="6" Padding="10,6" Margin="0,0,8,4">
-                            <TextBlock FontSize="12.5"><Run Text="1." FontWeight="Bold" /> Lá em cima, em <Run Text="Quantas contas?" FontWeight="SemiBold" />, clique no número.</TextBlock>
+                        <Border Background="#2C2547" CornerRadius="3" Padding="10,6" Margin="0,0,8,4">
+                            <TextBlock FontSize="12.5"><Run Text="1." FontWeight="Normal" /> Lá em cima, em <Run Text="Quantas contas?" FontWeight="Normal" />, clique no número.</TextBlock>
                         </Border>
-                        <Border Background="#2C2547" CornerRadius="6" Padding="10,6" Margin="0,0,8,4">
-                            <TextBlock FontSize="12.5"><Run Text="2." FontWeight="Bold" /> Clique no botão roxo <Run Text="Abrir todas" FontWeight="SemiBold" />.</TextBlock>
+                        <Border Background="#2C2547" CornerRadius="3" Padding="10,6" Margin="0,0,8,4">
+                            <TextBlock FontSize="12.5"><Run Text="2." FontWeight="Normal" /> Clique no botão roxo <Run Text="Abrir todas" FontWeight="Normal" />.</TextBlock>
                         </Border>
-                        <Border Background="#2C2547" CornerRadius="6" Padding="10,6" Margin="0,0,8,4">
-                            <TextBlock FontSize="12.5"><Run Text="3." FontWeight="Bold" /> Entre no jogo em cada quadro. O login fica salvo: da próxima vez já abre logado.</TextBlock>
+                        <Border Background="#2C2547" CornerRadius="3" Padding="10,6" Margin="0,0,8,4">
+                            <TextBlock FontSize="12.5"><Run Text="3." FontWeight="Normal" /> Entre no jogo em cada quadro. O login fica salvo: da próxima vez já abre logado.</TextBlock>
                         </Border>
                     </WrapPanel>
                     <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
