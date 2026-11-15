@@ -144,6 +144,7 @@ public sealed class SelfTestServer : IDisposable
         {"t":"welcome",
          "hunts":[{"slug":"pidgey","nome":"Pidgey","nivel":1,"regiao":"kanto"},{"slug":"gyarados","nome":"Gyarados","nivel":150,"regiao":"kanto"},{"slug":"alto","nome":"Alto Nível","nivel":9999,"regiao":"outland"},{"slug":"ancient_dragonite","nome":"Ancient Dragonite","nivel":150,"regiao":"outland"}],
          "catalogoBolas":[{"id":1,"nome":"Poké Ball","preco":200},{"id":2,"nome":"Great Ball","preco":600}],
+         "itensNossos":[{"id":9001,"name":"Golden Potion","category":"heal","npcPrice":4000,"healPct":1},{"id":9100,"name":"Troféu","category":"key","npcPrice":0}],
          "estado":{"cheio":true,"nick":"ricoteste","level":1284,"gold":208750,"diamonds":2,"orbs":0,"xp":44769150,"xpNivel":10000000,"xpProximo":82240400,
            "huntSlug":"pidgey","activeId":7,"loja":{"vip":true,"vipAte":4102444800000,"boosts":{"xp":4102444800000}},"guildBonusPct":6,"guildBonusRank":3,"kick":{"bonus":{"xp":4102444800000}},
            "automation":{"autoBallSemParar":false,"autoBallAteCapturar":false,"ballIds":[1],"autoRevive":true,"autoPotion":false,"autoVoltarHunt":false,"hpLimiar":50,"pokemonTravado":[12]},

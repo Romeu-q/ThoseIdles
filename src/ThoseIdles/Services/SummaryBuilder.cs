@@ -152,7 +152,7 @@ public static class SummaryBuilder
         // ---- o que a sessão rendeu (desde que o app abriu) ----
         if (st.Abates > 0 || st.Ouro > 0 || st.XpTreinador > 0)
             linhas.Add(new CartaoLinha("Sessão",
-                $"{Duracao(now - st.Inicio)} · {Curto(st.Ouro, true)} ouro · +{Curto(st.XpTreinador)} XP · {st.Abates.ToString("N0", Pt)} abates"));
+                $"{Duracao(now - st.Inicio)} · {Curto(st.Ouro, true)} ouro{(st.OuroCapturas > 0 ? $" (≈{Curto(st.OuroCapturas)} da venda das capturas)" : "")} · +{Curto(st.XpTreinador)} XP · {st.Abates.ToString("N0", Pt)} abates"));
 
         // ---- pokébolas: as que a automação usa (ou todas, se nenhuma marcada) e quando acabam no ritmo da sessão ----
         var catalogo = game.CatalogoBolas;
@@ -184,7 +184,7 @@ public static class SummaryBuilder
 
         // ---- poções e revives na bolsa ----
         var itensCura = game.CatalogoMarket
-            .Where(m => m.Categoria is "potion" or "revive" && (game.Items(m.Id) > 0 || game.PotionIds.Contains(m.Id) || game.ReviveIds.Contains(m.Id) || s.Economy?.EstaEmAutoCompraItem(m.Id) == true))
+            .Where(m => (m.Categoria == "potion" && EconomyClient.PocaoVisivel(m.Nome)) || (m.Categoria == "revive" && (game.Items(m.Id) > 0 || game.PotionIds.Contains(m.Id) || game.ReviveIds.Contains(m.Id) || s.Economy?.EstaEmAutoCompraItem(m.Id) == true)))
             .ToList();
         if (itensCura.Count > 0)
         {
@@ -214,13 +214,25 @@ public static class SummaryBuilder
         {
             var top = ranking[0];
             if (top.Slug == slugAtual)
-                linhas.Add(new CartaoLinha("Melhor hunt", $"✓ já está na melhor ({top.XpH} XP/h)", Verde));
+                linhas.Add(new CartaoLinha("Melhor XP", $"✓ já está na melhor: {top.Nome} ({top.XpH} XP/h)", Verde));
             else
             {
                 var pos = ranking.ToList().FindIndex(h => h.Slug == slugAtual);
-                linhas.Add(new CartaoLinha("Melhor hunt",
+                linhas.Add(new CartaoLinha("Melhor XP",
                     $"{top.Nome} · {top.XpH} XP/h ({(pos >= 0 ? $"a atual é a {pos + 1}ª" : "a atual está fora do top 5")})", Ambar));
             }
+            // A melhor da Outland, no tier em que a conta caça lá (o tier multiplica os drops; o maior liberado aparece se for outro).
+            var tier = game.OutlandTierAtual;
+            var maxTier = game.OutlandTierMaximo;
+            var rotTier = $"{tier.Rotulo} (drops ×{tier.Mult.ToString("0.##", Pt)})" + (maxTier.Tier > tier.Tier ? $" · liberado até {maxTier.Rotulo}" : "");
+            if (game.Level < AccountGameState.OutlandTiers[0].Nivel)
+                linhas.Add(new CartaoLinha("Melhor Outland", $"libera no Nv {AccountGameState.OutlandTiers[0].Nivel} do treinador", Cinza));
+            else if (ranking.FirstOrDefault(h => h.Outland) is { } outl)
+                linhas.Add(new CartaoLinha("Melhor Outland",
+                    outl.Slug == slugAtual ? $"✓ já está nela: {outl.Nome} ({outl.XpH} XP/h) · {rotTier}" : $"{outl.Nome} · {outl.XpH} XP/h · {rotTier}",
+                    outl.Slug == slugAtual ? Verde : "#B58CFF"));
+            else
+                linhas.Add(new CartaoLinha("Melhor Outland", $"nenhuma hunt da Outland liberada para este Pokémon · {rotTier}", Cinza));
         }
 
         // ---- drops raros da sessão ----

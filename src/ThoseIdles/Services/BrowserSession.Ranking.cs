@@ -240,8 +240,15 @@ public sealed partial class BrowserSession
                   const seg = (s) => (s < 1 ? '<1 s' : s < 60 ? `${s.toFixed(1).replace('.', ',')} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`);
                   const risco = (l) => l.umHit ? '☠ 1 hit' : l.mortesH >= 0.5 ? `☠ ${l.mortesH.toFixed(1).replace('.', ',')}/h`
                     : `${Math.round(l.hitPct * 100) >= 50 ? '⚠' : '✓'} ${Math.round(l.hitPct * 100)}%`;
-                  const linhas = r.linhas.filter(l => !l.inviavel).slice(0, 8).map((l, i) => ({
-                    slug: l.slug, nome: l.nome, regiao: PIH.engine.regiaoDoMapa ? (l.regiao ?? '') : (l.regiao ?? ''), nivel: l.nivel,
+                  // As hunts da Outland (a área "outland" do jogo): a melhor delas vai junto, mesmo fora do top.
+                  const daOutland = new Set((w.hunts ?? []).filter(h => String(h.area ?? h.regiao ?? '').toLowerCase() === 'outland').map(h => h.slug));
+                  const viaveis = r.linhas.filter(l => !l.inviavel);
+                  const escolhidas = viaveis.slice(0, 8);
+                  const melhorOut = viaveis.find(l => daOutland.has(l.slug) || String(l.regiao ?? '').toLowerCase() === 'outland');
+                  if (melhorOut && !escolhidas.includes(melhorOut)) escolhidas.push(melhorOut);
+                  const linhas = escolhidas.map((l) => ({
+                    pos: viaveis.indexOf(l) + 1,
+                    slug: l.slug, nome: l.nome, regiao: daOutland.has(l.slug) ? 'outland' : (l.regiao ?? ''), nivel: l.nivel,
                     xp: curto(l.xpPokemonH), xpTr: curto(l.xpTreinadorH), ouro: curto(l.ouroH), kph: num(l.kph), ttk: seg(l.ttk), risco: risco(l),
                     golpe: l.melhorGolpe ? `${l.melhorGolpe.nome} ×${l.efetividade.toFixed(2).replace('.', ',')}` : '',
                   }));
@@ -271,9 +278,12 @@ public sealed partial class BrowserSession
             {
                 pos++;
                 string S(string k) => l.TryGetProperty(k, out var v) ? v.GetString() ?? "" : "";
-                lista.Add(new MelhorHunt(pos, S("slug"), S("nome"), S("regiao"), l.TryGetProperty("nivel", out var nv) && nv.TryGetInt32(out var n) ? n : 0,
-                    S("xp"), S("xpTr"), S("ouro"), S("kph"), S("ttk"), S("risco"), S("golpe")));
-                if (lista.Count >= RankingTopo) break;
+                var posReal = l.TryGetProperty("pos", out var pv) && pv.TryGetInt32(out var pr) ? pr : pos;
+                var h = new MelhorHunt(posReal, S("slug"), S("nome"), S("regiao"), l.TryGetProperty("nivel", out var nv) && nv.TryGetInt32(out var n) ? n : 0,
+                    S("xp"), S("xpTr"), S("ouro"), S("kph"), S("ttk"), S("risco"), S("golpe"));
+                // O top de XP e, além dele, a melhor da Outland (se ela não entrou no top).
+                if (lista.Count < RankingTopo) lista.Add(h);
+                else if (h.Outland && !lista.Any(x => x.Outland)) { lista.Add(h); break; }
             }
             return (lista, lista.Count == 0 ? "O motor do /hunt não achou hunt liberada para este Pokémon." : "", $"motor do /hunt v{versao}");
         }

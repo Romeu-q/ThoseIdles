@@ -39,7 +39,10 @@ public sealed class EconomySessionStats
     public int ShiniesVistos { get; private set; }
     public int ShiniesCapturados { get; private set; }
     public long XpTreinador { get; private set; }
+    /// <summary>O ouro da sessão: o dos abates MAIS o valor de venda (estimado) dos Pokémon capturados.</summary>
     public long Ouro { get; private set; }
+    /// <summary>A parte do <see cref="Ouro"/> que é o valor de venda dos capturados (o preço do NPC, conta do jogo).</summary>
+    public long OuroCapturas { get; private set; }
     public List<string> UltimosShinies { get; } = new();
 
     public long? NivelTreinador { get; private set; }
@@ -251,6 +254,10 @@ public sealed class EconomySessionStats
                         break;
                     case "capturado":
                         Capturas++;
+                        if (e.TryGetProperty("pokemon", out var pv) && pv.ValueKind == JsonValueKind.Object && ValorDeVenda.Preco(pv) is { } venda)
+                        {
+                            Ouro += venda; OuroHunt += venda; OuroCapturas += venda;
+                        }
                         if (e.TryGetProperty("pokemon", out var cap) && cap.ValueKind == JsonValueKind.Object)
                             GuardarCaptura(cap);
                         if (e.TryGetProperty("pokemon", out var pk) && pk.ValueKind == JsonValueKind.Object

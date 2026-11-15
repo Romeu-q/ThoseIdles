@@ -359,7 +359,11 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
   confirmação). O pedido leva as automações **inteiras**, como o jogo faz (o limiar de HP e a Coleção seguem).
 - **Registro:** abates, capturas, shinies, níveis e as recusas do servidor.
 
-**Auto-compra (Market NPC):** repõe **somente Ultra Ball, Max Revive e Golden Potion**, sempre na **quantidade máxima** (o "Máx" da loja: até 9.999, limitado pelo ouro), quando o estoque cai abaixo do mínimo. Os outros itens continuam à venda pelos botões manuais, com confirmação.
+**Market e auto-compra:** das poções, o app mostra só a **Golden Potion** e a **Ultimate Potion** (a Golden vem do próprio jogo, dos itens do servidor). A auto-compra repõe **somente Ultra Ball, Max Revive e Golden Potion**, sempre na **quantidade máxima** (o "Máx" da loja: até 9.999, limitado pelo ouro), quando o estoque cai abaixo do mínimo; só esses três têm o botão **Auto**.
+
+**Ouro da sessão:** soma o ouro dos abates **e o valor de venda (estimado) dos Pokémon capturados**, com a conta do jogo: valor da espécie × (1 + Nv/50, até o Nv 100) × qualidade × 10 se shiny. O Resumo mostra quanto disso veio das capturas.
+
+**Melhor hunt:** o Resumo mostra sempre a **melhor hunt de XP** e a **melhor da Outland**, com o tier da conta (Outland 1 a 8, liberados pelo nível do treinador; o tier multiplica os drops). A aba Caçar lista o top 5 de XP e, se a melhor da Outland ficar fora dele, ela vem junto.
 
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
 **✋ Desistir** do combate (pede confirmação). **Abrir o jogo completo** sai do modo econômico.

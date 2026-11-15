@@ -265,7 +265,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar1000" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar100" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" IsEnabled="{Binding PodeComprar}" Click="OnComprar10" />
-                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}"
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}" Visibility="{Binding AutoVisivel}"
                                                 IsEnabled="{Binding PodeComprar}" Click="OnAlternarAutoBola" ToolTip="Liga ou desliga a compra automática desta bola quando estiver acabando." />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
@@ -286,7 +286,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" Click="OnComprarItem10" />
-                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}"
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}" Visibility="{Binding AutoVisivel}"
                                                 Click="OnAlternarAutoItem" ToolTip="Liga ou desliga a compra automática desta poção quando estiver acabando." />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />
@@ -307,7 +307,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+1.000" Tag="{Binding Id}" Click="OnComprarItem1000" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+100" Tag="{Binding Id}" Click="OnComprarItem100" />
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="+10" Tag="{Binding Id}" Click="OnComprarItem10" />
-                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}"
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Mini}" Content="{Binding AutoTexto}" BorderBrush="{Binding AutoBorda}" Tag="{Binding Id}" Visibility="{Binding AutoVisivel}"
                                                 Click="OnAlternarAutoItem" ToolTip="Liga ou desliga a compra automática deste revive quando estiver acabando." />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Nome}" FontSize="12.5" FontWeight="SemiBold" />

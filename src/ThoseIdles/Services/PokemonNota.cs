@@ -142,9 +142,10 @@ public static class SpeciesCatalog
 
     private static async Task CarregarAsync()
     {
-        var cache = Path.Combine(AppPaths.Root, "catalogo-especies-v2.json");
+        var cache = Path.Combine(AppPaths.Root, "catalogo-especies-v3.json");
         var mapa = new Dictionary<int, PokemonNota.Bases>();
         var anterior = new Dictionary<int, int>();
+        var econ = new List<ValorDeVenda.Especie>();
         try
         {
             if (!File.Exists(cache) || DateTime.UtcNow - File.GetLastWriteTimeUtc(cache) > TimeSpan.FromDays(1))
@@ -156,23 +157,25 @@ public static class SpeciesCatalog
                     try
                     {
                         using var doc = JsonDocument.Parse(await http.GetStringAsync(BaseUrl + a));
-                        Ler(doc.RootElement, mapa, anterior);
+                        Ler(doc.RootElement, mapa, anterior, econ, a.Contains("outland"));
                     }
                     catch (Exception ex) { LoggingService.Log.Info($"Catálogo de espécies: {a} não baixou ({ex.Message})."); }
                 }
                 if (mapa.Count > 0)
                     await File.WriteAllTextAsync(cache, JsonSerializer.Serialize(new Guardado(
                         mapa.ToDictionary(k => k.Key.ToString(), k => k.Value),
-                        anterior.ToDictionary(k => k.Key.ToString(), k => k.Value))));
+                        anterior.ToDictionary(k => k.Key.ToString(), k => k.Value), econ)));
             }
             if (mapa.Count == 0 && File.Exists(cache))
             {
                 var g = JsonSerializer.Deserialize<Guardado>(await File.ReadAllTextAsync(cache));
                 foreach (var (k, v) in g?.Bases ?? new()) if (int.TryParse(k, out var id)) mapa[id] = v;
                 foreach (var (k, v) in g?.Anterior ?? new()) if (int.TryParse(k, out var id)) anterior[id] = v;
+                econ.AddRange(g?.Econ ?? new());
             }
             _anterior = anterior;
             _porId = mapa;
+            ValorDeVenda.Registrar(econ);
             LoggingService.Log.Info($"Catálogo de espécies: {mapa.Count} espécies.");
         }
         catch (Exception ex)
@@ -182,9 +185,9 @@ public static class SpeciesCatalog
         }
     }
 
-    private sealed record Guardado(Dictionary<string, PokemonNota.Bases> Bases, Dictionary<string, int> Anterior);
+    private sealed record Guardado(Dictionary<string, PokemonNota.Bases> Bases, Dictionary<string, int> Anterior, List<ValorDeVenda.Especie>? Econ = null);
 
-    private static void Ler(JsonElement root, Dictionary<int, PokemonNota.Bases> mapa, Dictionary<int, int> anterior)
+    private static void Ler(JsonElement root, Dictionary<int, PokemonNota.Bases> mapa, Dictionary<int, int> anterior, List<ValorDeVenda.Especie>? econ = null, bool outland = false)
     {
         if (!root.TryGetProperty("creatures", out var lista) || lista.ValueKind != JsonValueKind.Array) return;
         foreach (var c in lista.EnumerateArray())
@@ -192,6 +195,12 @@ public static class SpeciesCatalog
             double N(string k) => c.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : 80;
             if (!c.TryGetProperty("pokeId", out var id) || !id.TryGetInt32(out var pid)) continue;
             mapa[pid] = new PokemonNota.Bases(N("baseHp"), N("baseAtk"), N("baseDef"), N("baseSpAtk"), N("baseSpDef"), N("baseSpeed"));
+            if (econ is not null)
+            {
+                long L(string k) => c.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? (long)v.GetDouble() : 0;
+                var nomeEsp = c.TryGetProperty("name", out var nm) && nm.ValueKind == JsonValueKind.String ? nm.GetString() ?? "" : "";
+                econ.Add(new ValorDeVenda.Especie(pid, nomeEsp, (int)L("huntLevel"), L("sellValue"), L("priceNpc"), (int)L("evolvesToId"), outland));
+            }
             if (c.TryGetProperty("evolvesToId", out var ev) && ev.ValueKind == JsonValueKind.Number && ev.TryGetInt32(out var para) && para > 0)
                 anterior.TryAdd(para, pid);
         }

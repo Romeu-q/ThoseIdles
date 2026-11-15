@@ -330,6 +330,7 @@ public sealed class SelfTestRunner
             await RunResumoTestAsync();
             await RunTravasTestAsync();
             await RunTelaMinimaTestAsync();
+            await RunValorVendaTestAsync();
             await RunRankingTestAsync();
             await RunRankingMotorHuntTestAsync();
             await RunEconomicaResumidaTestAsync();
@@ -1403,7 +1404,7 @@ public sealed class SelfTestRunner
             using var hd = JsonDocument.Parse(huntsJson);
             var hunts = hd.RootElement.GetProperty("hunts").GetRawText();
             var msg = $$$"""
-                {"t":"estado","hunts":{{{hunts}}},"estado":{"level":1284,"activeId":7,"pkMud":[
+                {"t":"estado","hunts":{{{hunts}}},"estado":{"level":1284,"activeId":7,"huntSlug":"pidgey","outlandTier":2,"pkMud":[
                   {"id":7,"nome":"Charizard","speciesId":6,"level":900,"slot":0,"hp":2800,"maxHp":3000,"potencia":4,"shiny":false,
                    "tipos":["FIRE","FLYING"],"ivs":{"hp":17,"atk":25,"def":11,"spAtk":21,"spDef":31,"speed":5},
                    "stats":{"hp":3000,"atk":1500,"def":1100,"spAtk":2500,"spDef":1900,"speed":1200}}]}}
@@ -1418,11 +1419,18 @@ public sealed class SelfTestRunner
                 await await _window.Dispatcher.InvokeAsync(() => s.AtualizarRankingAsync(forcar: true));
                 var seg = (DateTime.UtcNow - inicio).TotalSeconds;
                 var lista = s.MelhoresHunts;
-                var ok = s.RankingStatus == "" && s.RankingOrigem.StartsWith("motor do /hunt") && lista.Count >= 3
+                // Além do top 5 de XP, a melhor da Outland (com a posição real dela) — e o Resumo mostra as duas linhas.
+                var outl = lista.FirstOrDefault(m => m.Outland);
+                var cartao = await _window.Dispatcher.InvokeAsync(() => SummaryBuilder.Build(new[] { s }, DailyTotals.Instance, 4).Cartoes.FirstOrDefault());
+                var linhaXp = cartao?.Linhas.FirstOrDefault(l => l.Rotulo == "Melhor XP")?.Valor ?? "";
+                var linhaOut = cartao?.Linhas.FirstOrDefault(l => l.Rotulo == "Melhor Outland")?.Valor ?? "";
+                var outOk = outl is not null && lista.Count(m => !m.Outland || m == outl) >= 5 && linhaXp.Contains(lista[0].Nome)
+                            && linhaOut.Contains(outl.Nome) && linhaOut.Contains("Outland 2") && linhaOut.Contains("×1,25");
+                var ok = outOk && s.RankingStatus == "" && s.RankingOrigem.StartsWith("motor do /hunt") && lista.Count >= 3
                          && lista.All(m => m.Nome.Length > 0 && m.XpH.Length > 0 && m.MataEm.Length > 0 && m.Risco.Length > 0 && m.AbatesH.Length > 0 && m.Nivel > 0 && m.Nivel <= 1284);
                 return ok
-                    ? Pass($"{s.RankingOrigem}: {lista.Count} hunts em {seg:0.0} s — 1º {lista[0].Nome} (Nv {lista[0].Nivel}, {lista[0].XpH} XP/h, {lista[0].AbatesH} abates/h, mata em {lista[0].MataEm}, risco {lista[0].Risco}), 2º {lista[1].Nome} ({lista[1].XpH} XP/h, {lista[1].AbatesH} abates/h); só hunts liberadas para o Nv 1284")
-                    : Fail($"status=[{s.RankingStatus}] origem={s.RankingOrigem} lista=[{string.Join(" | ", lista.Select(m => $"{m.Posicao}.{m.Nome} nv{m.Nivel} {m.XpH} {m.AbatesH}/h {m.MataEm} {m.Risco}"))}]");
+                    ? Pass($"{s.RankingOrigem}: {lista.Count} hunts em {seg:0.0} s — 1º {lista[0].Nome} (Nv {lista[0].Nivel}, {lista[0].XpH} XP/h, {lista[0].AbatesH} abates/h, mata em {lista[0].MataEm}, risco {lista[0].Risco}), 2º {lista[1].Nome} ({lista[1].XpH} XP/h, {lista[1].AbatesH} abates/h); só hunts liberadas para o Nv 1284; melhor da Outland: {outl?.Posicao}º {outl?.Nome}. Resumo: “Melhor XP: {linhaXp}” e “Melhor Outland: {linhaOut}”")
+                    : Fail($"outland={outOk} cartao={(cartao is null ? "null" : string.Join(",", cartao.Linhas.Select(l => l.Rotulo)))} hunt={s.Game.HuntSlug} xp=[{linhaXp}] out=[{linhaOut}] status=[{s.RankingStatus}] origem={s.RankingOrigem} lista=[{string.Join(" | ", lista.Select(m => $"{m.Posicao}.{m.Nome} nv{m.Nivel} {m.XpH} {m.AbatesH}/h {m.MataEm} {m.Risco}"))}]");
             }
             finally
             {
@@ -1486,6 +1494,39 @@ public sealed class SelfTestRunner
             ? Pass($"carimbo do servidor: faltavam {combate:0} ms (5 s); porta de 10 s: {porta:0} ms; um golpe rearma os 3 s ({rearmou:0} ms); trocar de hunt arma a guarda de 4 s ({guarda:0} ms); no Centro as travas zeram")
             : Fail($"combate={combate} semGuarda={semGuardaAoConectar} porta={porta} rearmou={rearmou} guarda={guarda} zerou={zerou}"));
     });
+
+    private async Task RunValorVendaTestAsync()
+    {
+        await Test("valor de venda dos capturados (conta do jogo: espécie × (1 + Nv/50) × qualidade × shiny) somado ao ouro da sessão", () =>
+        {
+            ValorDeVenda.Registrar(new[]
+            {
+                new ValorDeVenda.Especie(1, "Bulbasaur", 20, 3000, 3000, 2, false),
+                new ValorDeVenda.Especie(2, "Ivysaur", 40, 8000, 8000, 3, false),
+                new ValorDeVenda.Especie(3, "Venusaur", 80, 18000, 18000, 0, false),
+                new ValorDeVenda.Especie(10, "Caterpie", 5, 50000, 50000, 11, false),
+                new ValorDeVenda.Especie(11, "Butterfree", 10, 1000, 1000, 0, false),
+                new ValorDeVenda.Especie(500, "Alto", 1000, 0, 0, 0, false),
+            });
+            var bulba = ValorDeVenda.Preco(1, null, 10, 1, false);           // 3.000 × 1,2 = 3.600
+            var shiny = ValorDeVenda.Preco(1, null, 10, 1, true);            // × 10
+            var teto = ValorDeVenda.Preco(1, null, 500, 1.5, false);         // Nv conta só até 100: 3.000 × 3 × 1,5 = 13.500
+            var cadeia = ValorDeVenda.Preco(10, null, 1, 1, false);          // vale mais que a evolução → 51,7% dela: 517 × 1,02 = 527
+            var regiaoAlta = ValorDeVenda.Preco(500, null, 1, 1, false);     // ouro do nível 1000: round(12000 × (1000/150)^0,6)
+            var esperadoAlta = (long)Math.Floor(Math.Round(12000 * Math.Pow(1000 / 150.0, 0.6)) * 1.02);
+            var semEspecie = ValorDeVenda.Preco(99999, null, 10, 1, false);
+
+            var st = new EconomySessionStats();
+            var antes = st.Ouro;
+            using (var docCap = System.Text.Json.JsonDocument.Parse("""{"t":"batalha","ev":[{"k":"capturado","pokemon":{"nome":"Bulbasaur","level":10,"speciesId":1,"quality":1}}]}""")) st.Somar(docCap.RootElement);
+            var somou = st.Ouro - antes == 3600 && st.OuroCapturas == 3600;
+
+            var ok = bulba == 3600 && shiny == 36000 && teto == 13500 && cadeia == 527 && regiaoAlta == esperadoAlta && semEspecie is null && somou;
+            return Task.FromResult(ok
+                ? Pass($"Bulbasaur Nv 10: {bulba:N0}; shiny: {shiny:N0}; Nv 500 q1,5: {teto:N0} (nível até 100); pré-evolução que valia mais: {cadeia:N0}; região alta: {regiaoAlta:N0}; captura somou {st.OuroCapturas:N0} ao ouro da sessão")
+                : Fail($"bulba={bulba} shiny={shiny} teto={teto} cadeia={cadeia} alta={regiaoAlta}/{esperadoAlta} sem={semEspecie} somou={somou} (ouro {st.Ouro}, capt {st.OuroCapturas})"));
+        });
+    }
 
     private async Task RunTelaMinimaTestAsync()
     {
@@ -1602,22 +1643,31 @@ public sealed class SelfTestRunner
                 var comprou = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"ball\"") && c.Contains("\"id\":2") && c.Contains("\"qty\":100")) && pedidos.Any(p => p.Contains("Great Ball") && p.Contains("60.000"));
                 await Ui2(() => vista.AbaMarket.IsChecked = true);
                 await Pausa();
-                await Clica(b => b.Tag is int i && i == 203 && b.Content as string == "+100", "comprar 100 Hyper Potion");
+                await Clica(b => b.Tag is int i && i == 204 && b.Content as string == "+100", "comprar 100 Ultimate Potion");
                 await Pausa();
                 await Clica(b => b.Tag is int i && i == 205 && b.Content as string == "+10", "comprar 10 Revive");
                 await Pausa();
                 await Task.Delay(1300); // guarda de 1,2 s entre auto-compras
-                // Auto-compra: só Ultra Ball, Max Revive e Golden Potion, sempre a quantidade MÁXIMA (o ouro paga 41 Max Revive).
+                // Auto-compra: só Ultra Ball, Max Revive e Golden Potion, sempre a quantidade MÁXIMA (o ouro paga 83 Max Revive).
+                // A Golden Potion vem dos itensNossos do welcome (categoria "heal"), como no Market do jogo; só os 3 itens têm o botão Auto.
+                var pocoes = await Ui(() => vista.ListaMarketPocoes.Items.Cast<EconomyGameView.MarketLinha>().ToList());
+                var revives = await Ui(() => vista.ListaMarketRevives.Items.Cast<EconomyGameView.MarketLinha>().ToList());
+                var golden = pocoes.FirstOrDefault(x => x.Nome == "Golden Potion");
+                var soTresComAuto = golden is { PodeAuto: true } && golden.Detalhe.Contains("Cura 100% do HP") && golden.Detalhe.Contains("4.000")
+                                    && pocoes.Where(x => x.Nome != "Golden Potion").All(x => !x.PodeAuto)
+                                    && revives.First(x => x.Id == 206).PodeAuto && !revives.First(x => x.Id == 205).PodeAuto
+                                    && !pocoes.Any(x => x.Nome == "Troféu")
+                                    && pocoes.Select(x => x.Nome).OrderBy(x => x).SequenceEqual(new[] { "Golden Potion", "Ultimate Potion" });
                 if (!(s.Economy?.EstaEmAutoCompraItem(206) ?? false))
                     await Clica(b => b.Tag is int i && i == 206 && (b.Content as string)?.Contains("Auto") == true, "ligar auto-compra Max Revive");
                 await Pausa(900);
                 var autoComprouBola = !server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"ball\"") && c.Contains("\"id\":2") && !c.Contains("\"qty\":100"));
-                var autoComprouItem = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":206") && c.Contains("\"qty\":41"))
+                var autoComprouItem = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":206") && c.Contains("\"qty\":83"))
                                       && !server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"id\":201"));
-                var comprouMarket = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":203") && c.Contains("\"qty\":100"))
+                var comprouMarket = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":204") && c.Contains("\"qty\":100"))
                                     && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":205") && c.Contains("\"qty\":10"))
-                                    && pedidos.Any(p => p.Contains("Hyper Potion") && p.Contains("80.000"))
-                                    && autoComprouBola && autoComprouItem;
+                                    && pedidos.Any(p => p.Contains("Ultimate Potion") && p.Contains("150.000"))
+                                    && autoComprouBola && autoComprouItem && soTresComAuto;
                 await Clica(b => b.Content as string == "💊 Curar", "curar");
                 await Pausa();
                 var curou = Tem("\"centro.curar\"");
@@ -1628,7 +1678,7 @@ public sealed class SelfTestRunner
                 var ok = cabOk && resumidaOk && huntsOk && cacou && time.Count == 2 && trocou && tirou && ordemOk && protegidos && paraTime && vendeu && soltou && revive && autoOk && bolasOk && comprou && comprouMarket && faixaOk && centro && avisouEspera && esperouGuarda && curou;
                 return ok
                     ? Pass("perfil (Nv 1284, ouro, hunt) · caçar: Gyarados liberada com botão, a de Nv 9999 travada · time: trocou o ativo e tirou para o Depot · Depot: shiny primeiro, inicial e Coleção protegidos, → Time na vaga 2, venda com confirmação, soltar da Coleção · automação: auto.set levou o objeto inteiro (hpLimiar e Coleção) · bolas e Market: ligar e comprar bolas, poções e revives · painel da conta: reiniciar, modo econômico, zoom −/+/100%, nome, ferramentas e sair, todos à mostra (sem menu “Mais”) · Centro: esperou a guarda de 4 s depois da troca de hunt (e avisou) antes de ir; curar")
-                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk} faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} market={comprouMarket} centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
+                    : Fail($"cab={cabOk}({cab}) resumida={resumidaOk} faixaDeAcoes={faixaOk} hunts={huntsOk} cacou={cacou} time={time.Count} trocou={trocou} tirou={tirou} ordem={ordemOk} protegidos={protegidos} paraTime={paraTime} vendeu={vendeu} soltou={soltou} revive={revive} auto={autoOk}({pedidoAuto}) bolas={bolasOk} comprou={comprou} market={comprouMarket}(golden={golden?.Detalhe} pocoes=[{string.Join(" | ", pocoes.Select(x => x.Nome + ":" + x.PodeAuto))}] autoBola={autoComprouBola} autoItem={autoComprouItem}) centro={centro} avisouEspera={avisouEspera} esperouGuarda={esperouGuarda}({(tCentro is { } tt ? (tt - t0).TotalMilliseconds : -1):0} ms) curou={curou} comandos=[{string.Join(" | ", server.Comandos)}]");
             }
             finally
             {

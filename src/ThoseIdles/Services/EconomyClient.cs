@@ -380,6 +380,13 @@ public sealed class EconomyClient : IAsyncDisposable
         return n is "ultraball" or "maxrevive" or "goldenpotion";
     }
 
+    /// <summary>As poções que o app mostra (Market e Resumo): só a Golden Potion e a Ultimate Potion.</summary>
+    public static bool PocaoVisivel(string? nome)
+    {
+        var n = new string((nome ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        return n is "goldenpotion" or "ultimatepotion";
+    }
+
     /// <summary>A pokébola está marcada para reposição automática quando acabar?</summary>
     public bool EstaEmAutoCompraBola(int id)
     {

@@ -155,6 +155,33 @@ public sealed class AccountGameState
 
     public string? Nick { get; private set; }
     public long Level { get; private set; }
+
+    /// <summary>O tier da Outland que a conta escolheu (`outlandTier` do estado; 1 se não veio).</summary>
+    public int OutlandTierEscolhido { get; private set; } = 1;
+
+    /// <summary>Os tiers da Outland do jogo (shared/outland-tiers.mjs): liberados pelo nível do treinador; o mult multiplica os drops.</summary>
+    public static readonly (int Tier, string Rotulo, int Nivel, double Mult)[] OutlandTiers =
+    {
+        (1, "Outland 1", 150, 1), (2, "Outland 2", 1000, 1.25), (3, "Outland 3", 2000, 1.5), (4, "Outland 4", 4000, 2),
+        (5, "Outland 5", 8000, 3), (6, "Outland 6", 16000, 4), (7, "Outland 7", 24000, 6), (8, "Outland 8", 36000, 8),
+    };
+
+    /// <summary>O tier em que a conta caça na Outland: o escolhido, se o nível libera; senão o maior liberado (como o jogo).</summary>
+    public (int Tier, string Rotulo, int Nivel, double Mult) OutlandTierAtual
+    {
+        get
+        {
+            var escolhido = OutlandTiers.FirstOrDefault(x => x.Tier == OutlandTierEscolhido);
+            if (escolhido.Tier == 0) escolhido = OutlandTiers[0];
+            if (Level >= escolhido.Nivel) return escolhido;
+            for (var i = OutlandTiers.Length - 1; i >= 0; i--) if (Level >= OutlandTiers[i].Nivel) return OutlandTiers[i];
+            return OutlandTiers[0];
+        }
+    }
+
+    /// <summary>O maior tier da Outland que o nível do treinador libera.</summary>
+    public (int Tier, string Rotulo, int Nivel, double Mult) OutlandTierMaximo
+        => OutlandTiers.LastOrDefault(x => Level >= x.Nivel) is { Tier: > 0 } t ? t : OutlandTiers[0];
     public long Gold { get; private set; }
     public long Diamonds { get; private set; }
     public long Orbs { get; private set; }
@@ -279,7 +306,7 @@ public sealed class AccountGameState
         new(203, "Hyper Potion", "potion", "Cura 1.000 HP", 800),
         new(204, "Ultimate Potion", "potion", "Cura 3.000 HP", 1500),
         new(205, "Revive", "revive", "Revive com 10% do HP", 600),
-        new(206, "Max Revive", "revive", "Revive com 100% do HP", 5000),
+        new(206, "Max Revive", "revive", "Revive com 100% do HP", 2500),
         new(70091, "Mystery Egg P2", "egg", "Potência P2 · choca em 6h", 20_000_000),
         new(70092, "Mystery Egg P3", "egg", "Potência P3 · choca em 12h", 120_000_000),
         new(70093, "Mystery Egg P4", "egg", "Potência P4 · choca em 24h", 250_000_000),
@@ -325,8 +352,9 @@ public sealed class AccountGameState
                     var raw = wv.GetRawText();
                     if (raw.Length <= 2_000_000) _welcomeBruto[chave] = raw;
                 }
-            if (root.TryGetProperty("hunts", out var hs) && hs.ValueKind == JsonValueKind.Array) LerHunts(hs);
+            if (root.TryGetProperty("hunts", out var hs) && hs.ValueKind == JsonValueKind.Array) { LerHunts(hs); ValorDeVenda.HuntsDoWelcome(hs); }
             if (root.TryGetProperty("catalogoBolas", out var cb) && cb.ValueKind == JsonValueKind.Array) LerCatalogoBolas(cb);
+            if (root.TryGetProperty("itensNossos", out var inn0) && inn0.ValueKind == JsonValueKind.Array) LerItensNossosDoMarket(inn0);
             if (root.TryGetProperty("itensCompraveis", out var ic) && ic.ValueKind == JsonValueKind.Array) LerItensCompraveis(ic, root.TryGetProperty("itensNossos", out var inn) && inn.ValueKind == JsonValueKind.Array ? inn : null);
             var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
             LerEstado(est);
@@ -362,6 +390,38 @@ public sealed class AccountGameState
         if (lista.Count > 0) _catalogoBolas = lista.OrderBy(b => b.Id).ToList();
     }
 
+    /// <summary>
+    /// Poções e revives próprios do servidor (`itensNossos`, como a Golden Potion): o Market do jogo lista todo item com
+    /// categoria "heal" ou "revive" e preço de NPC, do items.json e dos itensNossos. Os do welcome valem mais (preço e nome).
+    /// </summary>
+    private void LerItensNossosDoMarket(JsonElement itens)
+    {
+        var novos = new List<ShopItemInfo>();
+        foreach (var i in itens.EnumerateArray())
+        {
+            if (i.ValueKind != JsonValueKind.Object || Num(i, "id") is not { } id) continue;
+            var cat = Str(i, "category") ?? Str(i, "categoria") ?? "";
+            var nossa = cat switch { "heal" or "potion" => "potion", "revive" => "revive", _ => null };
+            if (nossa is null) continue;
+            var preco = Num(i, "npcPrice") ?? Num(i, "preco") ?? 0;
+            if (preco <= 0) continue;
+            var nome = Str(i, "nome") ?? Str(i, "name");
+            if (string.IsNullOrEmpty(nome)) continue;
+            string desc;
+            if (nossa == "potion" && Dbl(i, "healPct") is { } hp and > 0) desc = $"Cura {Math.Round(hp * 100)}% do HP";
+            else if (nossa == "potion" && Num(i, "healAmount") is { } ha and > 0) desc = $"Cura {ha:N0} HP";
+            else if (nossa == "revive" && Dbl(i, "revivePct") is { } rp) desc = $"Revive com {Math.Round(rp * 100)}% do HP";
+            else desc = "";
+            novos.Add(new ShopItemInfo((int)id, nome, nossa, desc, preco));
+        }
+        if (novos.Count == 0) return;
+        var ids = novos.Select(n => n.Id).ToHashSet();
+        _catalogoMarket = _catalogoMarket.Where(m => !ids.Contains(m.Id)).Concat(novos).ToList();
+        LoggingService.Log.Info("Market: itens do servidor: " + string.Join(", ", novos.Select(n => $"{n.Nome} (id {n.Id}, {n.Categoria}, {n.Preco})")));
+    }
+
+    private static double? Dbl(JsonElement e, string k) => e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+
     private void LerItensCompraveis(JsonElement ic, JsonElement? itensNossos = null)
     {
         // Nomes dos itens próprios do servidor (o Golden Potion e afins não estão no items.json público).
@@ -392,6 +452,7 @@ public sealed class AccountGameState
     {
         if (Str(est, "nick") is { } nick) Nick = nick;
         if (Num(est, "level") is { } lv) Level = lv;
+        if (Num(est, "outlandTier") is { } otier && otier > 0) OutlandTierEscolhido = (int)otier;
         if (Num(est, "gold") is { } g) Gold = g;
         if (Num(est, "diamonds") is { } d) Diamonds = d;
         if (Num(est, "orbs") is { } o) Orbs = o;
