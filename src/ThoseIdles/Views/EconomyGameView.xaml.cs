@@ -218,6 +218,7 @@ public partial class EconomyGameView : UserControl
     private void SincronizarControlesAutoCompra()
     {
         if (Sessao?.Account is not { } acc) return;
+        AutoOutlandTier.IsChecked = acc.AutoOutlandTier;
         AutoCompraBolas.IsChecked = AutoCompraBolasMarket.IsChecked = acc.AutoBuyBalls;
         AutoCompraPocoes.IsChecked = AutoCompraPocoesMarket.IsChecked = acc.AutoBuyPotions;
         AutoCompraRevives.IsChecked = AutoCompraRevivesMarket.IsChecked = acc.AutoBuyRevives;
@@ -503,6 +504,14 @@ public partial class EconomyGameView : UserControl
         _sigMarket = _sigBolas = "";
         Atualizar();
         if (Eco is { } eco) _ = eco.VerificarAutoCompraAsync();
+    }
+
+    private void OnAutoOutlandTier(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox cb || Sessao is not { } s) return;
+        s.Account.AutoOutlandTier = cb.IsChecked == true;
+        s.NotifySettingsChanged();
+        if (Eco is { } eco) _ = eco.VerificarAutoOutlandTierAsync();
     }
 
     private void OnCiclarRegraBolas(object sender, RoutedEventArgs e)

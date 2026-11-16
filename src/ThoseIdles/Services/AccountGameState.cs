@@ -90,6 +90,9 @@ public sealed class AccountGameState
                     case "bossMorto":
                         if (Num(e, "valor") is { } val and > 0) Gold += val;
                         break;
+                    case "levelup" when Str(e, "quem") == "treinador":
+                        if (Num(e, "level") is { } nv && nv > Level) Level = nv;
+                        break;
                 }
             }
         }
@@ -211,6 +214,15 @@ public sealed class AccountGameState
         {
             lock (_lock)
                 return _outlandTiers.LastOrDefault(x => Level >= x.Nivel) is { Tier: > 0 } t ? t : _outlandTiers[0];
+        }
+    }
+
+    /// <summary>Nível mínimo do treinador para liberar a Outland.</summary>
+    public int OutlandTierMinNivel
+    {
+        get
+        {
+            lock (_lock) return _outlandTiers.Count > 0 ? _outlandTiers[0].Nivel : 150;
         }
     }
     public long Gold { get; private set; }

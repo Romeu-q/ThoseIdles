@@ -239,7 +239,7 @@ public sealed class SelfTestServer : IDisposable
             await Send($"{{\"t\":\"shiny.lista\",\"pagina\":{pagina},\"total\":5,\"linhas\":{linhas}}}");
             return false;
         }
-        if (type is "team.active" or "team.move" or "colecao.mover" or "shop.sellPokemon" or "auto.set" or "centro.ir" or "centro.curar" or "centro.desistir" or "shop.buy")
+        if (type is "team.active" or "team.move" or "colecao.mover" or "shop.sellPokemon" or "auto.set" or "centro.ir" or "centro.curar" or "centro.desistir" or "shop.buy" or "outland.tier")
         {
             // Os comandos da tela mínima do modo econômico: guarda o JSON bruto e responde o estado em delta, como o jogo.
             Comandos.Enqueue(text);
@@ -269,6 +269,12 @@ public sealed class SelfTestServer : IDisposable
                         await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { balls = dict } }));
                     else
                         await Send(System.Text.Json.JsonSerializer.Serialize(new { t = "estado", estado = new { items = dict } }));
+                    break;
+                }
+                case "outland.tier":
+                {
+                    var tier = r.TryGetProperty("tier", out var tv) ? tv.GetInt32() : 101;
+                    await Send($$$"""{"t":"estado","estado":{"outlandTier":{{{tier}}}}}""");
                     break;
                 }
             }

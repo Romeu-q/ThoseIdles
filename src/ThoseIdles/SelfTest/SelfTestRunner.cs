@@ -1671,10 +1671,11 @@ public sealed class SelfTestRunner
                 var autoComprouItem = naoComprouPicado
                                       && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":206") && c.Contains("\"qty\":9999"))
                                       && !server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"id\":201"));
+                var outlandAuto = Tem("\"outland.tier\"") && s.Game.OutlandTierAtual.Tier == 105;
                 var comprouMarket = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":204") && c.Contains("\"qty\":100"))
                                     && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":205") && c.Contains("\"qty\":10"))
                                     && pedidos.Any(p => p.Contains("Ultimate Potion") && p.Contains("150.000"))
-                                    && autoComprouBola && autoComprouItem && soTresComAuto;
+                                    && autoComprouBola && autoComprouItem && soTresComAuto && outlandAuto;
                 await Clica(b => b.Content as string == "💊 Curar", "curar");
                 await Pausa();
                 var curou = Tem("\"centro.curar\"");
