@@ -331,6 +331,7 @@ public sealed class SelfTestRunner
             await RunTravasTestAsync();
             await RunTelaMinimaTestAsync();
             await RunValorVendaTestAsync();
+            await RunNovidadesJogoTestAsync();
             await RunRankingTestAsync();
             await RunRankingMotorHuntTestAsync();
             await RunEconomicaResumidaTestAsync();
@@ -1426,7 +1427,7 @@ public sealed class SelfTestRunner
                 var linhaXp = cartao?.Linhas.FirstOrDefault(l => l.Rotulo == "Melhor XP")?.Valor ?? "";
                 var linhaOut = cartao?.Linhas.FirstOrDefault(l => l.Rotulo == "Melhor Outland")?.Valor ?? "";
                 var outOk = outl is not null && lista.Count(m => !m.Outland || m == outl) >= 5 && linhaXp.Contains(lista[0].Nome)
-                            && linhaOut.Contains(outl.Nome) && linhaOut.Contains("Outland 2") && linhaOut.Contains("×1,25");
+                            && linhaOut.Contains(outl.Nome) && linhaOut.Contains("Outland 4 (") && linhaOut.Contains("×1,25") && linhaOut.Contains("liberado até Outland 5");
                 var ok = outOk && s.RankingStatus == "" && s.RankingOrigem.StartsWith("motor do /hunt") && lista.Count >= 3
                          && lista.All(m => m.Nome.Length > 0 && m.XpH.Length > 0 && m.MataEm.Length > 0 && m.Risco.Length > 0 && m.AbatesH.Length > 0 && m.Nivel > 0 && m.Nivel <= 1284);
                 return ok
@@ -1495,6 +1496,54 @@ public sealed class SelfTestRunner
             ? Pass($"carimbo do servidor: faltavam {combate:0} ms (5 s); porta de 10 s: {porta:0} ms; um golpe rearma os 3 s ({rearmou:0} ms); trocar de hunt arma a guarda de 4 s ({guarda:0} ms); no Centro as travas zeram")
             : Fail($"combate={combate} semGuarda={semGuardaAoConectar} porta={porta} rearmou={rearmou} guarda={guarda} zerou={zerou}"));
     });
+
+    private async Task RunNovidadesJogoTestAsync()
+    {
+        await Test("novidades do jogo: lê a versão e o changelog do PokeIdle, aponta o que pode afetar o app e mostra a faixa e a janela", async () =>
+        {
+            using var http = new System.Net.Http.HttpClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ThoseIdles");
+            var lista = GameUpdateWatcher.LerLista(await http.GetStringAsync(GameUpdateWatcher.BaseUrl + "shared/aviso-jogo.mjs"));
+            var ultima = lista.FirstOrDefault() ?? throw new InvalidOperationException("a lista de novidades do jogo veio vazia");
+
+            // 1ª checagem (sem estado): só guarda onde o jogo está, sem aviso.
+            var estadoArq = Path.Combine(AppPaths.Root, "jogo-novidades.json");
+            File.Delete(estadoArq);
+            var primeira = await GameUpdateWatcher.ChecarAsync();
+            var guardou = File.Exists(estadoArq) && File.ReadAllText(estadoArq).Contains($"\"UltimoAviso\": {ultima.Aviso}");
+
+            // O app "estava" um aviso atrás e com a regra de venda antiga: a checagem tem de achar as duas coisas.
+            var est = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(estadoArq))!.AsObject();
+            est["UltimoAviso"] = ultima.Aviso - 1;
+            est["Modulos"]!["shared/sell-value.mjs"] = "HASH-ANTIGO";
+            File.WriteAllText(estadoArq, est.ToJsonString());
+            var rel = await GameUpdateWatcher.ChecarAsync();
+            var novaOk = rel is { MaisNova: { } n } && n.Aviso == ultima.Aviso && n.Itens.Count > 0 && rel.Novidades.Count == 1;
+            var regraOk = rel?.Conferencias.Any(c => c.Contains("sell-value.mjs") && c.Contains("ValorDeVenda")) == true;
+            var semRepetir = await GameUpdateWatcher.ChecarAsync() is null;
+            var txt = rel is null ? "" : GameUpdateWatcher.TextoParaClaude(rel);
+            var arquivo = File.Exists(Path.Combine(AppPaths.Root, "jogo-novidades.txt"));
+
+            // Faixa na janela e a janela de novidades.
+            if (rel is not null) await _window.Dispatcher.InvokeAsync(() => _vm.MostrarNovidadesDoJogo(rel));
+            await Task.Delay(400);
+            var faixa = await _window.Dispatcher.InvokeAsync(() => _vm.GameNewsText);
+            await _window.Dispatcher.InvokeAsync(() => FotoDe((System.Windows.FrameworkElement)_window.Content, "foto-novidades-faixa.png"));
+            Window? janela = null;
+            if (rel is not null) janela = await _window.Dispatcher.InvokeAsync(() => ThoseIdles.Views.NovidadesJogoWindow.Mostrar(rel, _window));
+            await Task.Delay(600);
+            if (janela is not null) await _window.Dispatcher.InvokeAsync(() => { FotoDe((System.Windows.FrameworkElement)janela.Content, "foto-novidades-janela.png"); janela.Close(); });
+            await _window.Dispatcher.InvokeAsync(() => _vm.DismissGameNewsCommand.Execute(null));
+            var dispensou = await _window.Dispatcher.InvokeAsync(() => _vm.GameNewsText) == "";
+
+            var ok = primeira is null && guardou && novaOk && regraOk && semRepetir && arquivo && txt.Contains($"v{ultima.Versao}")
+                     && faixa.Contains($"v{ultima.Versao}") && dispensou;
+            var itens = rel?.MaisNova?.Itens ?? Array.Empty<string>();
+            return ok
+                ? Pass($"jogo na v{ultima.Versao} (aviso {ultima.Aviso}, {ultima.Data}); 1ª checagem só guardou; com o app um aviso atrás: {itens.Count} itens do changelog (1º: “{(itens.Count > 0 ? itens[0][..Math.Min(90, itens[0].Length)] : "")}…”), pode afetar: [{string.Join("; ", rel!.PodeAfetar)}], e a regra de venda mudada foi apontada; não repete; faixa “{faixa}”; dispensar esconde")
+                : Fail($"primeira={primeira is null} guardou={guardou} nova={novaOk} regra={regraOk} semRepetir={semRepetir} arquivo={arquivo} faixa=[{faixa}] dispensou={dispensou} itens={itens.Count} conf=[{string.Join(" | ", rel?.Conferencias ?? Array.Empty<string>())}]");
+        });
+    }
 
     private async Task RunValorVendaTestAsync()
     {

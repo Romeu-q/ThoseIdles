@@ -296,6 +296,21 @@
             </DockPanel>
         </Border>
 
+        <!-- O PokeIdle (o jogo) atualizou: changelog e o que pode ter afetado o app -->
+        <Border DockPanel.Dock="Top" Background="#2A2140" BorderBrush="#5B4B8A" BorderThickness="0,0,0,2" Padding="14,6"
+                Visibility="{Binding GameNewsText, Converter={StaticResource StrToVis}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" Command="{Binding DismissGameNewsCommand}"
+                        ToolTip="Já vi: não avisar mais sobre esta versão do jogo" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Content="Copiar para o Claude" Command="{Binding CopyGameNewsCommand}"
+                        ToolTip="Copia o changelog e os pontos para conferir; cole na conversa com o Claude para ele adaptar o ThoseIdles." />
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Ver novidades" Command="{Binding OpenGameNewsCommand}"
+                        ToolTip="O que mudou no jogo e o que pode ter afetado o ThoseIdles." />
+                <TextBlock DockPanel.Dock="Left" Text="🆕" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding GameNewsText}" FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" />
+            </DockPanel>
+        </Border>
+
         <!-- Avisos curtos -->
         <Border DockPanel.Dock="Top" Background="#1E2433" BorderBrush="#2F3A55" BorderThickness="0,0,0,1" Padding="14,6"
                 Visibility="{Binding Notice, Converter={StaticResource StrToVis}}">

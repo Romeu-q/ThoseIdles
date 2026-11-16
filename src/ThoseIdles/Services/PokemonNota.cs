@@ -140,6 +140,14 @@ public static class SpeciesCatalog
 
     public static Task EnsureLoadedAsync() => _carregando ??= Task.Run(CarregarAsync);
 
+    /// <summary>O jogo atualizou: apaga a cópia guardada e baixa o catálogo de novo (valores de venda, espécies novas).</summary>
+    public static void Renovar()
+    {
+        try { File.Delete(Path.Combine(AppPaths.Root, "catalogo-especies-v3.json")); } catch { }
+        _carregando = null;
+        _ = EnsureLoadedAsync();
+    }
+
     private static async Task CarregarAsync()
     {
         var cache = Path.Combine(AppPaths.Root, "catalogo-especies-v3.json");

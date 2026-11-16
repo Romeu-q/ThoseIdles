@@ -363,9 +363,11 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
 
 **Ouro da sessão:** soma o ouro dos abates **e o valor de venda (estimado) dos Pokémon capturados**, com a conta do jogo: valor da espécie × (1 + Nv/50, até o Nv 100) × qualidade × 10 se shiny. O Resumo mostra quanto disso veio das capturas.
 
+**Novidades do jogo:** a cada 6 horas o ThoseIdles confere se o PokeIdle lançou versão nova (pela mesma lista de novidades que o jogo mostra: `/shared/aviso-jogo.mjs`, com os textos em `/i18n.mjs`). Quando lança, ele renova os dados do jogo que guarda (catálogo de espécies e valores de venda), mostra uma faixa com a versão e abre o changelog em **Ver novidades**, apontando **o que pode ter afetado o app**: os assuntos do changelog que o ThoseIdles usa (Market, Outland, hunts, Centro, automações…), as regras do jogo que o app copia e mudaram (valor de venda, tiers da Outland) e campos que o servidor parou de mandar. O botão **Copiar para o Claude** copia tudo para colar numa conversa e pedir a adaptação. O app não muda o próprio código sozinho.
+
 **Visual:** a interface do app (não a página do jogo) tem cara de Pokémon Gen 3 no modo escuro: fonte pixel (Pixelify Sans, licença OFL), caixas com borda de 2 px e cantos em degrau, sombra dura e o cursor ▶ vermelho nos botões.
 
-**Melhor hunt:** o Resumo mostra sempre a **melhor hunt de XP** e a **melhor da Outland**, com o tier da conta (Outland 1 a 8, liberados pelo nível do treinador; o tier multiplica os drops). A aba Caçar lista o top 5 de XP e, se a melhor da Outland ficar fora dele, ela vem junto.
+**Melhor hunt:** o Resumo mostra sempre a **melhor hunt de XP** e a **melhor da Outland**, com o degrau da conta (a escada da Outland: 40 degraus, do ×1 no Nv 150 ao ×20 no Nv 65.000, liberados pelo nível do treinador; o multiplicador vale para os drops). A aba Caçar lista o top 5 de XP e, se a melhor da Outland ficar fora dele, ela vem junto.
 
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
 **✋ Desistir** do combate (pede confirmação). **Abrir o jogo completo** sai do modo econômico.

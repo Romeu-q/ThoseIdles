@@ -615,6 +615,57 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ = CheckAppUpdateAsync();
     }
 
+    // ------------------------------------------------------------------ atualizações do JOGO (PokeIdle)
+
+    private System.Windows.Threading.DispatcherTimer? _gameUpdateTimer;
+    private GameUpdateWatcher.Relatorio? _gameReport;
+
+    /// <summary>A faixa "o PokeIdle atualizou" (vazia = escondida).</summary>
+    public string GameNewsText => _gameReport is { MaisNova: { } n } r
+        ? $"O PokeIdle atualizou para a v{n.Versao} ({n.Data})" + (r.Novidades.Count > 1 ? $" — {r.Novidades.Count} novidades" : "")
+          + (r.Alertas > 0 ? $". Pode afetar o ThoseIdles: {r.Alertas} ponto(s) para conferir." : ". Nada do ThoseIdles parece afetado.")
+        : _gameReport is { } r2 && r2.Conferencias.Count > 0 ? $"O PokeIdle mudou uma regra que o ThoseIdles copia: {r2.Conferencias.Count} ponto(s) para conferir." : "";
+
+    /// <summary>Checa a versão do jogo agora (30 s depois de abrir) e a cada 6 h.</summary>
+    public void StartGameUpdateChecks()
+    {
+        _gameUpdateTimer ??= new System.Windows.Threading.DispatcherTimer(TimeSpan.FromHours(6),
+            System.Windows.Threading.DispatcherPriority.Background, async (_, _) => await CheckGameUpdateAsync(),
+            System.Windows.Threading.Dispatcher.CurrentDispatcher);
+        _gameUpdateTimer.Start();
+        _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => System.Windows.Application.Current?.Dispatcher.InvokeAsync(CheckGameUpdateAsync));
+    }
+
+    public async Task CheckGameUpdateAsync()
+    {
+        var r = await Task.Run(() => GameUpdateWatcher.ChecarAsync());
+        if (r is null || GameUpdateWatcher.Dispensado(r)) return;
+        _gameReport = r;
+        OnPropertyChanged(nameof(GameNewsText));
+    }
+
+    public ICommand OpenGameNewsCommand => new RelayCommand(() =>
+    {
+        if (_gameReport is { } r) ThoseIdles.Views.NovidadesJogoWindow.Mostrar(r, System.Windows.Application.Current?.MainWindow);
+    });
+
+    public ICommand CopyGameNewsCommand => new RelayCommand(() =>
+    {
+        if (_gameReport is not { } r) return;
+        try { System.Windows.Clipboard.SetText(GameUpdateWatcher.TextoParaClaude(r)); Notice = "Novidades copiadas: cole na conversa com o Claude para ele adaptar o ThoseIdles."; }
+        catch { Notice = "Não deu para copiar agora; tente de novo."; }
+    });
+
+    public ICommand DismissGameNewsCommand => new RelayCommand(() =>
+    {
+        if (_gameReport is { } r) GameUpdateWatcher.Dispensar(r);
+        _gameReport = null;
+        OnPropertyChanged(nameof(GameNewsText));
+    });
+
+    /// <summary>Só para o autoteste: mostra um relatório na faixa.</summary>
+    public void MostrarNovidadesDoJogo(GameUpdateWatcher.Relatorio r) { _gameReport = r; OnPropertyChanged(nameof(GameNewsText)); }
+
     public string CurrentVersionText => $"Você está na versão {AppUpdateService.CurrentVersion}";
 
     /// <summary>Botão "Procurar atualização": consulta agora e sempre responde algo.</summary>

@@ -208,6 +208,7 @@ public partial class App : Application
                 await _vm.CheckHuntUpdateAsync(TimeSpan.FromSeconds(8));
                 _vm.StartHuntUpdateTimer();
                 _vm.StartAppUpdateChecks();
+                _vm.StartGameUpdateChecks();
                 if (settings.StartAllOnLaunch) await _manager.StartAllAsync();
             }
         };
