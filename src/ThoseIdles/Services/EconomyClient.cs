@@ -500,9 +500,9 @@ public sealed class EconomyClient : IAsyncDisposable
 
     private static int CalcularQtdCompra(int loteDesejado, long ouroDisponivel, long precoUnitario)
     {
-        // Sempre a quantidade MÁXIMA (o "Máx" da loja: até 9.999, o que o ouro paga).
-        if (precoUnitario <= 0) return 0;
-        return (int)Math.Min(9999, ouroDisponivel / precoUnitario);
+        // Só compra quando puder comprar o máximo permitido pela loja (9.999), evitando compras picadas.
+        if (precoUnitario <= 0 || ouroDisponivel < precoUnitario * 9999L) return 0;
+        return 9999;
     }
 
     /// <summary>A última recusa do servidor depois de entrar ("erro" com a chave) e o aviso dela.</summary>

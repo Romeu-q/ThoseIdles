@@ -1426,7 +1426,7 @@ public sealed class SelfTestRunner
                 var linhaXp = cartao?.Linhas.FirstOrDefault(l => l.Rotulo == "Melhor XP")?.Valor ?? "";
                 var linhaOut = cartao?.Linhas.FirstOrDefault(l => l.Rotulo == "Melhor Outland")?.Valor ?? "";
                 var outOk = outl is not null && lista.Count(m => !m.Outland || m == outl) >= 5 && linhaXp.Contains(lista[0].Nome)
-                            && linhaOut.Contains(outl.Nome) && linhaOut.Contains("Outland 2") && linhaOut.Contains("×1,25");
+                            && linhaOut.Contains(outl.Nome) && linhaOut.Contains("Outland 4") && linhaOut.Contains("×1,25");
                 var ok = outOk && s.RankingStatus == "" && s.RankingOrigem.StartsWith("motor do /hunt") && lista.Count >= 3
                          && lista.All(m => m.Nome.Length > 0 && m.XpH.Length > 0 && m.MataEm.Length > 0 && m.Risco.Length > 0 && m.AbatesH.Length > 0 && m.Nivel > 0 && m.Nivel <= 1284);
                 return ok
@@ -1661,9 +1661,15 @@ public sealed class SelfTestRunner
                                     && pocoes.Select(x => x.Nome).OrderBy(x => x).SequenceEqual(new[] { "Golden Potion", "Ultimate Potion" });
                 if (!(s.Economy?.EstaEmAutoCompraItem(206) ?? false))
                     await Clica(b => b.Tag is int i && i == 206 && (b.Content as string)?.Contains("Auto") == true, "ligar auto-compra Max Revive");
+                await Pausa(700);
+                // Com pouco ouro (208.750) não compra picado; só compra quando tiver ouro para 9.999.
+                var naoComprouPicado = !server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"id\":206"));
+                await s.Economy!.EnviarAsync(new { t = "teste.eco", msg = new { t = "estado", estado = new { gold = 30_000_000L } } });
+                await Task.Delay(1300); // guarda de 1,2 s entre auto-compras
                 await Pausa(900);
                 var autoComprouBola = !server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"ball\"") && c.Contains("\"id\":2") && !c.Contains("\"qty\":100"));
-                var autoComprouItem = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":206") && c.Contains("\"qty\":83"))
+                var autoComprouItem = naoComprouPicado
+                                      && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":206") && c.Contains("\"qty\":9999"))
                                       && !server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"id\":201"));
                 var comprouMarket = server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":204") && c.Contains("\"qty\":100"))
                                     && server.Comandos.Any(c => c.Contains("\"shop.buy\"") && c.Contains("\"kind\":\"item\"") && c.Contains("\"id\":205") && c.Contains("\"qty\":10"))
