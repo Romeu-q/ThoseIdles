@@ -218,6 +218,7 @@ public partial class EconomyGameView : UserControl
     private void SincronizarControlesAutoCompra()
     {
         if (Sessao?.Account is not { } acc) return;
+        AutoOutlandTier.IsChecked = acc.AutoOutlandTier;
         AutoCompraBolas.IsChecked = AutoCompraBolasMarket.IsChecked = acc.AutoBuyBalls;
         AutoCompraPocoes.IsChecked = AutoCompraPocoesMarket.IsChecked = acc.AutoBuyPotions;
         AutoCompraRevives.IsChecked = AutoCompraRevivesMarket.IsChecked = acc.AutoBuyRevives;
@@ -285,7 +286,7 @@ public partial class EconomyGameView : UserControl
             var auto = eco?.EstaEmAutoCompraBola(b.Id) == true;
             var mult = b.CatchRate is { } cr and > 0 ? $"Taxa ×{cr.ToString("0.##", Pt)} · " : "";
             var preco = !b.Compravel ? "Só na loja de diamantes" : b.Preco is { } p and > 0 ? $"🪙 {p.ToString("N0", Pt)} ouro" : "Loja NPC";
-            var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyBallsMin:N0} (compra o máximo)" : "";
+            var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyBallsMin:N0} (compra 9.999)" : "";
             return new MarketLinha(b.Id, b.Nome, $"{mult}{preco} · na bolsa: {g.Balls(b.Id).ToString("N0", Pt)}{infoAuto}", pode, pode ? 1 : 0.5,
                 auto ? "✓ Auto" : "🔄 Auto", auto ? "#3FC46E" : "#2C2C35", pode && EconomyClient.PermitidoNaAutoCompra(b.Nome));
         }).ToList();
@@ -294,7 +295,7 @@ public partial class EconomyGameView : UserControl
             .Select(m =>
             {
                 var auto = eco?.EstaEmAutoCompraItem(m.Id) == true;
-                var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyItemsMin:N0} (compra o máximo)" : "";
+                var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyItemsMin:N0} (compra 9.999)" : "";
                 return new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}{infoAuto}",
                     true, 1, auto ? "✓ Auto" : "🔄 Auto", auto ? "#3FC46E" : "#2C2C35", EconomyClient.PermitidoNaAutoCompra(m.Nome));
             })
@@ -304,7 +305,7 @@ public partial class EconomyGameView : UserControl
             .Select(m =>
             {
                 var auto = eco?.EstaEmAutoCompraItem(m.Id) == true;
-                var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyItemsMin:N0} (compra o máximo)" : "";
+                var infoAuto = auto && acc is not null ? $" · 🔄 repõe < {acc.AutoBuyItemsMin:N0} (compra 9.999)" : "";
                 return new MarketLinha(m.Id, m.Nome, $"{m.Descricao} · 🪙 {m.Preco.ToString("N0", Pt)} ouro · na bolsa: {g.Items(m.Id).ToString("N0", Pt)}{infoAuto}",
                     true, 1, auto ? "✓ Auto" : "🔄 Auto", auto ? "#3FC46E" : "#2C2C35", EconomyClient.PermitidoNaAutoCompra(m.Nome));
             })
@@ -503,6 +504,14 @@ public partial class EconomyGameView : UserControl
         _sigMarket = _sigBolas = "";
         Atualizar();
         if (Eco is { } eco) _ = eco.VerificarAutoCompraAsync();
+    }
+
+    private void OnAutoOutlandTier(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox cb || Sessao is not { } s) return;
+        s.Account.AutoOutlandTier = cb.IsChecked == true;
+        s.NotifySettingsChanged();
+        if (Eco is { } eco) _ = eco.VerificarAutoOutlandTierAsync();
     }
 
     private void OnCiclarRegraBolas(object sender, RoutedEventArgs e)

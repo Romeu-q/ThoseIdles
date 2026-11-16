@@ -225,8 +225,8 @@ public static class SummaryBuilder
             var tier = game.OutlandTierAtual;
             var maxTier = game.OutlandTierMaximo;
             var rotTier = $"{tier.Rotulo} (drops ×{tier.Mult.ToString("0.##", Pt)})" + (maxTier.Tier > tier.Tier ? $" · liberado até {maxTier.Rotulo}" : "");
-            if (game.Level < game.OutlandTiers[0].Nivel)
-                linhas.Add(new CartaoLinha("Melhor Outland", $"libera no Nv {game.OutlandTiers[0].Nivel} do treinador", Cinza));
+            if (game.Level < game.OutlandTierMinNivel)
+                linhas.Add(new CartaoLinha("Melhor Outland", $"libera no Nv {game.OutlandTierMinNivel} do treinador", Cinza));
             else if (ranking.FirstOrDefault(h => h.Outland) is { } outl)
                 linhas.Add(new CartaoLinha("Melhor Outland",
                     outl.Slug == slugAtual ? $"✓ já está nela: {outl.Nome} ({outl.XpH} XP/h) · {rotTier}" : $"{outl.Nome} · {outl.XpH} XP/h · {rotTier}",

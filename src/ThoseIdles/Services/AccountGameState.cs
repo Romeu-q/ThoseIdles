@@ -90,6 +90,9 @@ public sealed class AccountGameState
                     case "bossMorto":
                         if (Num(e, "valor") is { } val and > 0) Gold += val;
                         break;
+                    case "levelup" when Str(e, "quem") == "treinador":
+                        if (Num(e, "level") is { } nv && nv > Level) Level = nv;
+                        break;
                 }
             }
         }
@@ -156,45 +159,37 @@ public sealed class AccountGameState
     public string? Nick { get; private set; }
     public long Level { get; private set; }
 
-    /// <summary>O tier da Outland que a conta escolheu (`outlandTier` do estado; o 1º degrau se não veio).</summary>
+    /// <summary>O tier da Outland que a conta escolheu (`outlandTier` do estado; 101 se não veio).</summary>
     public int OutlandTierEscolhido { get; private set; } = 101;
 
-    /// <summary>
-    /// A escada da Outland do jogo (shared/outland-tiers.mjs, v1.426: 40 degraus, ids 101–140, do ×1 no Nv 150 ao ×20 no Nv 65.000):
-    /// liberada pelo nível do treinador; o mult multiplica os drops. Vale a que o servidor manda no welcome (`outlandTiers`);
-    /// esta é a reserva.
-    /// </summary>
-    public static readonly (int Tier, string Rotulo, int Nivel, double Mult)[] OutlandTiersPadrao = Escada(new (int, double)[]
+    /// <summary>Os 40 tiers da Outland do jogo (shared/outland-tiers.mjs): liberados pelo nível do treinador; o mult multiplica os drops.</summary>
+    public static readonly (int Tier, string Rotulo, int Nivel, double Mult)[] OutlandTiers =
     {
-        (150, 1), (500, 1.1), (750, 1.15), (1_000, 1.25), (1_250, 1.3), (1_500, 1.5), (1_800, 1.65), (2_000, 1.85), (2_250, 2), (2_500, 2.15),
-        (3_000, 2.3), (3_250, 2.45), (3_500, 2.6), (4_000, 2.75), (5_000, 3), (6_000, 3.25), (7_000, 3.5), (8_000, 3.75), (10_000, 4), (11_000, 4.25),
-        (12_000, 4.5), (14_000, 5), (15_000, 5.25), (17_000, 6), (19_000, 6.5), (21_000, 7), (24_000, 7.5), (28_000, 8), (32_000, 8.5), (36_000, 9),
-        (38_000, 9.5), (40_000, 10), (41_000, 10.5), (43_000, 11), (45_000, 12), (48_000, 13), (52_000, 14), (58_000, 16), (60_000, 17), (65_000, 20),
-    });
+        (101, "Outland 1", 150, 1), (102, "Outland 2", 500, 1.1), (103, "Outland 3", 750, 1.15), (104, "Outland 4", 1_000, 1.25),
+        (105, "Outland 5", 1_250, 1.3), (106, "Outland 6", 1_500, 1.5), (107, "Outland 7", 1_800, 1.65), (108, "Outland 8", 2_000, 1.85),
+        (109, "Outland 9", 2_250, 2), (110, "Outland 10", 2_500, 2.15), (111, "Outland 11", 3_000, 2.3), (112, "Outland 12", 3_250, 2.45),
+        (113, "Outland 13", 3_500, 2.6), (114, "Outland 14", 4_000, 2.75), (115, "Outland 15", 5_000, 3), (116, "Outland 16", 6_000, 3.25),
+        (117, "Outland 17", 7_000, 3.5), (118, "Outland 18", 8_000, 3.75), (119, "Outland 19", 10_000, 4), (120, "Outland 20", 11_000, 4.25),
+        (121, "Outland 21", 12_000, 4.5), (122, "Outland 22", 14_000, 5), (123, "Outland 23", 15_000, 5.25), (124, "Outland 24", 17_000, 6),
+        (125, "Outland 25", 19_000, 6.5), (126, "Outland 26", 21_000, 7), (127, "Outland 27", 24_000, 7.5), (128, "Outland 28", 28_000, 8),
+        (129, "Outland 29", 32_000, 8.5), (130, "Outland 30", 36_000, 9), (131, "Outland 31", 38_000, 9.5), (132, "Outland 32", 40_000, 10),
+        (133, "Outland 33", 41_000, 10.5), (134, "Outland 34", 43_000, 11), (135, "Outland 35", 45_000, 12), (136, "Outland 36", 48_000, 13),
+        (137, "Outland 37", 52_000, 14), (138, "Outland 38", 58_000, 16), (139, "Outland 39", 60_000, 17), (140, "Outland 40", 65_000, 20),
+    };
 
-    private static (int, string, int, double)[] Escada((int Nivel, double Mult)[] degraus) =>
-        degraus.Select((d, i) => (100 + i + 1, $"Outland {i + 1}", d.Nivel, d.Mult)).ToArray();
-
-    /// <summary>Os ids antigos (1–8, de antes da escada de 40) → o nível deles: o jogo leva para o degrau novo do mesmo nível.</summary>
-    private static readonly Dictionary<int, int> DegrauAntigo = new() { [1] = 150, [2] = 1_000, [3] = 2_000, [4] = 4_000, [5] = 8_000, [6] = 16_000, [7] = 24_000, [8] = 36_000 };
-
-    private (int Tier, string Rotulo, int Nivel, double Mult)[]? _outlandTiersServidor;
-
-    /// <summary>A escada da Outland em uso (a do servidor, se veio; senão a reserva).</summary>
-    public (int Tier, string Rotulo, int Nivel, double Mult)[] OutlandTiers => _outlandTiersServidor ?? OutlandTiersPadrao;
-
-    /// <summary>O degrau de um id (o id antigo 1–8 vira o degrau novo do mesmo nível, como o jogo faz).</summary>
-    public (int Tier, string Rotulo, int Nivel, double Mult) DegrauDaOutland(int tier)
+    private static readonly Dictionary<int, int> OutlandDegrauAntigo = new()
     {
-        var lista = OutlandTiers;
-        if (DegrauAntigo.TryGetValue(tier, out var nivel))
-        {
-            var ficha = lista[0];
-            foreach (var x in lista) if (x.Nivel <= nivel) ficha = x;
-            return ficha;
-        }
-        var achado = lista.FirstOrDefault(x => x.Tier == tier);
-        return achado.Tier == 0 ? lista[0] : achado;
+        [1] = 150, [2] = 1_000, [3] = 2_000, [4] = 4_000, [5] = 8_000, [6] = 16_000, [7] = 24_000, [8] = 36_000,
+    };
+
+    private List<(int Tier, string Rotulo, int Nivel, double Mult)> _outlandTiers = OutlandTiers.ToList();
+
+    private (int Tier, string Rotulo, int Nivel, double Mult) ResolverOutlandTier(int tier)
+    {
+        if (OutlandDegrauAntigo.TryGetValue(tier, out var nivelAntigo))
+            return _outlandTiers.LastOrDefault(x => x.Nivel <= nivelAntigo) is { Tier: > 0 } f ? f : _outlandTiers[0];
+        var achado = _outlandTiers.FirstOrDefault(x => x.Tier == tier);
+        return achado.Tier > 0 ? achado : _outlandTiers[0];
     }
 
     /// <summary>O tier em que a conta caça na Outland: o escolhido, se o nível libera; senão o maior liberado (como o jogo).</summary>
@@ -202,30 +197,34 @@ public sealed class AccountGameState
     {
         get
         {
-            var lista = OutlandTiers;
-            var escolhido = DegrauDaOutland(OutlandTierEscolhido);
-            if (Level >= escolhido.Nivel) return escolhido;
-            for (var i = lista.Length - 1; i >= 0; i--) if (Level >= lista[i].Nivel) return lista[i];
-            return lista[0];
+            lock (_lock)
+            {
+                var escolhido = ResolverOutlandTier(OutlandTierEscolhido);
+                if (Level >= escolhido.Nivel) return escolhido;
+                for (var i = _outlandTiers.Count - 1; i >= 0; i--) if (Level >= _outlandTiers[i].Nivel) return _outlandTiers[i];
+                return _outlandTiers[0];
+            }
         }
     }
 
     /// <summary>O maior tier da Outland que o nível do treinador libera.</summary>
     public (int Tier, string Rotulo, int Nivel, double Mult) OutlandTierMaximo
-        => OutlandTiers.LastOrDefault(x => Level >= x.Nivel) is { Tier: > 0 } t ? t : OutlandTiers[0];
-
-    private void LerOutlandTiers(JsonElement lista)
     {
-        var l = new List<(int, string, int, double)>();
-        foreach (var x in lista.EnumerateArray())
+        get
         {
-            if (x.ValueKind != JsonValueKind.Object || Num(x, "tier") is not { } t || Num(x, "nivel") is not { } nv) continue;
-            var mult = x.TryGetProperty("mult", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : 1;
-            l.Add(((int)t, Str(x, "rotulo") ?? $"Outland {l.Count + 1}", (int)nv, mult));
+            lock (_lock)
+                return _outlandTiers.LastOrDefault(x => Level >= x.Nivel) is { Tier: > 0 } t ? t : _outlandTiers[0];
         }
-        if (l.Count > 0) _outlandTiersServidor = l.OrderBy(x => x.Item3).ToArray();
     }
 
+    /// <summary>Nível mínimo do treinador para liberar a Outland.</summary>
+    public int OutlandTierMinNivel
+    {
+        get
+        {
+            lock (_lock) return _outlandTiers.Count > 0 ? _outlandTiers[0].Nivel : 150;
+        }
+    }
     public long Gold { get; private set; }
     public long Diamonds { get; private set; }
     public long Orbs { get; private set; }
@@ -399,8 +398,8 @@ public sealed class AccountGameState
                     if (raw.Length <= 2_000_000) _welcomeBruto[chave] = raw;
                 }
             if (root.TryGetProperty("hunts", out var hs) && hs.ValueKind == JsonValueKind.Array) { LerHunts(hs); ValorDeVenda.HuntsDoWelcome(hs); }
+            if (root.TryGetProperty("outlandTiers", out var ot) && ot.ValueKind == JsonValueKind.Array) LerOutlandTiers(ot);
             if (root.TryGetProperty("catalogoBolas", out var cb) && cb.ValueKind == JsonValueKind.Array) LerCatalogoBolas(cb);
-            if (root.TryGetProperty("outlandTiers", out var otl) && otl.ValueKind == JsonValueKind.Array) LerOutlandTiers(otl);
             if (root.TryGetProperty("itensNossos", out var inn0) && inn0.ValueKind == JsonValueKind.Array) LerItensNossosDoMarket(inn0);
             if (root.TryGetProperty("itensCompraveis", out var ic) && ic.ValueKind == JsonValueKind.Array) LerItensCompraveis(ic, root.TryGetProperty("itensNossos", out var inn) && inn.ValueKind == JsonValueKind.Array ? inn : null);
             var est = root.TryGetProperty("estado", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
@@ -421,6 +420,21 @@ public sealed class AccountGameState
             lista.Add(new HuntInfo(slug, Str(h, "nome") ?? Str(h, "name") ?? slug, (int)(Num(h, "nivel") ?? Num(h, "level") ?? 1), Str(h, "regiao") ?? Str(h, "region")));
         }
         if (lista.Count > 0) _hunts = lista.OrderBy(h => h.Nivel).ThenBy(h => h.Nome, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    private void LerOutlandTiers(JsonElement ot)
+    {
+        var lista = new List<(int Tier, string Rotulo, int Nivel, double Mult)>();
+        foreach (var t in ot.EnumerateArray())
+        {
+            if (t.ValueKind != JsonValueKind.Object || Num(t, "tier") is not { } tier) continue;
+            var numero = (int)(Num(t, "numero") ?? (tier > 100 ? tier - 100 : tier));
+            var rotulo = Str(t, "rotulo") ?? $"Outland {numero}";
+            var nivel = (int)(Num(t, "nivel") ?? 150);
+            var mult = Dbl(t, "mult") ?? 1;
+            lista.Add(((int)tier, rotulo, nivel, mult));
+        }
+        if (lista.Count > 0) _outlandTiers = lista.OrderBy(x => x.Nivel).ThenBy(x => x.Tier).ToList();
     }
 
     private void LerCatalogoBolas(JsonElement cb)

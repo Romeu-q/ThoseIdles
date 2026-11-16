@@ -347,6 +347,7 @@
                     <CheckBox x:Name="AutoRevive" Content="Reviver sozinho" Click="OnAutoSimples" />
                     <CheckBox x:Name="AutoPotion" Content="Usar poção sozinho" Click="OnAutoSimples" />
                     <CheckBox x:Name="AutoVoltar" Content="Voltar para a hunt depois de curar" Click="OnAutoSimples" />
+                    <CheckBox x:Name="AutoOutlandTier" Content="🌌 Ir sempre para a melhor Outland liberada (por nível)" Click="OnAutoOutlandTier" />
                     <Border Style="{StaticResource Linha}" BorderBrush="#3FC46E" Margin="0,8,0,0">
                         <StackPanel>
                             <DockPanel>

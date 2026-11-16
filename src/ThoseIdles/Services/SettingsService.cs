@@ -65,6 +65,9 @@ public sealed class AccountSettings
     /// <summary>IDs de bolas/poções/revives que o usuário desligou da auto-compra mesmo estando na automação.</summary>
     public List<int> AutoBuyDisabledIds { get; set; } = new();
 
+    /// <summary>Seleciona automaticamente o maior tier da Outland liberado pelo nível do treinador.</summary>
+    public bool AutoOutlandTier { get; set; } = true;
+
     [JsonIgnore]
     public string ProfileName => ProfileManager.ProfileNameForSlot(Slot);
 }

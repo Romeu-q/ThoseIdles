@@ -197,6 +197,7 @@ public sealed class EconomyClient : IAsyncDisposable
                         // O mesmo aviso do Modo Economia do jogo: sem tela, o servidor não precisa mandar o mapa.
                         await SendAsync(ws, new { t = "cliente.economia", ativo = true }, stop);
                         await VerificarAutoCompraAsync();
+                        await VerificarAutoOutlandTierAsync();
                     }
                     else if (type == "batalha")
                     {
@@ -207,6 +208,7 @@ public sealed class EconomyClient : IAsyncDisposable
                             LoggingService.Log.Info($"[conta{_slot}] Modo econômico: SHINY capturado — {Stats.UltimosShinies.FirstOrDefault()}.");
                         if (mudou) AtualizarResumo(Stats.ShiniesCapturados > shiniesAntes);
                         await VerificarAutoCompraAsync();
+                        await VerificarAutoOutlandTierAsync();
                     }
                     else if (welcomed && type == "estado")
                     {
@@ -215,6 +217,7 @@ public sealed class EconomyClient : IAsyncDisposable
                         Parse(message, root => { leu = Stats.LerEstado(root) | Stats.LerBolas(root); Game.Apply(root); });
                         if (leu) AtualizarResumo();
                         await VerificarAutoCompraAsync();
+                        await VerificarAutoOutlandTierAsync();
                     }
                     else if (welcomed && type == "erro")
                     {
@@ -500,9 +503,33 @@ public sealed class EconomyClient : IAsyncDisposable
 
     private static int CalcularQtdCompra(int loteDesejado, long ouroDisponivel, long precoUnitario)
     {
-        // Sempre a quantidade MÁXIMA (o "Máx" da loja: até 9.999, o que o ouro paga).
-        if (precoUnitario <= 0) return 0;
-        return (int)Math.Min(9999, ouroDisponivel / precoUnitario);
+        // Só compra quando puder comprar o máximo permitido pela loja (9.999), evitando compras picadas.
+        if (precoUnitario <= 0 || ouroDisponivel < precoUnitario * 9999L) return 0;
+        return 9999;
+    }
+
+    private DateTime _ultimoOutlandTierUtc = DateTime.MinValue;
+
+    /// <summary>
+    /// Seleciona automaticamente o maior tier da Outland liberado pelo nível do treinador ("outland.tier"),
+    /// respeitando guarda de 15 s para não repetir o pedido enquanto o servidor confirma.
+    /// </summary>
+    public async Task VerificarAutoOutlandTierAsync()
+    {
+        if (_wsAtual is not { State: WebSocketState.Open } ws || !Game.Recebeu || Account is not { AutoOutlandTier: true }) return;
+        if (Game.Level < Game.OutlandTierMinNivel) return;
+
+        var atual = Game.OutlandTierAtual;
+        var maximo = Game.OutlandTierMaximo;
+        if (maximo.Tier == atual.Tier || maximo.Nivel <= atual.Nivel) return;
+
+        var agora = DateTime.UtcNow;
+        if ((agora - _ultimoOutlandTierUtc).TotalSeconds < 15) return;
+
+        _ultimoOutlandTierUtc = agora;
+        await SendAsync(ws, new { t = "outland.tier", tier = maximo.Tier }, CancellationToken.None);
+        Stats.Anotar($"🌌 auto-outland: subiu para {maximo.Rotulo} (×{maximo.Mult:0.##} drops)");
+        LoggingService.Log.Info($"[conta{_slot}] Auto-Outland: subindo para {maximo.Rotulo} (tier={maximo.Tier}, nível={Game.Level}).");
     }
 
     /// <summary>A última recusa do servidor depois de entrar ("erro" com a chave) e o aviso dela.</summary>
