@@ -232,6 +232,16 @@ public sealed partial class BrowserSession
                   };
                   const TIPOS = ['NORMAL','FIRE','WATER','GRASS','ELECTRIC','ICE','FIGHTING','POISON','GROUND','FLYING','PSYCHIC','BUG','ROCK','GHOST','DRAGON','DARK','STEEL','FAIRY'];
                   const dia = TIPOS.includes(eu?.diaSazonal?.tipo) ? eu.diaSazonal.tipo : null;
+                  // Shield do Novato (jogo 1.436.0): abaixo do nível do Boost dos Atrasados do dia (loja.alvoAtrasados), o selvagem
+                  // do tipo do dia fica como num dia comum; os seus pokémon do tipo seguem 2×. A regra do jogo é escudoSazonal(nível, alvo)
+                  // (shared/dia-sazonal.mjs) e o servidor aplica; aqui o tipo do SELVAGEM deixa de contar na conta do dia sazonal.
+                  const alvoAtr = Number(eu?.loja?.alvoAtrasados);
+                  const escudo = !!dia && Number.isFinite(alvoAtr) && alvoAtr > 1 && Number(eu?.level) < alvoAtr;
+                  const sz = jogo.mod?.sazonal;
+                  if (escudo && sz?.multDanoSazonal) {
+                    const base = sz.multDanoSazonal;
+                    ctx.mod = { ...jogo.mod, sazonal: { ...sz, multDanoSazonal: (tipo, a, d) => base(tipo, a === pk.tipos ? a : [], d === pk.tipos ? d : []) } };
+                  }
                   const r = PIH.engine.analisar(pk, ctx, { ordem: 'xp', soLiberadas: true, tipoDoDia: dia });
                   // A formatação é a do painel do /hunt (ui.js): compacto em pt-BR, segundos, risco.
                   const nf = new Intl.NumberFormat('pt-BR'), nfc = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
@@ -252,7 +262,7 @@ public sealed partial class BrowserSession
                     xp: curto(l.xpPokemonH), xpTr: curto(l.xpTreinadorH), ouro: curto(l.ouroH), kph: num(l.kph), ttk: seg(l.ttk), risco: risco(l),
                     golpe: l.melhorGolpe ? `${l.melhorGolpe.nome} ×${l.efetividade.toFixed(2).replace('.', ',')}` : '',
                   }));
-                  window.__tiRes = { ok: true, linhas, total: r.total, ms: r.ms };
+                  window.__tiRes = { ok: true, linhas, total: r.total, ms: r.ms, escudo, dia };
                 } catch (e) { window.__tiRes = { ok: false, erro: String(e?.message ?? e) }; }
               })();
               return true;
@@ -285,7 +295,9 @@ public sealed partial class BrowserSession
                 if (lista.Count < RankingTopo) lista.Add(h);
                 else if (h.Outland && !lista.Any(x => x.Outland)) { lista.Add(h); break; }
             }
-            return (lista, lista.Count == 0 ? "O motor do /hunt não achou hunt liberada para este Pokémon." : "", $"motor do /hunt v{versao}");
+            var comEscudo = root.TryGetProperty("escudo", out var esc) && esc.ValueKind == JsonValueKind.True;
+            return (lista, lista.Count == 0 ? "O motor do /hunt não achou hunt liberada para este Pokémon." : "",
+                $"motor do /hunt v{versao}{(comEscudo ? " · 🛡 Shield do Novato (selvagens do tipo do dia como num dia comum)" : "")}");
         }
         return (null, "O motor do /hunt não respondeu a tempo.", "");
     }

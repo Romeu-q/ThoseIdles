@@ -301,7 +301,8 @@ public sealed class AccountGameState
             if (_eventoTermina > agora)
                 lista.Add(new BonusAtivo(_eventoPct > 0 ? $"Evento +{_eventoPct:0.#}%" : "Evento", Resta(_eventoTermina)));
             if (_guildPct > 0 && _guildRank is > 0 and <= 10) lista.Add(new BonusAtivo($"Guild {_guildRank}º (+{_guildPct:0.#}%)", null));
-            if (_atrasadosAlvo > 0 && Level > 0 && Level < _atrasadosAlvo) lista.Add(new BonusAtivo("Atrasados", null));
+            // Abaixo do nível dos Atrasados: o boost dos Atrasados e o Shield do Novato (no Dia Sazonal, o selvagem do tipo do dia fica como num dia comum).
+            if (_atrasadosAlvo > 0 && Level > 0 && Level < _atrasadosAlvo) lista.Add(new BonusAtivo($"Atrasados · 🛡 Shield do Novato (até o Nv {_atrasadosAlvo:N0})", null));
             return lista;
         }
     }
@@ -540,6 +541,8 @@ public sealed class AccountGameState
             _boostXp = _boostPokexp = _atrasadosAlvo = 0;
             if (ok && lj.TryGetProperty("boosts", out var bs) && bs.ValueKind == JsonValueKind.Object) { _boostXp = Num(bs, "xp") ?? 0; _boostPokexp = Num(bs, "pokexp") ?? 0; }
             if (ok && lj.TryGetProperty("atrasados", out var at) && at.ValueKind == JsonValueKind.Object) _atrasadosAlvo = Num(at, "alvo") ?? 0;
+            // O nível do Boost dos Atrasados do dia, como o jogo lê para o Shield do Novato (1.436.0): loja.alvoAtrasados.
+            if (ok && Num(lj, "alvoAtrasados") is { } alvoAtr && alvoAtr > 1) _atrasadosAlvo = alvoAtr;
         }
         if (est.TryGetProperty("guildBonusPct", out var gp)) _guildPct = gp.ValueKind == JsonValueKind.Number ? gp.GetDouble() : 0;
         if (Num(est, "guildBonusRank") is { } gr) _guildRank = gr;

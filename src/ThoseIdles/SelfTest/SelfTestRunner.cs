@@ -334,6 +334,7 @@ public sealed class SelfTestRunner
             await RunNovidadesJogoTestAsync();
             await RunRankingTestAsync();
             await RunRankingMotorHuntTestAsync();
+            await RunEscudoNovatoTestAsync();
             await RunEconomicaResumidaTestAsync();
             return;
         }
@@ -1437,6 +1438,46 @@ public sealed class SelfTestRunner
             finally
             {
                 BrowserSession.RankingExtensaoPasta = null;
+            }
+        });
+    }
+
+    private async Task RunEscudoNovatoTestAsync()
+    {
+        await Test("Shield do Novato (jogo 1.436.0): abaixo do nível dos Atrasados, o ranking conta o selvagem do tipo do dia como num dia comum", async () =>
+        {
+            var baseExt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThoseIdles", "extensions", "hunt");
+            var atual = File.Exists(Path.Combine(baseExt, "current.txt")) ? File.ReadAllText(Path.Combine(baseExt, "current.txt")).Trim() : null;
+            var pasta = atual is null ? null : Path.Combine(baseExt, atual);
+            if (pasta is null || !Directory.Exists(pasta)) return Pass("extensão /hunt não instalada nesta máquina: teste pulado");
+            var s = _manager[4]; // o estado (hunts reais e o Charizard) ficou do teste do motor
+            BrowserSession.RankingAutomatico = false;
+            BrowserSession.RankingExtensaoPasta = pasta;
+            BrowserSession.RankingSoHub = false;
+            async Task<(string Origem, string Assinatura, string Top)> Calcular(long alvo)
+            {
+                using var md = JsonDocument.Parse("""{"t":"estado","estado":{"level":1284,"diaSazonal":{"tipo":"WATER"},"loja":{"alvoAtrasados":""" + alvo + "}}}");
+                s.Game.Apply(md.RootElement);
+                await await _window.Dispatcher.InvokeAsync(() => s.AtualizarRankingAsync(forcar: true));
+                var l = s.MelhoresHunts;
+                return (s.RankingOrigem, string.Join(" | ", l.Select(m => $"{m.Nome} {m.XpH} {m.Risco}")), l.Count > 0 ? $"{l[0].Nome} ({l[0].XpH} XP/h, risco {l[0].Risco})" : "—");
+            }
+            try
+            {
+                var sem = await Calcular(1000);   // Nv 1284 ≥ 1000: sem Shield (o selvagem de água fica 2× mais forte)
+                var com = await Calcular(2000);   // Nv 1284 < 2000: Shield do Novato
+                var bonus = s.Game.BonusAtivos().Select(b => b.Nome).ToList();
+                var ok = !sem.Origem.Contains("Shield") && com.Origem.Contains("Shield do Novato") && sem.Assinatura != com.Assinatura
+                         && bonus.Any(b => b.Contains("Shield do Novato") && b.Contains("2.000"));
+                return ok
+                    ? Pass($"dia de WATER com um Charizard: sem Shield o 1º é {sem.Top}; com Shield (alvo Nv 2.000) o ranking muda e o 1º é {com.Top}; origem “{com.Origem}”; Resumo: “{bonus.First(b => b.Contains("Shield"))}”")
+                    : Fail($"sem=[{sem.Origem}] {sem.Assinatura} || com=[{com.Origem}] {com.Assinatura} || bonus=[{string.Join(", ", bonus)}]");
+            }
+            finally
+            {
+                BrowserSession.RankingExtensaoPasta = null;
+                using var limpa = JsonDocument.Parse("""{"t":"estado","estado":{"diaSazonal":null,"loja":{}}}""");
+                s.Game.Apply(limpa.RootElement);
             }
         });
     }

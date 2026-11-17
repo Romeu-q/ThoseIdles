@@ -367,6 +367,8 @@ XP/h, abates/h, capturas, shinies); e cinco abas:
 
 **Visual:** a interface do app (não a página do jogo) tem cara de Pokémon Gen 3 no modo escuro: fonte pixel (Pixelify Sans, licença OFL), caixas com borda de 2 px e cantos em degrau, sombra dura e o cursor ▶ vermelho nos botões.
 
+**Shield do Novato (jogo 1.436.0):** quem está abaixo do nível do Boost dos Atrasados do dia joga o Dia Sazonal protegido (o selvagem do tipo do dia fica como num dia comum). O ranking da melhor hunt leva isso em conta, a origem do cálculo mostra "🛡 Shield do Novato" e o Resumo mostra o Shield na linha de bônus.
+
 **Melhor hunt:** o Resumo mostra sempre a **melhor hunt de XP** e a **melhor da Outland**, com o degrau da conta (a escada da Outland: 40 degraus, do ×1 no Nv 150 ao ×20 no Nv 65.000, liberados pelo nível do treinador; o multiplicador vale para os drops). A aba Caçar lista o top 5 de XP e, se a melhor da Outland ficar fora dele, ela vem junto.
 
 Na faixa de abas ficam **🏥 Centro** (volta ao Centro Pokémon), **💊 Curar** (só dentro do Centro) e
