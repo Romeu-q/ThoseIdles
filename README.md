@@ -218,6 +218,28 @@ dotnet publish src/ThoseIdles/ThoseIdles.csproj -c Release -r win-x64 --self-con
 Resultado: `publish/win-x64/ThoseIdles.exe` (~127 MB, sem compressão de propósito; veja a seção 10).
 Ele ainda depende do WebView2 Runtime (seção 6).
 
+> **Compile de uma pasta de caminho curto** (ex.: `C:\ti`). Numa pasta muito funda, a compilação do XAML falha
+> em silêncio ("Filename too long" nos arquivos temporários) e sai um `.exe` que fecha ao abrir com
+> *"Não é possível localizar o recurso 'app.xaml'"* — foi o que aconteceu com o primeiro build da v1.2.4.
+> Para publicar, extraia o commit numa pasta curta e compile lá:
+>
+> ```bash
+> mkdir -p /c/ti && git archive HEAD | tar -x -C /c/ti
+> ```
+>
+> Se sobrar um `ThoseIdles_*_wpftmp.csproj` em `src/ThoseIdles` depois de um build que falhou, apague-o
+> (o `dotnet build` reclama de "mais de um arquivo de projeto").
+
+**Autotestes** (abrem o app sozinho, com um servidor de jogo falso, e gravam o resultado em JSON):
+
+```powershell
+$env:TI_SELFTEST_ONLY = 'jogo'   # só os testes do jogo (Resumo, modo econômico, Market, ranking, novidades…)
+src\ThoseIdles\bin\Debug\net10.0-windows\ThoseIdles.exe --data-root "$env:TEMP\ti-teste" --selftest "$env:TEMP\ti-teste\run.json"
+```
+
+Os testes do ranking usam a extensão /hunt instalada em `%LOCALAPPDATA%\ThoseIdles\extensions\hunt` (o app baixa
+quando a opção "Extensão /hunt" está ligada); sem ela, esses testes são pulados.
+
 **Executável pequeno, dependente do .NET 10 Desktop Runtime instalado:**
 
 ```bash
